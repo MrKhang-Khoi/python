@@ -1,6 +1,7 @@
 /* THEMIS ONLINE JUDGE v5 — COMPLETE EDITION */
 const FIREBASE_CONFIG={apiKey:"AIzaSyABZz6HoxC80-bU8vci2Ss0-j7ip3X3oZ8",authDomain:"themis-hsg.firebaseapp.com",databaseURL:"https://themis-hsg-default-rtdb.asia-southeast1.firebasedatabase.app",projectId:"themis-hsg",storageBucket:"themis-hsg.firebasestorage.app",messagingSenderId:"985711152429",appId:"1:985711152429:web:3067e536a71ddfc46897a4"};
-const TEACHER_PASS='admin@2025';
+// Mật khẩu GV xác thực qua server — KHÔNG lưu trên client
+const APPS_SCRIPT_URL='https://script.google.com/macros/s/AKfycbwfamhMGAV-_peCv2_fH6kRgPYGoJ2uKGZbK0spXAHhb3MIJ0uPpG-DZiaIm8RI7vSl/exec';
 const PRESETS={'single-int':{name:'Một số nguyên',lines:[{variables:[{name:'N',type:'integer'}]}]},'multi-int-1line':{name:'Nhiều số/dòng',lines:[{variables:[{name:'A',type:'integer'},{name:'B',type:'integer'}]}]},'array-1d':{name:'Mảng 1D',lines:[{variables:[{name:'N',type:'integer'}]},{variables:[{name:'A',type:'array',lengthRef:'N'}]}]},'array-param':{name:'Mảng+tham số',lines:[{variables:[{name:'N',type:'integer'},{name:'K',type:'integer'}]},{variables:[{name:'A',type:'array',lengthRef:'N'}]}]},'string-only':{name:'Chuỗi',lines:[{variables:[{name:'S',type:'string'}]}]},'queries':{name:'Truy vấn',lines:[{variables:[{name:'N',type:'integer'},{name:'Q',type:'integer'}]},{variables:[{name:'A',type:'array',lengthRef:'N'}]},{variables:[{name:'L',type:'integer'},{name:'R',type:'integer'}],repeatRef:'Q'}]},'graph':{name:'Đồ thị',lines:[{variables:[{name:'N',type:'integer'},{name:'M',type:'integer'}]},{variables:[{name:'U',type:'integer'},{name:'V',type:'integer'}],repeatRef:'M'}]},'matrix':{name:'Ma trận',lines:[{variables:[{name:'N',type:'integer'},{name:'M',type:'integer'}]},{variables:[{name:'row',type:'array',lengthRef:'M'}],repeatRef:'N'}]}};
 const DLIM=[{min:1,max:100,lenMin:1,lenMax:10},{min:1,max:1000000,lenMin:1,lenMax:100000}];
 
@@ -30,6 +31,25 @@ addTestCase(i,input,output,stId,stName){this.testCases.push({index:i,input,outpu
 async generateZip(){this.zip=new JSZip();const ext=this.taskName===this.taskName.toUpperCase()?['.INP','.OUT']:['.inp','.out'];for(const tc of this.testCases){const f=this.zip.folder('Test'+String(tc.index).padStart(2,'0'));f.file(this.taskName+ext[0],tc.input+'\n');f.file(this.taskName+ext[1],tc.output+'\n')}return await this.zip.generateAsync({type:'blob'})}
 async downloadZip(){const b=await this.generateZip();const s=new Blob([b],{type:'application/zip'});const u=URL.createObjectURL(s);const a=document.createElement('a');a.href=u;a.download=this.taskName+'_Tests.zip';document.body.appendChild(a);a.click();document.body.removeChild(a);setTimeout(()=>URL.revokeObjectURL(u),5000)}
 getPreviewData(){return this.testCases}clear(){this.testCases=[];this.zip=null}}
+
+// ============ GOOGLE DRIVE HELPER ============
+class DriveHelper{
+constructor(url){this.url=url}
+async uploadFile(fileName,mimeType,base64Data,metadata={}){
+const res=await fetch(this.url,{method:'POST',body:JSON.stringify({action:'upload_file',fileName,mimeType,base64Data,metadata}),headers:{'Content-Type':'text/plain'}});
+const data=await res.json();if(!data.ok)throw new Error(data.error||'Upload failed');return data}
+async deleteFile(fileId){
+const res=await fetch(this.url,{method:'POST',body:JSON.stringify({action:'delete_file',fileId}),headers:{'Content-Type':'text/plain'}});
+return await res.json()}
+async logData(sheet,row){
+const res=await fetch(this.url,{method:'POST',body:JSON.stringify({action:'log_data',sheet,row}),headers:{'Content-Type':'text/plain'}});
+return await res.json()}
+async deleteRow(sheet,key){
+const res=await fetch(this.url,{method:'POST',body:JSON.stringify({action:'delete_row',sheet,key}),headers:{'Content-Type':'text/plain'}});
+return await res.json()}
+getViewUrl(fileId){return'https://drive.google.com/file/d/'+fileId+'/preview'}
+getDownloadUrl(fileId){return'https://drive.google.com/uc?export=download&id='+fileId}
+}
 
 // ============ FIREBASE MANAGER ============
 class FirebaseManager{
@@ -76,7 +96,7 @@ _calcScore(details,subtasks,testCases){let total=0;for(const st of subtasks){con
 
 // ============ UI CONTROLLER ============
 class UIController{
-constructor(){this.pyEngine=new PyodideEngine();this.themis=new ThemisManager();this.gemini=new GeminiHelper();this.stress=new StressTester(this.pyEngine);this.fb=new FirebaseManager();this.grader=new StudentGrader(this.pyEngine);this.role=null;this.roomCode=null;this.studentName=null;this.problems=[];this.currentProbIdx=0;this.timerInterval=null;this.subtaskCounter=0;this.lineCounter=0;this.varCounter=0;this.cmMain=null;this.cmBrute=null;this.cmAiPreview=null;this.cmStudent=null;this.isGenerating=false;this.publishedCount=0;this._teacherInited=false;this._studentInited=false;this._pendingFiles=[]}
+constructor(){this.pyEngine=new PyodideEngine();this.themis=new ThemisManager();this.gemini=new GeminiHelper();this.stress=new StressTester(this.pyEngine);this.fb=new FirebaseManager();this.drive=new DriveHelper(APPS_SCRIPT_URL);this.grader=new StudentGrader(this.pyEngine);this.role=null;this.roomCode=null;this.studentName=null;this.problems=[];this.currentProbIdx=0;this.timerInterval=null;this.subtaskCounter=0;this.lineCounter=0;this.varCounter=0;this.cmMain=null;this.cmBrute=null;this.cmAiPreview=null;this.cmStudent=null;this.isGenerating=false;this.publishedCount=0;this._teacherInited=false;this._studentInited=false;this._pendingFiles=[]}
 
 init(){const $=id=>document.getElementById(id);
 // Teacher role → show login panel
@@ -88,7 +108,17 @@ $('btn-role-student').onclick=()=>this._selectRole('student');
 $('btn-back-splash-t').onclick=()=>{$('view-teacher').classList.add('hidden');$('splash').classList.remove('hidden');$('teacher-login-panel').classList.add('hidden');$('teacher-password').value='';$('teacher-login-error').textContent=''};
 $('btn-back-splash-s').onclick=()=>{$('view-student').classList.add('hidden');$('stu-login').classList.remove('hidden');$('splash').classList.remove('hidden');$('stu-login-error').textContent=''}}
 
-_teacherLogin(){const pass=document.getElementById('teacher-password').value;if(pass===TEACHER_PASS){document.getElementById('teacher-login-error').textContent='';this._selectRole('teacher')}else{document.getElementById('teacher-login-error').textContent='❌ Mật khẩu sai!';document.getElementById('teacher-password').classList.add('shake');setTimeout(()=>document.getElementById('teacher-password').classList.remove('shake'),500)}}
+async _teacherLogin(){const pass=document.getElementById('teacher-password').value;const errEl=document.getElementById('teacher-login-error');if(!pass){errEl.textContent='⚠️ Nhập mật khẩu';return}
+errEl.textContent='🔐 Đang xác thực...';
+try{
+const hash=await this._sha256(pass);
+const res=await fetch('/api/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({passwordHash:hash})});
+const data=await res.json();
+if(data.ok){this._teacherToken=data.token;sessionStorage.setItem('teacher_token',data.token);errEl.textContent='';this._selectRole('teacher')}
+else{errEl.textContent='❌ '+data.error;document.getElementById('teacher-password').classList.add('shake');setTimeout(()=>document.getElementById('teacher-password').classList.remove('shake'),500)}
+}catch(e){errEl.textContent='❌ Lỗi kết nối server'}}
+
+async _sha256(message){const msgBuffer=new TextEncoder().encode(message);const hashBuffer=await crypto.subtle.digest('SHA-256',msgBuffer);return Array.from(new Uint8Array(hashBuffer)).map(b=>b.toString(16).padStart(2,'0')).join('')}
 
 _selectRole(role){this.role=role;document.getElementById('splash').classList.add('hidden');if(role==='teacher')this._initTeacher();else this._initStudent()}
 
@@ -221,7 +251,7 @@ this._toast(`🏆 Phòng ${this.roomCode} đã tạo với ${selectedIds.length}
 }catch(e){this._toast('Lỗi: '+e.message,'error')}}
 
 // Account management (root level — no roomCode needed)
-async _addSingleStudent(){const name=document.getElementById('new-stu-name').value.trim();const pass=document.getElementById('new-stu-pass').value.trim();if(!name||!pass){this._toast('Nhập tên và mật khẩu','error');return}try{await this.fb.createAccount(name,pass);document.getElementById('new-stu-name').value='';document.getElementById('new-stu-pass').value='';this._toast(`Đã tạo: ${name}`,'success')}catch(e){this._toast('Lỗi: '+e.message,'error')}}
+async _addSingleStudent(){const name=document.getElementById('new-stu-name').value.trim();const pass=document.getElementById('new-stu-pass').value.trim();if(!name||!pass){this._toast('Nhập tên và mật khẩu','error');return}try{await this.fb.createAccount(name,pass);this.drive.logData('Accounts',[name,pass,new Date().toISOString(),'','active']).catch(()=>{});document.getElementById('new-stu-name').value='';document.getElementById('new-stu-pass').value='';this._toast(`Đã tạo: ${name}`,'success')}catch(e){this._toast('Lỗi: '+e.message,'error')}}
 
 async _addBulkStudents(){const text=document.getElementById('bulk-students').value.trim();if(!text){this._toast('Nhập danh sách','error');return}const lines=text.split('\n').filter(l=>l.trim());const list=[];for(const line of lines){const parts=line.split(',').map(s=>s.trim());if(parts.length>=2)list.push({name:parts[0],pass:parts[1]});else this._toast(`Bỏ qua: ${line}`,'error')}if(!list.length)return;try{await this.fb.createAccountsBulk(list);document.getElementById('bulk-students').value='';document.getElementById('bulk-add-form').classList.add('hidden');this._toast(`Đã tạo ${list.length} tài khoản!`,'success')}catch(e){this._toast('Lỗi: '+e.message,'error')}}
 
@@ -284,11 +314,27 @@ const preview=document.getElementById('theory-file-preview');preview.innerHTML=`
 _removeTheoryFile(){this._theoryFileData=null;const p=document.getElementById('theory-file-preview');if(p)p.innerHTML='';const f=document.getElementById('theory-file');if(f)f.value=''}
 
 async _publishTheory(){const title=document.getElementById('theory-title').value.trim();const topic=document.getElementById('theory-topic').value.trim()||'Chung';const content=document.getElementById('theory-content').value.trim();if(!title||!content){this._toast('Nhập tiêu đề và nội dung','error');return}
+const id=Date.now().toString(36);
 const data={title,topic,content,createdAt:Date.now()};
-if(this._theoryFileData){data.file={name:this._theoryFileData.name,type:this._theoryFileData.type,size:this._theoryFileData.size,data:this._theoryFileData.data}}
-try{const id=Date.now().toString(36);await this.fb.db.ref(`theories/${id}`).set(data);document.getElementById('theory-title').value='';document.getElementById('theory-topic').value='';document.getElementById('theory-content').value='';this._removeTheoryFile();this._toast('📖 Đã đăng bài lý thuyết!','success')}catch(e){this._toast('Lỗi: '+e.message,'error')}}
+// Upload file to Google Drive if present
+if(this._theoryFileData){
+this._toast('📤 Đang tải file lên Drive...','info');
+try{
+const base64Raw=this._theoryFileData.data.split(',')[1]; // strip data:xxx;base64,
+const result=await this.drive.uploadFile(this._theoryFileData.name,this._theoryFileData.type,base64Raw,{source:'theory',sourceId:id});
+data.file={name:this._theoryFileData.name,type:this._theoryFileData.type,size:this._theoryFileData.size,fileId:result.fileId,viewUrl:result.viewUrl,downloadUrl:result.downloadUrl};
+// Log to Google Sheet
+this.drive.logData('Theories',[id,title,topic,content.substring(0,200),result.fileId,this._theoryFileData.name,Math.round(this._theoryFileData.size/1024),new Date().toISOString()]).catch(()=>{});
+}catch(e){this._toast('Lỗi upload: '+e.message,'error');return}}else{
+this.drive.logData('Theories',[id,title,topic,content.substring(0,200),'','','',new Date().toISOString()]).catch(()=>{});
+}
+try{await this.fb.db.ref(`theories/${id}`).set(data);document.getElementById('theory-title').value='';document.getElementById('theory-topic').value='';document.getElementById('theory-content').value='';this._removeTheoryFile();this._toast('📖 Đã đăng bài lý thuyết!','success')}catch(e){this._toast('Lỗi: '+e.message,'error')}}
 
-async _deleteTheory(id){const theories=this._cachedTheories||{};const t=theories[id];const name=t?t.title:'bài lý thuyết';const ok=await this._confirmDialog('🗑️ Xóa lý thuyết',`Bạn chắc chắn muốn xóa <strong>${this._esc(name)}</strong>? File đính kèm cũng sẽ bị xóa.`,'Xóa','btn-danger');if(!ok)return;try{await this.fb.db.ref(`theories/${id}`).remove();this._toast('Đã xóa!','success')}catch(e){this._toast('Lỗi: '+e.message,'error')}}
+async _deleteTheory(id){const theories=this._cachedTheories||{};const t=theories[id];const name=t?t.title:'bài lý thuyết';const ok=await this._confirmDialog('🗑️ Xóa lý thuyết',`Bạn chắc chắn muốn xóa <strong>${this._esc(name)}</strong>? File đính kèm cũng sẽ bị xóa.`,'Xóa','btn-danger');if(!ok)return;
+try{
+// Delete file from Google Drive if exists
+if(t&&t.file&&t.file.fileId){this.drive.deleteFile(t.file.fileId).catch(()=>{});this.drive.deleteRow('Theories',id).catch(()=>{});}
+await this.fb.db.ref(`theories/${id}`).remove();this._toast('Đã xóa!','success')}catch(e){this._toast('Lỗi: '+e.message,'error')}}
 
 _renderTheoryList(theories,containerId,isTeacher){const c=document.getElementById(containerId);if(!c)return;const keys=Object.keys(theories||{});
 if(!keys.length){c.innerHTML='<p style="color:var(--text-muted);text-align:center;padding:40px">Chưa có bài lý thuyết nào.</p>';return}
@@ -296,30 +342,63 @@ const filter=(document.getElementById(isTeacher?'t-theory-search':'stu-theory-se
 const filtered=keys.filter(k=>{const t=theories[k];return(!filter||t.title.toLowerCase().includes(filter.toLowerCase())||t.topic.toLowerCase().includes(filter.toLowerCase()))});
 if(!filtered.length){c.innerHTML=`<p style="color:var(--text-muted);text-align:center;padding:20px">Không tìm thấy "${this._esc(filter)}"</p>`;return}
 let h='';filtered.forEach(k=>{const t=theories[k];const d=new Date(t.createdAt);
-let fileHtml='';if(t.file){const icon=t.file.name.endsWith('.pdf')?'📕':'📘';const isPdf=t.file.name.toLowerCase().endsWith('.pdf');
+let fileHtml='';if(t.file){const icon=t.file.name.endsWith('.pdf')?'📕':'📘';const hasDrive=!!t.file.fileId;const isPdf=t.file.name.toLowerCase().endsWith('.pdf');
 fileHtml=`<div class="theory-file-attach"><div class="theory-file-actions">`;
 fileHtml+=`<button class="theory-download-btn" onclick="event.stopPropagation();window._uic._downloadTheoryFile('${k}')">${icon} ${this._esc(t.file.name)} <span style="font-size:.7rem;color:var(--text-muted)">(${(t.file.size/1024).toFixed(0)}KB)</span> ⬇️ Tải xuống</button>`;
-if(isPdf){fileHtml+=`<button class="theory-view-btn" onclick="event.stopPropagation();window._uic._viewPdf('${k}')">👁️ Xem trực tiếp</button>`}
+if(hasDrive||isPdf){fileHtml+=`<button class="theory-view-btn" onclick="event.stopPropagation();window._uic._viewFile('${k}')">👁️ Xem trực tiếp</button>`}
+if(hasDrive){fileHtml+=`<button class="theory-view-btn" style="background:rgba(66,133,244,.15);color:#4285f4" onclick="event.stopPropagation();window.open('https://drive.google.com/file/d/${t.file.fileId}/view','_blank')">🔗 Mở file</button>`}
 fileHtml+=`</div></div>`}
 h+=`<div class="theory-card"><div class="theory-card-header"><div><h3 class="theory-card-title">${this._esc(t.title)}</h3><span class="oj-ex-topic">${this._esc(t.topic)}</span> <span style="font-size:.72rem;color:var(--text-muted);margin-left:8px">${d.toLocaleDateString('vi')}</span></div>${isTeacher?`<button class="btn-danger-sm" onclick="event.stopPropagation();window._uic._deleteTheory('${k}')">✕</button>`:''}</div><div class="theory-card-body">${this._esc(t.content).replace(/\n/g,'<br>')}</div>${fileHtml}</div>`});
 c.innerHTML=h}
 
-// Download file with correct filename (convert data URL to Blob)
-_downloadTheoryFile(theoryId){const theories=this._cachedTheories||this._stuTheories||{};const t=theories[theoryId];if(!t||!t.file){this._toast('Không tìm thấy file','error');return}
+// Download file — use Apps Script proxy for Drive files (correct filename), fallback to Base64
+async _downloadTheoryFile(theoryId){const theories=this._cachedTheories||this._stuTheories||{};const t=theories[theoryId];if(!t||!t.file){this._toast('Không tìm thấy file','error');return}
+// Google Drive file — fetch via Apps Script proxy
+if(t.file.fileId){
+this._toast('⬇️ Đang tải file từ Drive...','info');
+try{
+const res=await fetch(APPS_SCRIPT_URL+'?action=download&fileId='+t.file.fileId);
+const data=await res.json();
+if(!data.ok)throw new Error(data.error);
+const decoded=atob(data.base64Data);const n=decoded.length;const u8=new Uint8Array(n);for(let i=0;i<n;i++)u8[i]=decoded.charCodeAt(i);
+const blob=new Blob([u8],{type:data.mimeType||t.file.type});
+const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=t.file.name;document.body.appendChild(a);a.click();document.body.removeChild(a);
+setTimeout(()=>URL.revokeObjectURL(url),3000);
+this._toast(`✅ Đã tải: ${t.file.name}`,'success');
+}catch(e){
+// Fallback: open Drive download page
+window.open('https://drive.google.com/uc?export=download&id='+t.file.fileId,'_blank');
+this._toast('⬇️ Mở trang tải file...','info');
+}return}
+// Legacy: Base64 data in Firebase
 try{const dataUrl=t.file.data;const arr=dataUrl.split(',');const mime=arr[0].match(/:(.*?);/)[1];const bstr=atob(arr[1]);let n=bstr.length;const u8=new Uint8Array(n);while(n--)u8[n]=bstr.charCodeAt(n);
 const blob=new Blob([u8],{type:mime});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=t.file.name;document.body.appendChild(a);a.click();document.body.removeChild(a);setTimeout(()=>URL.revokeObjectURL(url),1000);
 this._toast(`⬇️ Đang tải: ${t.file.name}`,'success')}catch(e){this._toast('Lỗi tải file: '+e.message,'error')}}
 
-// View PDF inline in modal
-_viewPdf(theoryId){const theories=this._cachedTheories||this._stuTheories||{};const t=theories[theoryId];if(!t||!t.file){this._toast('Không tìm thấy file','error');return}
-let modal=document.getElementById('modal-pdf-viewer');if(!modal){modal=document.createElement('div');modal.id='modal-pdf-viewer';modal.className='modal-overlay';modal.innerHTML=`<div class="pdf-viewer-modal"><div class="pdf-viewer-header"><h3 id="pdf-viewer-title">📄 Xem PDF</h3><div class="pdf-viewer-actions"><button class="btn btn-sm btn-ghost" id="btn-pdf-download">⬇️ Tải xuống</button><button class="btn btn-sm btn-ghost" id="btn-pdf-close">✕ Đóng</button></div></div><div class="pdf-viewer-body"><iframe id="pdf-viewer-frame" style="width:100%;height:100%;border:none"></iframe></div></div>`;document.body.appendChild(modal)}
+// View file inline — supports PDF, DOCX via Google Drive viewer
+_viewFile(theoryId){const theories=this._cachedTheories||this._stuTheories||{};const t=theories[theoryId];if(!t||!t.file){this._toast('Không tìm thấy file','error');return}
+let modal=document.getElementById('modal-pdf-viewer');if(!modal){modal=document.createElement('div');modal.id='modal-pdf-viewer';modal.className='modal-overlay';modal.innerHTML=`<div class="pdf-viewer-modal"><div class="pdf-viewer-header"><h3 id="pdf-viewer-title">📄 Xem file</h3><div class="pdf-viewer-actions"><button class="btn btn-sm btn-ghost" id="btn-pdf-newtab">🔗 Mở tab mới</button><button class="btn btn-sm btn-ghost" id="btn-pdf-download">⬇️ Tải xuống</button><button class="btn btn-sm btn-ghost" id="btn-pdf-close">✕ Đóng</button></div></div><div class="pdf-viewer-body"><div id="pdf-loading" style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted);font-size:1.1rem">⏳ Đang tải file...</div><iframe id="pdf-viewer-frame" style="width:100%;height:100%;border:none;display:none"></iframe></div></div>`;document.body.appendChild(modal)}
+const frame=document.getElementById('pdf-viewer-frame');
+const loading=document.getElementById('pdf-loading');
+frame.style.display='none';loading.style.display='flex';
 document.getElementById('pdf-viewer-title').textContent=`📄 ${t.file.name}`;
-// Convert data URL to blob URL for iframe
+let frameUrl='';let driveViewUrl='';
+if(t.file.fileId){
+// Google Drive viewer — works for PDF, DOCX, XLSX, PPTX, etc.
+frameUrl='https://drive.google.com/file/d/'+t.file.fileId+'/preview';
+driveViewUrl='https://drive.google.com/file/d/'+t.file.fileId+'/view';
+}else if(t.file.data){
+// Legacy Base64
 const arr=t.file.data.split(',');const mime=arr[0].match(/:(.*?);/)[1];const bstr=atob(arr[1]);let n=bstr.length;const u8=new Uint8Array(n);while(n--)u8[n]=bstr.charCodeAt(n);
-const blob=new Blob([u8],{type:mime});const blobUrl=URL.createObjectURL(blob);
-document.getElementById('pdf-viewer-frame').src=blobUrl;
-document.getElementById('btn-pdf-close').onclick=()=>{modal.classList.add('hidden');document.getElementById('pdf-viewer-frame').src='';URL.revokeObjectURL(blobUrl)};
+frameUrl=URL.createObjectURL(new Blob([u8],{type:mime}));
+}
+frame.onload=()=>{loading.style.display='none';frame.style.display='block'};
+frame.src=frameUrl||'';
+// Timeout fallback if iframe takes too long
+setTimeout(()=>{if(loading.style.display!=='none'){loading.style.display='none';frame.style.display='block'}},5000);
+document.getElementById('btn-pdf-close').onclick=()=>{modal.classList.add('hidden');frame.src='';if(!t.file.fileId&&frameUrl)URL.revokeObjectURL(frameUrl)};
 document.getElementById('btn-pdf-download').onclick=()=>this._downloadTheoryFile(theoryId);
+document.getElementById('btn-pdf-newtab').onclick=()=>{if(driveViewUrl)window.open(driveViewUrl,'_blank');else if(frameUrl)window.open(frameUrl,'_blank')};
 modal.classList.remove('hidden')}
 
 // === Teacher exercise list with search ===
@@ -373,7 +452,7 @@ this._toast('Đã kết thúc cuộc thi!','info')}
 
 _showExerciseModal(){if(!this.themis.testCases.length){this._toast('Sinh test trước','error');return}const cfg=this.collectFormData();const desc=document.getElementById('problem-description').value||document.getElementById('ai-prompt').value||'Không có mô tả';const displayTitle=document.getElementById('problem-title').value.trim()||cfg.taskName;const topic=document.getElementById('problem-topic').value.trim()||'Không phân loại';document.getElementById('ex-title-input').value=displayTitle;document.getElementById('ex-desc-input').value=desc;document.getElementById('ex-test-count').textContent=this.themis.testCases.length;document.getElementById('ex-subtask-count').textContent=cfg.subtasks?cfg.subtasks.length:1;document.getElementById('ex-topic').value=topic;document.getElementById('modal-publish-exercise').classList.remove('hidden')}
 
-async _confirmPublishExercise(){const topic=document.getElementById('ex-topic').value.trim()||document.getElementById('problem-topic').value.trim()||'Không phân loại';const cfg=this.collectFormData();const desc=document.getElementById('ex-desc-input').value;const displayTitle=document.getElementById('ex-title-input').value.trim()||cfg.taskName;const sampleIO=this._getSampleIOs();const data={title:displayTitle,description:desc,topic:topic,fileIO:cfg.fileIO,uppercase:cfg.uppercase,taskName:cfg.taskName,timePerTest:5,subtasks:cfg.subtasks,sampleIO:sampleIO.length?sampleIO:null,testCases:this.themis.testCases.map(tc=>({input:tc.input,output:tc.output,subtaskId:tc.subtaskId}))};document.getElementById('modal-publish-exercise').classList.add('hidden');try{await this.fb.publishExercise(data);this._toast(`📚 Đã đăng bài tập: ${displayTitle} (${topic})`,'success')}catch(e){this._toast('Lỗi: '+e.message,'error')}}
+async _confirmPublishExercise(){const topic=document.getElementById('ex-topic').value.trim()||document.getElementById('problem-topic').value.trim()||'Không phân loại';const cfg=this.collectFormData();const desc=document.getElementById('ex-desc-input').value;const displayTitle=document.getElementById('ex-title-input').value.trim()||cfg.taskName;const sampleIO=this._getSampleIOs();const data={title:displayTitle,description:desc,topic:topic,fileIO:cfg.fileIO,uppercase:cfg.uppercase,taskName:cfg.taskName,timePerTest:5,subtasks:cfg.subtasks,sampleIO:sampleIO.length?sampleIO:null,testCases:this.themis.testCases.map(tc=>({input:tc.input,output:tc.output,subtaskId:tc.subtaskId}))};document.getElementById('modal-publish-exercise').classList.add('hidden');try{const exId=await this.fb.publishExercise(data);this.drive.logData('Exercises',[exId,displayTitle,topic,desc.substring(0,200),this.themis.testCases.length,cfg.subtasks?.length||1,new Date().toISOString(),cfg.fileIO?'Yes':'No',cfg.taskName]).catch(()=>{});this._toast(`📚 Đã đăng bài tập: ${displayTitle} (${topic})`,'success')}catch(e){this._toast('Lỗi: '+e.message,'error')}}
 
 async _exportCSV(){if(!this.roomCode)return;const csv=await this.fb.exportCSV(this.roomCode);if(!csv){this._toast('Chưa có dữ liệu','error');return}const b=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download=`BangDiem_${this.roomCode}.csv`;document.body.appendChild(a);a.click();document.body.removeChild(a);this._toast('Đã xuất CSV!','success')}
 
@@ -533,7 +612,11 @@ if(f.verdict==='TLE')con+=` <span style="color:#f59e0b">Quá thời gian (${f.ti
 con+=`</div>`});con+=`</div>`}
 consoleOut.innerHTML=con;
 this._showStudentResults(result,p);
-if(this._currentExercise){await this.fb.submitExerciseResult(this._currentExercise.id,this.studentName,result);statusEl.textContent='✅ Đã nộp!';this._toast(`📚 ${this._currentExercise.title}: ${result.score} điểm`,'success')}else if(this.roomCode){await this.fb.submitResult(this.roomCode,this.studentName,this.currentProbIdx,result);statusEl.textContent='✅ Đã nộp!';this._toast(`Bài ${this.currentProbIdx+1}: ${result.score} điểm`,'success')}}catch(e){
+if(this._currentExercise){await this.fb.submitExerciseResult(this._currentExercise.id,this.studentName,result);
+this.drive.logData('Submissions',[this._currentExercise.id+'_'+this.studentName+'_'+Date.now(),this.studentName,this._currentExercise.id,this._currentExercise.title,result.score,new Date().toISOString(),result.score>=100?'PERFECT':result.score>0?'PARTIAL':'ZERO']).catch(()=>{});
+statusEl.textContent='✅ Đã nộp!';this._toast(`📚 ${this._currentExercise.title}: ${result.score} điểm`,'success')}else if(this.roomCode){await this.fb.submitResult(this.roomCode,this.studentName,this.currentProbIdx,result);
+this.drive.logData('ContestResults',[this.roomCode+'_'+this.studentName+'_'+this.currentProbIdx,this.studentName,this.currentProbIdx,result.score,new Date().toISOString()]).catch(()=>{});
+statusEl.textContent='✅ Đã nộp!';this._toast(`Bài ${this.currentProbIdx+1}: ${result.score} điểm`,'success')}}catch(e){
 statusEl.textContent='';
 // Check if it's a Python error
 const errMsg=e.message;
