@@ -612,11 +612,16 @@ if(f.verdict==='TLE')con+=` <span style="color:#f59e0b">Quá thời gian (${f.ti
 con+=`</div>`});con+=`</div>`}
 consoleOut.innerHTML=con;
 this._showStudentResults(result,p);
-if(this._currentExercise){await this.fb.submitExerciseResult(this._currentExercise.id,this.studentName,result);
-this.drive.logData('Submissions',[this._currentExercise.id+'_'+this.studentName+'_'+Date.now(),this.studentName,this._currentExercise.id,this._currentExercise.title,result.score,new Date().toISOString(),result.score>=100?'PERFECT':result.score>0?'PARTIAL':'ZERO']).catch(()=>{});
-statusEl.textContent='✅ Đã nộp!';this._toast(`📚 ${this._currentExercise.title}: ${result.score} điểm`,'success')}else if(this.roomCode){await this.fb.submitResult(this.roomCode,this.studentName,this.currentProbIdx,result);
-this.drive.logData('ContestResults',[this.roomCode+'_'+this.studentName+'_'+this.currentProbIdx,this.studentName,this.currentProbIdx,result.score,new Date().toISOString()]).catch(()=>{});
-statusEl.textContent='✅ Đã nộp!';this._toast(`Bài ${this.currentProbIdx+1}: ${result.score} điểm`,'success')}}catch(e){
+// Save result — capture IDs now to prevent async race conditions
+const exRef=this._currentExercise;const roomRef=this.roomCode;const probIdx=this.currentProbIdx;
+const trimmedResult={score:result.score,details:result.details,code:(result.code||'').substring(0,10000)};
+if(exRef){try{await this.fb.submitExerciseResult(exRef.id,this.studentName,trimmedResult);
+this.drive.logData('Submissions',[exRef.id+'_'+this.studentName+'_'+Date.now(),this.studentName,exRef.id,exRef.title,result.score,new Date().toISOString(),result.score>=100?'PERFECT':result.score>0?'PARTIAL':'ZERO']).catch(()=>{});
+statusEl.textContent='✅ Đã nộp!';this._toast(`📚 ${exRef.title}: ${result.score} điểm`,'success')}catch(e){statusEl.textContent='⚠️ Lỗi lưu!';this._toast('⚠️ Lỗi lưu kết quả: '+e.message+'. Thử nộp lại!','error');console.error('Save exercise result failed:',e)}}
+else if(roomRef){try{await this.fb.submitResult(roomRef,this.studentName,probIdx,trimmedResult);
+this.drive.logData('ContestResults',[roomRef+'_'+this.studentName+'_'+probIdx,this.studentName,probIdx,result.score,new Date().toISOString()]).catch(()=>{});
+statusEl.textContent='✅ Đã nộp!';this._toast(`Bài ${probIdx+1}: ${result.score} điểm`,'success')}catch(e){statusEl.textContent='⚠️ Lỗi lưu!';this._toast('⚠️ Lỗi lưu kết quả: '+e.message,'error');console.error('Save contest result failed:',e)}}
+else{statusEl.textContent='⚠️ Không xác định bài!';this._toast('⚠️ Không tìm thấy thông tin bài tập. Quay lại danh sách và thử lại!','error')}}catch(e){
 statusEl.textContent='';
 // Check if it's a Python error
 const errMsg=e.message;
