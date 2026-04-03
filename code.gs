@@ -19,8 +19,8 @@ const CONFIG = {
   FOLDER_NAME: 'Themis_Online_Judge_Files',  // Tên folder Google Drive
   SHEET_NAME: 'Themis_Database',              // Tên Google Sheet
   // SHA-256 hash của mật khẩu giáo viên (không lưu plaintext)
-  // Đổi mật khẩu: chạy hàm updateTeacherPassword('mật_khẩu_mới') 
-  TEACHER_HASH: '82afc7b86a1a39e763dfa4eb4e1ac237e9c7d0241d88339b808b50b8c49e8b43',
+  // Đổi mật khẩu: chạy hàm setNewTeacherPassword() 
+  TEACHER_HASH: 'e7ec9cbf3dc1a42562a5e500d5768001933624ea8d8f3ea0602092c42d4bc857',
 };
 
 // ===== SETUP (CHẠY 1 LẦN ĐẦU) =====
@@ -118,14 +118,22 @@ function _handleTeacherAuth(passwordHash) {
 
 /**
  * Đổi mật khẩu giáo viên — chạy trong Apps Script editor
- * Cách dùng: chạy hàm updateTeacherPassword('mật_khẩu_mới_của_bạn')
+ * Bước 1: Sửa mật khẩu mới trong hàm setNewTeacherPassword() bên dưới
+ * Bước 2: Chọn hàm setNewTeacherPassword → nhấn ▶ Run
+ * Bước 3: Copy hash từ log → paste vào CONFIG.TEACHER_HASH
+ * Bước 4: Deploy lại Web App (phiên bản mới)
  */
-function updateTeacherPassword(newPassword) {
-  if (!newPassword) { Logger.log('❌ Nhập mật khẩu mới!'); return; }
-  const hash = _sha256(newPassword);
-  Logger.log('✅ Hash mới: ' + hash);
-  Logger.log('👉 Copy hash trên → paste vào CONFIG.TEACHER_HASH');
-  Logger.log('👉 Sau đó Deploy lại Web App (version mới)');
+function setNewTeacherPassword() {
+  // 👇👇👇 SỬa MẬT KHẨU MỚI TẠI ĐÂY 👇👇👇
+  const NEW_PASSWORD = 'admin@2025';
+  // 👆👆👆 SỬa MẬT KHẨU MỚI TẠI ĐÂY 👆👆👆
+  
+  const hash = _sha256(NEW_PASSWORD);
+  Logger.log('✅ Hash cho mật khẩu "' + NEW_PASSWORD + '":');
+  Logger.log(hash);
+  Logger.log('');
+  Logger.log('👉 Paste hash này vào CONFIG.TEACHER_HASH');
+  Logger.log('👉 Sau đó Deploy lại Web App (phiên bản mới)');
 }
 
 function _sha256(text) {
