@@ -21,6 +21,7 @@
     <!-- Firebase -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -36,7 +37,6 @@
                 <button class="splash-btn teacher" id="btn-role-teacher"><span class="splash-btn-icon">🧑‍🏫</span><span class="splash-btn-label">Giáo viên</span><span class="splash-btn-hint">Soạn đề • Tạo phòng thi • Chấm bài</span></button>
                 <button class="splash-btn student" id="btn-role-student"><span class="splash-btn-icon">🧑‍🎓</span><span class="splash-btn-label">Học sinh</span><span class="splash-btn-hint">Tham gia phòng thi • Nộp bài • Xem điểm</span></button>
             </div>
-            <!-- Teacher Login Panel -->
             <div id="teacher-login-panel" class="hidden" style="margin-top:20px">
                 <div class="form-group"><label>🔒 Mật khẩu quản trị</label><input type="password" id="teacher-password" placeholder="Nhập mật khẩu..." style="text-align:center;font-size:1.1rem"></div>
                 <button class="btn btn-accent" id="btn-teacher-login" style="width:100%;justify-content:center;padding:12px">🔓 Đăng nhập</button>
@@ -62,6 +62,7 @@
                 </div>
             </div>
         </div>
+        <!-- Header -->
         <header id="app-header">
             <div class="container">
                 <div class="header-content">
@@ -76,126 +77,204 @@
                 </div>
             </div>
         </header>
+        <!-- ===== TEACHER TAB BAR ===== -->
+        <nav class="t-tabbar">
+            <div class="container t-tabbar-inner">
+                <button class="t-tab active" data-ttab="compose">📝 Soạn Đề</button>
+                <button class="t-tab" data-ttab="exercises">📚 Bài Tập</button>
+                <button class="t-tab" data-ttab="theory">📖 Lý Thuyết</button>
+                <button class="t-tab" data-ttab="students">👥 Học Sinh</button>
+                <button class="t-tab" data-ttab="stats">📊 Thống Kê</button>
+                <button class="t-tab" data-ttab="contest">🏆 Phòng Thi</button>
+            </div>
+        </nav>
         <main class="container">
-            <!-- CARD 1: CODE + AI + STRESS -->
-            <section class="card card-full" id="section-code">
-                <div class="card-header">
-                    <div class="card-title"><span class="card-step">1</span><h2>Code Python Đáp Án</h2></div>
-                    <div class="header-actions">
-                        <div class="tab-group" id="code-tabs">
-                            <button class="tab-btn active" data-tab="tab-code">📝 Code</button>
-                            <button class="tab-btn" data-tab="tab-ai">🤖 AI</button>
-                            <button class="tab-btn" data-tab="tab-stress">🔬 Verify</button>
-                        </div>
-                        <label class="toggle-label"><input type="checkbox" id="chk-file-io"> File I/O</label>
+            <!-- ===== TAB 1: SOẠN ĐỀ ===== -->
+            <div id="t-tab-compose" class="t-tab-panel">
+                <!-- ===== STEP 1: ĐỀ BÀI (Problem Statement) — ĐẦU TIÊN, RỘNG NHẤT ===== -->
+                <section class="card card-full" id="section-problem">
+                    <div class="card-header">
+                        <div class="card-title"><span class="card-step">1</span><h2>Soạn Đề Bài</h2></div>
                     </div>
-                </div>
-                <div class="card-body">
-                    <div class="tab-panel active" id="tab-code"><p class="card-hint" id="io-hint">Code dùng <code>input()</code> và <code>print()</code></p><div id="editor-main-wrap" class="cm-wrap"></div></div>
-                    <div class="tab-panel" id="tab-ai">
-                        <div class="ai-section">
-                            <div class="ai-key-row"><div class="form-group" style="flex:1;margin-bottom:0"><label>🔑 Gemini API Key</label><input type="password" id="ai-api-key" placeholder="AIzaSy..."></div><a href="https://aistudio.google.com/apikey" target="_blank" class="btn btn-sm btn-ghost" style="margin-top:20px">🔗 Lấy key</a></div>
-                            <div class="form-group"><label>📋 Mô tả đề bài</label><textarea id="ai-prompt" rows="5" class="ai-textarea" placeholder="VD: Cho N, kiểm tra N có phải số nguyên tố không..."></textarea></div>
-                            <div class="ai-actions"><button class="btn btn-accent" id="btn-ai-generate">🪄 Sinh Code</button><button class="btn btn-ghost btn-sm" id="btn-ai-brute">🐢 Brute Force</button><span class="ai-status" id="ai-status"></span></div>
-                            <div class="ai-preview hidden" id="ai-preview"><div class="ai-preview-header"><label>💡 Code gợi ý</label><div><button class="btn btn-success btn-sm" id="btn-ai-use">✅ Dùng Code Chính</button><button class="btn btn-ghost btn-sm" id="btn-ai-use-brute">📋 Dùng Brute</button></div></div><div id="editor-ai-preview" class="cm-wrap"></div></div>
-                        </div>
-                    </div>
-                    <div class="tab-panel" id="tab-stress">
-                        <div class="stress-section">
-                            <p class="card-hint">Nhập code <strong>brute force</strong> để so sánh với Code Chính</p>
-                            <div id="editor-brute-wrap" class="cm-wrap"></div>
-                            <div class="stress-config"><div class="form-group" style="margin-bottom:0"><label>Số test</label><input type="number" id="stress-count" value="50" min="10" max="500" style="width:100px"></div><div class="form-group" style="margin-bottom:0"><label>Max</label><input type="number" id="stress-max-val" value="100" min="5" max="10000" style="width:100px"></div><button class="btn btn-accent" id="btn-stress-run">🔬 Kiểm Tra</button></div>
-                            <div class="stress-progress hidden" id="stress-progress"><span class="progress-spinner"></span><span id="stress-progress-text">Đang khởi tạo...</span></div>
-                            <div class="stress-results hidden" id="stress-results"></div>
-                        </div>
-                    </div>
-                </div>
-            </section>
-            <!-- 2 COL: CONFIG + SUBTASKS -->
-            <div class="grid-2col">
-                <section class="card" id="section-config">
-                    <div class="card-header"><div class="card-title"><span class="card-step">2</span><h2>Cấu Hình</h2></div></div>
                     <div class="card-body">
-                        <div class="form-group"><label>Tên bài tập</label><div class="input-with-toggle"><input type="text" id="task-name" value="BAITAP" placeholder="TONGUOC"><label class="toggle-label compact"><input type="checkbox" id="chk-uppercase" checked> IN HOA</label></div></div>
-                        <div class="form-group"><label>Tổng số test</label><input type="number" id="total-tests" value="20" min="1" max="200"></div>
-                        <div class="form-group"><label>Đề bài (hiển thị cho HS) <span class="label-hint">(sẽ dùng khi đăng lên phòng thi)</span></label><textarea id="problem-description" rows="3" class="ai-textarea" placeholder="Mô tả đề bài cho học sinh xem..."></textarea></div>
+                        <div class="form-group" style="margin-bottom:12px"><label>📌 Tên đề bài <span class="label-hint">(tên hiển thị cho học sinh, VD: Tính tổng ước số)</span></label><input type="text" id="problem-title" placeholder="VD: Tính tổng ước số, Kiểm tra số nguyên tố, ..." style="font-size:1.05rem;font-weight:600"></div>
+                        <div class="grid-2col" style="margin-bottom:14px">
+                            <div class="form-group" style="margin-bottom:0"><label>📁 Tên file <span class="label-hint">(tên file .INP/.OUT cho Themis)</span></label><div class="input-with-toggle"><input type="text" id="task-name" value="BAITAP" placeholder="TONGUOC"><label class="toggle-label compact"><input type="checkbox" id="chk-uppercase" checked> IN HOA</label></div></div>
+                            <div class="form-group" style="margin-bottom:0"><label>🏷️ Chủ đề</label><input type="text" id="problem-topic" placeholder="VD: Số học, Mảng, Chuỗi, Đệ quy, Sắp xếp, ..."></div>
+                        </div>
+                        <div class="grid-2col" style="margin-bottom:14px">
+                            <div style="display:flex;gap:8px;align-items:flex-end">
+                                <div class="form-group" style="flex:1;margin-bottom:0"><label>Tổng số test</label><input type="number" id="total-tests" value="20" min="1" max="200"></div>
+                                <label class="toggle-label" style="margin-bottom:1px"><input type="checkbox" id="chk-file-io"> File I/O</label>
+                            </div>
+                            <div></div>
+                        </div>
+                        <div class="form-group"><label>📋 Nội dung đề bài <span class="label-hint">(mô tả chi tiết, hiển thị cho học sinh khi làm bài)</span></label><textarea id="problem-description" rows="8" class="ai-textarea" placeholder="Cho số nguyên dương N (1 ≤ N ≤ 10⁶).&#10;&#10;Yêu cầu: In ra tổng các ước của N.&#10;&#10;Input:&#10;- Dòng đầu tiên chứa số nguyên N.&#10;&#10;Output:&#10;- In ra tổng các ước của N."></textarea></div>
+                        <div class="form-group">
+                            <label>📝 Ví dụ Input / Output <span class="label-hint">(hiển thị cho học sinh tham khảo)</span></label>
+                            <div id="sample-io-container"></div>
+                            <button type="button" class="btn btn-sm btn-ghost" id="btn-add-sample-io" style="margin-top:8px">＋ Thêm ví dụ</button>
+                        </div>
                     </div>
                 </section>
-                <section class="card" id="section-subtasks">
-                    <div class="card-header"><div class="card-title"><span class="card-step">3</span><h2>Subtasks</h2></div><button class="btn btn-sm btn-accent" id="btn-add-subtask">＋ Thêm</button></div>
-                    <div class="card-body"><div id="subtasks-container"></div><div class="subtask-total" id="subtask-total"><span>Tổng: </span><strong id="subtask-total-pct">100%</strong><span id="subtask-total-icon">✅</span></div></div>
+
+                <!-- ===== STEP 2: CODE ĐÁP ÁN ===== -->
+                <section class="card card-full" id="section-code">
+                    <div class="card-header">
+                        <div class="card-title"><span class="card-step">2</span><h2>Code Đáp Án</h2></div>
+                        <div class="header-actions">
+                            <div class="tab-group" id="code-tabs">
+                                <button class="tab-btn active" data-tab="tab-code">📝 Code</button>
+                                <button class="tab-btn" data-tab="tab-ai">🤖 AI</button>
+                                <button class="tab-btn" data-tab="tab-stress">🔬 Verify</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="tab-panel active" id="tab-code"><p class="card-hint" id="io-hint">Code dùng <code>input()</code> và <code>print()</code></p><div id="editor-main-wrap" class="cm-wrap"></div></div>
+                        <div class="tab-panel" id="tab-ai">
+                            <div class="ai-section">
+                                <div class="ai-key-row"><div class="form-group" style="flex:1;margin-bottom:0"><label>🔑 Gemini API Key</label><input type="password" id="ai-api-key" placeholder="AIzaSy..."></div><a href="https://aistudio.google.com/apikey" target="_blank" class="btn btn-sm btn-ghost" style="margin-top:20px">🔗 Lấy key</a></div>
+                                <div class="form-group"><label>📋 Mô tả đề bài</label><textarea id="ai-prompt" rows="5" class="ai-textarea" placeholder="VD: Cho N, kiểm tra N có phải số nguyên tố không..."></textarea></div>
+                                <div class="ai-actions"><button class="btn btn-accent" id="btn-ai-generate">🪄 Sinh Code</button><button class="btn btn-ghost btn-sm" id="btn-ai-brute">🐢 Brute Force</button><span class="ai-status" id="ai-status"></span></div>
+                                <div class="ai-preview hidden" id="ai-preview"><div class="ai-preview-header"><label>💡 Code gợi ý</label><div><button class="btn btn-success btn-sm" id="btn-ai-use">✅ Dùng Code Chính</button><button class="btn btn-ghost btn-sm" id="btn-ai-use-brute">📋 Dùng Brute</button></div></div><div id="editor-ai-preview" class="cm-wrap"></div></div>
+                            </div>
+                        </div>
+                        <div class="tab-panel" id="tab-stress">
+                            <div class="stress-section">
+                                <p class="card-hint">Nhập code <strong>brute force</strong> để so sánh với Code Chính</p>
+                                <div id="editor-brute-wrap" class="cm-wrap"></div>
+                                <div class="stress-config"><div class="form-group" style="margin-bottom:0"><label>Số test</label><input type="number" id="stress-count" value="50" min="10" max="500" style="width:100px"></div><div class="form-group" style="margin-bottom:0"><label>Max</label><input type="number" id="stress-max-val" value="100" min="5" max="10000" style="width:100px"></div><button class="btn btn-accent" id="btn-stress-run">🔬 Kiểm Tra</button></div>
+                                <div class="stress-progress hidden" id="stress-progress"><span class="progress-spinner"></span><span id="stress-progress-text">Đang khởi tạo...</span></div>
+                                <div class="stress-results hidden" id="stress-results"></div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ===== STEP 3: CẤU HÌNH TEST ===== -->
+                <div class="grid-2col">
+                    <section class="card" id="section-subtasks">
+                        <div class="card-header"><div class="card-title"><span class="card-step">3</span><h2>Subtasks</h2></div><button class="btn btn-sm btn-accent" id="btn-add-subtask">＋ Thêm</button></div>
+                        <div class="card-body"><div id="subtasks-container"></div><div class="subtask-total" id="subtask-total"><span>Tổng: </span><strong id="subtask-total-pct">100%</strong><span id="subtask-total-icon">✅</span></div></div>
+                    </section>
+                    <section class="card" id="section-input-format">
+                        <div class="card-header"><div class="card-title"><span class="card-step">4</span><h2>Dữ Liệu Vào</h2></div>
+                            <div class="header-actions"><select id="preset-select" class="preset-dropdown"><option value="">— Mẫu nhanh —</option><option value="single-int">🔢 Một số nguyên</option><option value="multi-int-1line">🔢 Nhiều số / dòng</option><option value="array-1d">📊 Mảng 1D</option><option value="array-param">📊 Mảng + tham số</option><option value="string-only">📝 Chuỗi</option><option value="queries">❓ Truy vấn</option><option value="graph">🌳 Đồ thị</option><option value="matrix">🔲 Ma trận</option></select><button class="btn btn-sm btn-accent" id="btn-add-line">＋ Dòng</button></div>
+                        </div>
+                        <div class="card-body"><div id="input-lines-container"></div><div id="no-lines-msg" class="empty-state"><div class="empty-icon">📝</div><p>Chọn mẫu hoặc thêm dòng</p></div></div>
+                    </section>
+                </div>
+
+                <!-- CARD 5: GENERATE -->
+                <section class="card card-full" id="section-generate">
+                    <div class="card-body">
+                        <div class="generate-area">
+                            <button class="btn btn-generate" id="btn-generate" disabled><span class="btn-generate-icon">🚀</span><span>Sinh Test</span></button>
+                            <p class="generate-hint" id="generate-hint">Nhập code + cấu hình</p>
+                        </div>
+                        <div class="progress-area hidden" id="progress-area"><div class="progress-status"><span class="progress-spinner"></span><span id="progress-text">...</span></div><div class="progress-bar-track"><div class="progress-bar" id="progress-bar" style="width:0%"></div></div><span class="progress-percent" id="progress-percent">0%</span></div>
+                        <div class="error-area hidden" id="error-area"><div class="error-content"><span>⚠️</span><p id="error-text"></p></div><button class="btn btn-sm btn-ghost" id="btn-dismiss-error">Đóng</button></div>
+                    </div>
+                </section>
+                <!-- CARD 6: PREVIEW -->
+                <section class="card card-full hidden" id="section-preview">
+                    <div class="card-header">
+                        <div class="card-title"><span class="card-step success">✓</span><h2>Kết Quả</h2></div>
+                        <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-success" id="btn-download">📥 ZIP</button><button class="btn btn-accent" id="btn-publish-exercise">📚 Đăng Bài Tập</button></div>
+                    </div>
+                    <div class="card-body"><div class="preview-stats" id="preview-stats"></div><div class="preview-table-wrap"><table class="preview-table"><thead><tr><th>#</th><th>Subtask</th><th>Input</th><th>Output</th></tr></thead><tbody id="preview-tbody"></tbody></table></div></div>
                 </section>
             </div>
-            <!-- CARD 4: INPUT FORMAT -->
-            <section class="card card-full" id="section-input-format">
-                <div class="card-header"><div class="card-title"><span class="card-step">4</span><h2>Dữ Liệu Vào</h2></div>
-                    <div class="header-actions"><select id="preset-select" class="preset-dropdown"><option value="">— Mẫu nhanh —</option><option value="single-int">🔢 Một số nguyên</option><option value="multi-int-1line">🔢 Nhiều số / dòng</option><option value="array-1d">📊 Mảng 1D</option><option value="array-param">📊 Mảng + tham số</option><option value="string-only">📝 Chuỗi</option><option value="queries">❓ Truy vấn</option><option value="graph">🌳 Đồ thị</option><option value="matrix">🔲 Ma trận</option></select><button class="btn btn-sm btn-accent" id="btn-add-line">＋ Dòng</button></div>
-                </div>
-                <div class="card-body"><div id="input-lines-container"></div><div id="no-lines-msg" class="empty-state"><div class="empty-icon">📝</div><p>Chọn mẫu hoặc thêm dòng</p></div></div>
-            </section>
-            <!-- CARD 5: GENERATE -->
-            <section class="card card-full" id="section-generate">
-                <div class="card-body">
-                    <div class="generate-area">
-                        <button class="btn btn-generate" id="btn-generate" disabled><span class="btn-generate-icon">🚀</span><span>Sinh Test</span></button>
-                        <p class="generate-hint" id="generate-hint">Nhập code + cấu hình</p>
+
+            <!-- ===== TAB 2: QUẢN LÝ BÀI TẬP ===== -->
+            <div id="t-tab-exercises" class="t-tab-panel hidden">
+                <div class="tab-panel-header">
+                    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+                        <div><h2 class="tab-panel-title">📚 Quản Lý Bài Tập Đã Giao</h2><p class="tab-panel-sub">Xem, chỉnh sửa, hoặc xóa bài tập luyện đã đăng</p></div>
+                        <input type="text" id="t-exercise-search" class="search-input" placeholder="🔍 Tìm theo tên hoặc chủ đề...">
                     </div>
-                    <div class="progress-area hidden" id="progress-area"><div class="progress-status"><span class="progress-spinner"></span><span id="progress-text">...</span></div><div class="progress-bar-track"><div class="progress-bar" id="progress-bar" style="width:0%"></div></div><span class="progress-percent" id="progress-percent">0%</span></div>
-                    <div class="error-area hidden" id="error-area"><div class="error-content"><span>⚠️</span><p id="error-text"></p></div><button class="btn btn-sm btn-ghost" id="btn-dismiss-error">Đóng</button></div>
                 </div>
-            </section>
-            <!-- CARD 6: PREVIEW -->
-            <section class="card card-full hidden" id="section-preview">
-                <div class="card-header">
-                    <div class="card-title"><span class="card-step success">✓</span><h2>Kết Quả</h2></div>
-                    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-success" id="btn-download">📥 ZIP</button><button class="btn btn-accent" id="btn-publish-exercise">📚 Đăng Bài Tập</button><button class="btn btn-accent" id="btn-publish-problem">📡 Đăng Lên Phòng Thi</button></div>
+                <div id="t-exercise-list"><p style="color:var(--text-muted);text-align:center;padding:40px">Đang tải...</p></div>
+            </div>
+
+            <!-- ===== TAB: LÝ THUYẾT ===== -->
+            <div id="t-tab-theory" class="t-tab-panel hidden">
+                <div class="tab-panel-header">
+                    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+                        <div><h2 class="tab-panel-title">📖 Tài Liệu Lý Thuyết</h2><p class="tab-panel-sub">Đăng bài lý thuyết, kiến thức để học sinh ôn tập trước khi làm bài</p></div>
+                        <input type="text" id="t-theory-search" class="search-input" placeholder="🔍 Tìm lý thuyết...">
+                    </div>
                 </div>
-                <div class="card-body"><div class="preview-stats" id="preview-stats"></div><div class="preview-table-wrap"><table class="preview-table"><thead><tr><th>#</th><th>Subtask</th><th>Input</th><th>Output</th></tr></thead><tbody id="preview-tbody"></tbody></table></div></div>
-            </section>
-            <!-- CARD 7: LEADERBOARD -->
-            <section class="card card-full hidden" id="section-leaderboard-teacher">
-                <div class="card-header">
-                    <div class="card-title"><span class="card-step">🏆</span><h2>Bảng Xếp Hạng</h2></div>
-                    <button class="btn btn-ghost btn-sm" id="btn-export-csv">📥 Xuất CSV</button>
-                </div>
-                <div class="card-body"><div id="t-leaderboard-body"></div></div>
-            </section>
-            <!-- CARD 8: QUẢN LÝ TÀI KHOẢN HS (luôn hiển thị) -->
-            <section class="card card-full" id="section-accounts">
-                <div class="card-header">
-                    <div class="card-title"><span class="card-step">👥</span><h2>Tài Khoản Học Sinh</h2></div>
-                    <div style="display:flex;gap:6px"><button class="btn btn-sm btn-accent" id="btn-add-student">＋ Thêm HS</button><button class="btn btn-sm btn-ghost" id="btn-bulk-add">📋 Thêm hàng loạt</button></div>
-                </div>
-                <div class="card-body">
-                    <div id="add-student-form" class="hidden" style="margin-bottom:14px;padding:12px 16px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:var(--radius-sm)">
-                        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
-                            <div class="form-group" style="flex:1;margin-bottom:0;min-width:140px"><label>Họ tên (=Username)</label><input type="text" id="new-stu-name" placeholder="NguyenVanA"></div>
-                            <div class="form-group" style="flex:1;margin-bottom:0;min-width:140px"><label>Mật khẩu</label><input type="text" id="new-stu-pass" placeholder="123456"></div>
-                            <button class="btn btn-success btn-sm" id="btn-save-student">✅ Lưu</button>
-                            <button class="btn btn-ghost btn-sm" id="btn-cancel-add">Hủy</button>
+                <div class="card" style="margin-bottom:16px">
+                    <div class="card-header"><div class="card-title"><h2>✍️ Đăng Bài Mới</h2></div></div>
+                    <div class="card-body">
+                        <div class="grid-2col" style="margin-bottom:10px">
+                            <div class="form-group" style="margin-bottom:0"><label>Tiêu đề</label><input type="text" id="theory-title" placeholder="VD: Thuật toán sắp xếp nổi bọt"></div>
+                            <div class="form-group" style="margin-bottom:0"><label>Chủ đề</label><input type="text" id="theory-topic" placeholder="VD: Sắp xếp, Đệ quy, ..."></div>
                         </div>
+                        <div class="form-group"><label>📋 Nội dung lý thuyết</label><textarea id="theory-content" rows="10" class="ai-textarea" placeholder="Viết nội dung lý thuyết ở đây...&#10;&#10;Có thể bao gồm:&#10;- Khái niệm cơ bản&#10;- Công thức&#10;- Ví dụ minh họa&#10;- Code mẫu"></textarea></div>
+                        <div class="form-group"><label>📎 File đính kèm <span class="label-hint">(PDF, Word — tối đa 5MB)</span></label>
+                            <div class="file-upload-zone" id="theory-file-zone">
+                                <input type="file" id="theory-file" accept=".pdf,.doc,.docx" hidden>
+                                <button type="button" class="btn btn-sm btn-ghost" id="btn-choose-theory-file">📁 Chọn file PDF/Word</button>
+                                <span class="file-zone-hint">hoặc kéo thả vào đây</span>
+                            </div>
+                            <div id="theory-file-preview" class="file-preview-list"></div>
+                        </div>
+                        <button class="btn btn-accent" id="btn-publish-theory">📖 Đăng Lý Thuyết</button>
                     </div>
-                    <div id="bulk-add-form" class="hidden" style="margin-bottom:14px;padding:12px 16px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:var(--radius-sm)">
-                        <div class="form-group" style="margin-bottom:8px"><label>Nhập danh sách <span class="label-hint">(mỗi dòng: Họtên,Mậtkhẩu)</span></label><textarea id="bulk-students" rows="5" class="ai-textarea" placeholder="NguyenVanA,123456&#10;TranThiB,abcdef&#10;LeVanC,111111"></textarea></div>
-                        <div style="display:flex;gap:6px"><button class="btn btn-success btn-sm" id="btn-save-bulk">✅ Tạo tất cả</button><button class="btn btn-ghost btn-sm" id="btn-cancel-bulk">Hủy</button></div>
+                </div>
+                <div id="t-theory-list"><p style="color:var(--text-muted);text-align:center;padding:40px">Đang tải...</p></div>
+            </div>
+
+            <!-- ===== TAB 3: QUẢN LÝ HỌC SINH ===== -->
+            <div id="t-tab-students" class="t-tab-panel hidden">
+                <div class="tab-panel-header">
+                    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+                        <div><h2 class="tab-panel-title">👥 Tài Khoản Học Sinh</h2><p class="tab-panel-sub">Quản lý tài khoản đăng nhập cho học sinh</p></div>
+                        <div style="display:flex;gap:6px"><button class="btn btn-sm btn-accent" id="btn-add-student">＋ Thêm HS</button><button class="btn btn-sm btn-ghost" id="btn-bulk-add">📋 Thêm hàng loạt</button></div>
                     </div>
-                    <div id="account-list"><p style="color:var(--text-muted);text-align:center;padding:16px">Đang tải...</p></div>
                 </div>
-            </section>
-            <!-- CARD 9: QUẢN LÝ BÀI TẬP ĐÃ GIAO -->
-            <section class="card card-full" id="section-exercises-mgmt">
-                <div class="card-header">
-                    <div class="card-title"><span class="card-step">📚</span><h2>Bài Tập Đã Giao</h2></div>
+                <div id="add-student-form" class="hidden" style="margin-bottom:14px;padding:12px 16px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:var(--radius-sm)">
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+                        <div class="form-group" style="flex:1;margin-bottom:0;min-width:140px"><label>Họ tên (=Username)</label><input type="text" id="new-stu-name" placeholder="NguyenVanA"></div>
+                        <div class="form-group" style="flex:1;margin-bottom:0;min-width:140px"><label>Mật khẩu</label><input type="text" id="new-stu-pass" placeholder="123456"></div>
+                        <button class="btn btn-success btn-sm" id="btn-save-student">✅ Lưu</button>
+                        <button class="btn btn-ghost btn-sm" id="btn-cancel-add">Hủy</button>
+                    </div>
                 </div>
-                <div class="card-body"><div id="t-exercise-list"><p style="color:var(--text-muted);text-align:center;padding:16px">Đang tải...</p></div></div>
-            </section>
-            <!-- CARD 10: THEO DÕI TIẾN ĐỘ HỌC SINH -->
-            <section class="card card-full" id="section-progress">
-                <div class="card-header">
-                    <div class="card-title"><span class="card-step">📊</span><h2>Tiến Độ Học Sinh</h2></div>
+                <div id="bulk-add-form" class="hidden" style="margin-bottom:14px;padding:12px 16px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:var(--radius-sm)">
+                    <div class="form-group" style="margin-bottom:8px"><label>Nhập danh sách <span class="label-hint">(mỗi dòng: Họtên,Mậtkhẩu)</span></label><textarea id="bulk-students" rows="5" class="ai-textarea" placeholder="NguyenVanA,123456&#10;TranThiB,abcdef&#10;LeVanC,111111"></textarea></div>
+                    <div style="display:flex;gap:6px"><button class="btn btn-success btn-sm" id="btn-save-bulk">✅ Tạo tất cả</button><button class="btn btn-ghost btn-sm" id="btn-cancel-bulk">Hủy</button></div>
                 </div>
-                <div class="card-body"><div id="t-progress-table"><p style="color:var(--text-muted);text-align:center;padding:16px">Đang tải...</p></div></div>
-            </section>
+                <div id="account-list"><p style="color:var(--text-muted);text-align:center;padding:16px">Đang tải...</p></div>
+            </div>
+
+            <!-- ===== TAB: THỐNG KÊ ===== -->
+            <div id="t-tab-stats" class="t-tab-panel hidden">
+                <div class="tab-panel-header">
+                    <h2 class="tab-panel-title">📊 Tiến Độ Học Sinh</h2>
+                    <p class="tab-panel-sub">Bảng tổng hợp điểm theo bài tập và học sinh</p>
+                </div>
+                <div id="t-progress-table"><p style="color:var(--text-muted);text-align:center;padding:40px">Đang tải...</p></div>
+            </div>
+
+            <!-- ===== TAB 5: PHÒNG THI ===== -->
+            <div id="t-tab-contest" class="t-tab-panel hidden">
+                <div class="tab-panel-header">
+                    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+                        <div><h2 class="tab-panel-title">🏆 Phòng Thi & Bảng Xếp Hạng</h2><p class="tab-panel-sub">Quản lý phòng thi và xem kết quả</p></div>
+                        <button class="btn btn-ghost btn-sm" id="btn-export-csv">📥 Xuất CSV</button>
+                    </div>
+                </div>
+                <!-- Contest problems list -->
+                <div id="t-contest-problems" class="hidden" style="margin-bottom:20px">
+                    <h3 style="font-size:.92rem;font-weight:700;margin-bottom:10px;color:var(--text-secondary)">📋 Đề thi đã đăng</h3>
+                    <div id="t-contest-problem-list"></div>
+                </div>
+                <div id="t-leaderboard-body"><p style="color:var(--text-muted);text-align:center;padding:40px">Tạo phòng thi và thêm đề bài để bắt đầu.</p></div>
+            </div>
         </main>
     </div>
 
@@ -208,20 +287,21 @@
                 <h2 class="splash-title" style="font-size:1.5rem">Đăng Nhập</h2>
                 <p class="splash-sub">Dùng tài khoản giáo viên đã cấp</p>
                 <div class="form-group" style="margin-top:16px"><label>Tên đăng nhập</label><input type="text" id="stu-name" placeholder="NguyenVanA"></div>
-                <div class="form-group"><label>Mật khẩu</label><input type="password" id="stu-password" placeholder="••••••"></div>
+                <div class="form-group"><label>Mật khẩu</label><div class="password-input-wrap"><input type="password" id="stu-password" placeholder="••••••"><button type="button" class="btn-toggle-pass" id="btn-toggle-pass" title="Hiện/ẩn mật khẩu">👁</button></div></div>
                 <button class="btn btn-accent" id="btn-stu-login" style="width:100%;justify-content:center;padding:14px">🔓 Đăng Nhập</button>
                 <p id="stu-login-error" class="splash-sub" style="color:var(--danger);margin-top:6px"></p>
                 <button class="btn btn-ghost btn-sm" id="btn-back-splash-s" style="width:100%;justify-content:center;margin-top:8px">↩ Quay lại</button>
             </div>
         </div>
 
-        <!-- STEP 2: DASHBOARD (HackerRank-style nav + content) -->
+        <!-- STEP 2: DASHBOARD -->
         <div id="stu-dashboard" class="stu-screen hidden">
             <nav class="oj-navbar">
                 <div class="oj-nav-left">
                     <span class="oj-nav-logo">⚡</span>
                     <span class="oj-nav-title">Themis OJ</span>
-                    <button class="oj-nav-tab active" id="nav-tab-exercises" data-tab="exercises">📚 Bài Tập</button>
+                    <button class="oj-nav-tab active" id="nav-tab-exercises" data-tab="exercises">📚 Bài Tập <span id="stu-notif-badge" class="notif-badge hidden">0</span></button>
+                    <button class="oj-nav-tab" id="nav-tab-theory" data-tab="theory">📖 Lý Thuyết</button>
                     <button class="oj-nav-tab" id="nav-tab-contest" data-tab="contest">🏆 Kỳ Thi</button>
                 </div>
                 <div class="oj-nav-right">
@@ -230,14 +310,16 @@
                 </div>
             </nav>
             <div class="oj-content">
-                <!-- Notification bar -->
-                <div id="stu-notification" class="oj-notification hidden"></div>
                 <!-- TAB: Exercises list -->
                 <div id="tab-panel-exercises" class="oj-tab-panel">
                     <!-- Stats bar -->
                     <div id="stu-stats-bar" class="oj-stats-bar"></div>
                     <div class="oj-page-header">
                         <div><h2 class="oj-page-title">Bài Tập Luyện</h2><p class="oj-page-sub">Luyện tập các bài toán lập trình theo chủ đề</p></div>
+                        <div class="search-with-count">
+                            <input type="text" id="stu-exercise-search" class="search-input" placeholder="🔍 Tìm bài tập theo tên hoặc chủ đề...">
+                            <span id="stu-exercise-count" class="search-result-count">0 bài tập</span>
+                        </div>
                     </div>
                     <div id="exercise-list" class="oj-exercise-list"><p style="color:var(--text-muted);text-align:center;padding:40px">Đang tải...</p></div>
                     <!-- Student ranking -->
@@ -254,10 +336,18 @@
                         <p id="stu-join-error" style="color:var(--danger);font-size:.85rem;margin-top:8px;text-align:center"></p>
                     </div>
                 </div>
+                <!-- TAB: Lý Thuyết -->
+                <div id="tab-panel-theory" class="oj-tab-panel hidden">
+                    <div class="oj-page-header">
+                        <div><h2 class="oj-page-title">📖 Tài Liệu Lý Thuyết</h2><p class="oj-page-sub">Ôn tập kiến thức trước khi làm bài</p></div>
+                        <input type="text" id="stu-theory-search" class="search-input" placeholder="🔍 Tìm lý thuyết...">
+                    </div>
+                    <div id="stu-theory-list"><p style="color:var(--text-muted);text-align:center;padding:40px">Đang tải...</p></div>
+                </div>
             </div>
         </div>
 
-        <!-- STEP 3: EXERCISE / CONTEST SOLVING (split-pane) -->
+        <!-- STEP 3: EXERCISE / CONTEST SOLVING -->
         <div id="stu-contest" class="stu-screen hidden">
             <nav class="oj-navbar">
                 <div class="oj-nav-left">
@@ -279,14 +369,14 @@
                         <button class="oj-ptab" data-ptab="results">Kết Quả</button>
                         <button class="oj-ptab" data-ptab="leaderboard">Xếp Hạng</button>
                     </div>
-                    <!-- Desc tab -->
                     <div class="oj-ptab-content active" id="ptab-desc">
                         <h3 id="stu-problem-title" class="oj-prob-title">Bài 1</h3>
                         <div id="stu-problem-meta" class="oj-prob-meta"></div>
                         <div id="stu-problem-desc" class="oj-prob-desc">Chưa có đề bài</div>
+                        <!-- Attachments -->
+                        <div id="stu-attachments" class="oj-attachments hidden"></div>
                         <div id="stu-sample-io" class="oj-sample-io"></div>
                     </div>
-                    <!-- Results tab -->
                     <div class="oj-ptab-content" id="ptab-results">
                         <div id="stu-results-card" class="hidden">
                             <div class="oj-score-box"><span class="oj-score-label">Điểm</span><span class="oj-score-value" id="stu-score">0</span><span class="oj-score-max">/100</span></div>
@@ -295,20 +385,16 @@
                         </div>
                         <p id="no-results-msg" style="color:var(--text-muted);text-align:center;padding:40px">Chưa có kết quả. Nộp bài để xem.</p>
                     </div>
-                    <!-- Leaderboard tab -->
                     <div class="oj-ptab-content" id="ptab-leaderboard">
                         <div id="stu-leaderboard-body"><p style="color:var(--text-muted);text-align:center;padding:40px">Chưa có dữ liệu</p></div>
                     </div>
                 </div>
-                <!-- DIVIDER -->
                 <div class="oj-divider" id="oj-divider"></div>
                 <!-- RIGHT: Code editor -->
                 <div class="oj-pane-right" id="oj-pane-right">
                     <div class="oj-editor-header">
                         <span class="oj-lang-badge">🐍 Python 3</span>
-                        <div style="display:flex;gap:6px">
-                            <button class="oj-btn-run" id="btn-stu-submit">▶ Nộp Bài</button>
-                        </div>
+                        <div style="display:flex;gap:6px"><button class="oj-btn-run" id="btn-stu-submit">▶ Nộp Bài</button></div>
                     </div>
                     <div id="stu-editor-wrap" class="oj-editor-wrap"></div>
                     <div class="oj-console" id="oj-console">
@@ -342,11 +428,21 @@
     <!-- ====== MODALS ====== -->
     <!-- Modal: Tạo Phòng Thi -->
     <div id="modal-create-room" class="modal-overlay hidden">
-        <div class="modal-content">
+        <div class="modal-content" style="max-width:600px">
             <h3>📡 Tạo Phòng Thi</h3>
-            <div class="form-group"><label>Tên kỳ thi</label><input type="text" id="room-title" value="Kiểm tra HSG Tin"></div>
-            <div class="form-group"><label>Tên giáo viên</label><input type="text" id="room-teacher" value="Thầy/Cô"></div>
+            <div class="form-group"><label>Tên kỳ thi</label><input type="text" id="room-title" value="Kiểm tra HSG Tin" placeholder="VD: Kiểm tra 15 phút Bài 1-3"></div>
             <div class="form-group"><label>Thời gian (phút)</label><input type="number" id="room-time" value="90" min="5" max="300"></div>
+            <div class="form-group">
+                <label>📚 Chọn bài tập cho đề thi <span class="label-hint">(bài đã đăng)</span></label>
+                <div class="room-ex-toolbar">
+                    <button class="btn btn-ghost btn-sm" type="button" id="btn-room-select-all">☑ Chọn tất cả</button>
+                    <button class="btn btn-ghost btn-sm" type="button" id="btn-room-deselect-all">☐ Bỏ chọn</button>
+                    <span id="room-ex-selected-count" class="search-result-count" style="margin-left:auto">0 bài đã chọn</span>
+                </div>
+                <div id="room-exercise-checklist" class="room-ex-checklist">
+                    <p style="color:var(--text-muted);text-align:center;padding:16px;font-size:.85rem">Chưa có bài tập. Hãy đăng bài tập trước.</p>
+                </div>
+            </div>
             <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
                 <button class="btn btn-ghost btn-sm" id="btn-cancel-room">Hủy</button>
                 <button class="btn btn-accent" id="btn-confirm-room">🚀 Tạo Phòng</button>
@@ -360,6 +456,16 @@
             <div class="form-group"><label>Chủ đề</label><input type="text" id="ex-topic" placeholder="VD: Số nguyên tố, Mảng, Đệ quy..."></div>
             <div class="form-group"><label>Tên bài</label><input type="text" id="ex-title-input" placeholder="" readonly></div>
             <div class="form-group"><label>Mô tả</label><textarea id="ex-desc-input" rows="3" class="ai-textarea" readonly></textarea></div>
+            <!-- File Attachment -->
+            <div class="form-group">
+                <label>📎 File đính kèm <span class="label-hint">(tối đa 3 file, ≤5MB/file: pdf, png, jpg, txt)</span></label>
+                <div class="file-upload-zone" id="ex-upload-zone">
+                    <input type="file" id="ex-files" multiple accept=".pdf,.png,.jpg,.jpeg,.txt,.inp,.csv" style="display:none">
+                    <button class="btn btn-ghost btn-sm" type="button" id="btn-choose-files">📁 Chọn file</button>
+                    <span class="file-upload-hint">hoặc kéo thả vào đây</span>
+                </div>
+                <div id="ex-file-list" class="file-list"></div>
+            </div>
             <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:0">📊 <span id="ex-test-count">0</span> test • <span id="ex-subtask-count">0</span> subtask</p>
             <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
                 <button class="btn btn-ghost btn-sm" id="btn-cancel-exercise">Hủy</button>
@@ -371,12 +477,22 @@
     <div id="modal-view-exercise" class="modal-overlay hidden">
         <div class="modal-content" style="max-width:700px">
             <h3 id="modal-ex-view-title">📚 Chi tiết bài tập</h3>
+            <input type="hidden" id="view-ex-id">
             <div class="form-group"><label>Tên bài</label><input type="text" id="view-ex-title"></div>
             <div class="form-group"><label>Chủ đề</label><input type="text" id="view-ex-topic"></div>
             <div class="form-group"><label>Mô tả đề bài</label><textarea id="view-ex-desc" rows="4" class="ai-textarea"></textarea></div>
             <div style="display:flex;gap:16px;margin-bottom:12px">
                 <div class="form-group" style="flex:1;margin-bottom:0"><label>Số test</label><input type="text" id="view-ex-tests" readonly style="opacity:.6"></div>
                 <div class="form-group" style="flex:1;margin-bottom:0"><label>Subtasks</label><input type="text" id="view-ex-subtasks" readonly style="opacity:.6"></div>
+            </div>
+            <!-- Attachments in view modal -->
+            <div class="form-group">
+                <label>📎 File đính kèm</label>
+                <div id="view-ex-attachments" class="file-list"></div>
+                <div class="file-upload-zone" id="view-upload-zone" style="margin-top:6px">
+                    <input type="file" id="view-ex-files" multiple accept=".pdf,.png,.jpg,.jpeg,.txt,.inp,.csv" style="display:none">
+                    <button class="btn btn-ghost btn-sm" type="button" id="btn-view-choose-files">📁 Thêm file</button>
+                </div>
             </div>
             <div style="margin:12px 0"><label style="font-size:.82rem;color:var(--text-muted)">📊 Học sinh đã nộp</label><div id="view-ex-students" style="margin-top:6px;max-height:180px;overflow-y:auto"></div></div>
             <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">

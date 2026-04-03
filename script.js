@@ -1,4 +1,4 @@
-/* THEMIS ONLINE JUDGE v4 — AUTH EDITION */
+/* THEMIS ONLINE JUDGE v5 — COMPLETE EDITION */
 const FIREBASE_CONFIG={apiKey:"AIzaSyABZz6HoxC80-bU8vci2Ss0-j7ip3X3oZ8",authDomain:"themis-hsg.firebaseapp.com",databaseURL:"https://themis-hsg-default-rtdb.asia-southeast1.firebasedatabase.app",projectId:"themis-hsg",storageBucket:"themis-hsg.firebasestorage.app",messagingSenderId:"985711152429",appId:"1:985711152429:web:3067e536a71ddfc46897a4"};
 const TEACHER_PASS='admin@2025';
 const PRESETS={'single-int':{name:'Một số nguyên',lines:[{variables:[{name:'N',type:'integer'}]}]},'multi-int-1line':{name:'Nhiều số/dòng',lines:[{variables:[{name:'A',type:'integer'},{name:'B',type:'integer'}]}]},'array-1d':{name:'Mảng 1D',lines:[{variables:[{name:'N',type:'integer'}]},{variables:[{name:'A',type:'array',lengthRef:'N'}]}]},'array-param':{name:'Mảng+tham số',lines:[{variables:[{name:'N',type:'integer'},{name:'K',type:'integer'}]},{variables:[{name:'A',type:'array',lengthRef:'N'}]}]},'string-only':{name:'Chuỗi',lines:[{variables:[{name:'S',type:'string'}]}]},'queries':{name:'Truy vấn',lines:[{variables:[{name:'N',type:'integer'},{name:'Q',type:'integer'}]},{variables:[{name:'A',type:'array',lengthRef:'N'}]},{variables:[{name:'L',type:'integer'},{name:'R',type:'integer'}],repeatRef:'Q'}]},'graph':{name:'Đồ thị',lines:[{variables:[{name:'N',type:'integer'},{name:'M',type:'integer'}]},{variables:[{name:'U',type:'integer'},{name:'V',type:'integer'}],repeatRef:'M'}]},'matrix':{name:'Ma trận',lines:[{variables:[{name:'N',type:'integer'},{name:'M',type:'integer'}]},{variables:[{name:'row',type:'array',lengthRef:'M'}],repeatRef:'N'}]}};
@@ -33,7 +33,7 @@ getPreviewData(){return this.testCases}clear(){this.testCases=[];this.zip=null}}
 
 // ============ FIREBASE MANAGER ============
 class FirebaseManager{
-constructor(){firebase.initializeApp(FIREBASE_CONFIG);this.db=firebase.database();this._listeners=[]}
+constructor(){firebase.initializeApp(FIREBASE_CONFIG);this.db=firebase.database();try{this.storage=firebase.storage()}catch(e){console.warn('Firebase Storage unavailable:',e)};this._listeners=[]}
 _ref(path){return this.db.ref(path)}
 generateCode(){return String(Math.floor(100000+Math.random()*900000))}
 async createRoom(title,teacher,timeLimit){const code=this.generateCode();await this._ref('rooms/'+code+'/info').set({title,teacher,timeLimit:parseInt(timeLimit)||90,createdAt:Date.now(),status:'waiting',startTime:0,problemCount:0});return code}
@@ -55,6 +55,7 @@ async verifyStudent(username,password){const snap=await this._ref(`accounts/${us
 listenAccounts(cb){const ref=this._ref('accounts');ref.on('value',s=>cb(s.val()||{}));this._listeners.push(()=>ref.off())}
 // Exercise management
 async publishExercise(data){const id=Date.now().toString(36);await this._ref(`exercises/${id}`).set({...data,createdAt:Date.now()});return id}
+async updateExercise(id,updates){await this._ref(`exercises/${id}`).update(updates)}
 async deleteExercise(id){await this._ref(`exercises/${id}`).remove()}
 listenExercises(cb){const ref=this._ref('exercises');ref.on('value',s=>cb(s.val()||{}));this._listeners.push(()=>ref.off())}
 async submitExerciseResult(exId,username,result){await this._ref(`exerciseResults/${exId}/${username}`).set({score:result.score,submittedAt:Date.now(),details:result.details,code:result.code||''})}
@@ -75,7 +76,7 @@ _calcScore(details,subtasks,testCases){let total=0;for(const st of subtasks){con
 
 // ============ UI CONTROLLER ============
 class UIController{
-constructor(){this.pyEngine=new PyodideEngine();this.themis=new ThemisManager();this.gemini=new GeminiHelper();this.stress=new StressTester(this.pyEngine);this.fb=new FirebaseManager();this.grader=new StudentGrader(this.pyEngine);this.role=null;this.roomCode=null;this.studentName=null;this.problems=[];this.currentProbIdx=0;this.timerInterval=null;this.subtaskCounter=0;this.lineCounter=0;this.varCounter=0;this.cmMain=null;this.cmBrute=null;this.cmAiPreview=null;this.cmStudent=null;this.isGenerating=false;this.publishedCount=0}
+constructor(){this.pyEngine=new PyodideEngine();this.themis=new ThemisManager();this.gemini=new GeminiHelper();this.stress=new StressTester(this.pyEngine);this.fb=new FirebaseManager();this.grader=new StudentGrader(this.pyEngine);this.role=null;this.roomCode=null;this.studentName=null;this.problems=[];this.currentProbIdx=0;this.timerInterval=null;this.subtaskCounter=0;this.lineCounter=0;this.varCounter=0;this.cmMain=null;this.cmBrute=null;this.cmAiPreview=null;this.cmStudent=null;this.isGenerating=false;this.publishedCount=0;this._teacherInited=false;this._studentInited=false;this._pendingFiles=[]}
 
 init(){const $=id=>document.getElementById(id);
 // Teacher role → show login panel
@@ -92,13 +93,14 @@ _teacherLogin(){const pass=document.getElementById('teacher-password').value;if(
 _selectRole(role){this.role=role;document.getElementById('splash').classList.add('hidden');if(role==='teacher')this._initTeacher();else this._initStudent()}
 
 // ===== TEACHER =====
-_initTeacher(){document.getElementById('view-teacher').classList.remove('hidden');this._initCM();this._bindTeacher();this.addSubtask(70,'Subtask 1');this.addSubtask(30,'Subtask 2');this._updateSTTotal();const k=this.gemini.getApiKey();if(k)document.getElementById('ai-api-key').value=k;this._validateForm();
-// Load accounts immediately (root level)
+_initTeacher(){if(this._teacherInited){document.getElementById('view-teacher').classList.remove('hidden');return}this._teacherInited=true;document.getElementById('view-teacher').classList.remove('hidden');this._initCM();this._bindTeacher();this._bindTeacherTabs();this.addSubtask(70,'Subtask 1');this.addSubtask(30,'Subtask 2');this._updateSTTotal();const k=this.gemini.getApiKey();if(k)document.getElementById('ai-api-key').value=k;this._validateForm();
 this.fb.listenAccounts(accts=>{this._cachedAccounts=accts;this._renderAccountList(accts);this._renderProgress()});
-// Load exercises for management
 this.fb.listenExercises(exs=>{this._teacherExercises=exs;this._renderTeacherExerciseList(exs);this._renderProgress()});
-// Load all exercise results for progress  
-this.fb.listenAllExerciseResults(res=>{this._teacherExResults=res;this._renderTeacherExerciseList(this._teacherExercises||{});this._renderProgress()})}
+this.fb.listenAllExerciseResults(res=>{this._teacherExResults=res;this._renderTeacherExerciseList(this._teacherExercises||{});this._renderProgress()});
+// Theory listener
+const thRef=this.fb.db.ref('theories');thRef.on('value',s=>{this._cachedTheories=s.val()||{};this._renderTheoryList(this._cachedTheories,'t-theory-list',true)});this.fb._listeners.push(()=>thRef.off())}
+
+_bindTeacherTabs(){const self=this;document.querySelectorAll('.t-tab[data-ttab]').forEach(btn=>{btn.onclick=()=>{document.querySelectorAll('.t-tab').forEach(b=>b.classList.remove('active'));btn.classList.add('active');document.querySelectorAll('.t-tab-panel').forEach(p=>p.classList.add('hidden'));const panel=document.getElementById('t-tab-'+btn.dataset.ttab);if(panel)panel.classList.remove('hidden');if(btn.dataset.ttab==='compose')setTimeout(()=>{self.cmMain&&self.cmMain.refresh();self.cmBrute&&self.cmBrute.refresh();self.cmAiPreview&&self.cmAiPreview.refresh()},50)}})}
 
 _initCM(){if(this.cmMain)return;const cfg={mode:'python',lineNumbers:true,indentUnit:4,tabSize:4,matchBrackets:true,autoCloseBrackets:true,styleActiveLine:true,extraKeys:{'Tab':cm=>cm.execCommand('indentMore'),'Shift-Tab':cm=>cm.execCommand('indentLess'),'Ctrl-/':cm=>cm.execCommand('toggleComment')}};
 document.getElementById('editor-main-wrap').innerHTML='';document.getElementById('editor-brute-wrap').innerHTML='';document.getElementById('editor-ai-preview').innerHTML='';
@@ -132,7 +134,6 @@ $('btn-confirm-room').onclick=()=>this._confirmCreateRoom();
 $('btn-cancel-room').onclick=()=>$('modal-create-room').classList.add('hidden');
 $('btn-start-contest').onclick=()=>this._startContest();
 $('btn-end-contest').onclick=()=>this._endContest();
-$('btn-publish-problem').onclick=()=>this._publishProblem();
 // Exercise modal
 $('btn-publish-exercise').onclick=()=>this._showExerciseModal();
 $('btn-confirm-exercise').onclick=()=>this._confirmPublishExercise();
@@ -144,7 +145,35 @@ $('btn-bulk-add').onclick=()=>{$('bulk-add-form').classList.remove('hidden');$('
 $('btn-cancel-add').onclick=()=>$('add-student-form').classList.add('hidden');
 $('btn-cancel-bulk').onclick=()=>$('bulk-add-form').classList.add('hidden');
 $('btn-save-student').onclick=()=>this._addSingleStudent();
-$('btn-save-bulk').onclick=()=>this._addBulkStudents()}
+$('btn-save-bulk').onclick=()=>this._addBulkStudents();
+// View/Edit exercise modal bindings
+$('btn-close-view-ex').onclick=()=>$('modal-view-exercise').classList.add('hidden');
+$('btn-save-view-ex').onclick=()=>this._saveViewExercise();
+// File upload bindings
+const fileInput=$('ex-files');const chooseBtn=$('btn-choose-files');if(chooseBtn)chooseBtn.onclick=()=>fileInput.click();if(fileInput)fileInput.onchange=e=>this._handleFileSelect(e.target.files);
+const viewFileInput=$('view-ex-files');const viewChooseBtn=$('btn-view-choose-files');if(viewChooseBtn)viewChooseBtn.onclick=()=>viewFileInput.click();
+if(viewFileInput)viewFileInput.onchange=e=>this._toast('Thêm file cho bài đã đăng chưa hỗ trợ','info');
+// Search bindings
+const exSearch=$('t-exercise-search');if(exSearch)exSearch.oninput=()=>this._renderTeacherExerciseList(this._teacherExercises||{});
+const thSearch=$('t-theory-search');if(thSearch)thSearch.oninput=()=>this._renderTheoryList(this._cachedTheories||{},'t-theory-list',true);
+// Theory bindings
+const btnPublishTh=$('btn-publish-theory');if(btnPublishTh)btnPublishTh.onclick=()=>this._publishTheory();
+// Theory file upload
+const thFileInput=$('theory-file');const btnChooseTh=$('btn-choose-theory-file');
+if(btnChooseTh)btnChooseTh.onclick=()=>thFileInput.click();
+if(thFileInput)thFileInput.onchange=e=>{if(e.target.files[0])this._selectTheoryFile(e.target.files[0])};
+// Drag-drop for theory file zone
+const thZone=$('theory-file-zone');if(thZone){thZone.ondragover=e=>{e.preventDefault();thZone.classList.add('drag-over')};thZone.ondragleave=()=>thZone.classList.remove('drag-over');thZone.ondrop=e=>{e.preventDefault();thZone.classList.remove('drag-over');if(e.dataTransfer.files[0])this._selectTheoryFile(e.dataTransfer.files[0])}}
+// Sample I/O
+$('btn-add-sample-io').onclick=()=>this._addSampleIO();this._addSampleIO();}
+
+_sampleIOCounter=0;
+_addSampleIO(inputVal='',outputVal='',explainVal=''){this._sampleIOCounter++;const idx=this._sampleIOCounter;const c=document.getElementById('sample-io-container');const card=document.createElement('div');card.className='sample-io-card';card.dataset.sampleId=idx;
+card.innerHTML=`<div class="sample-io-header"><span class="sample-io-label">Ví dụ ${idx}</span><button class="btn-danger-sm btn-rm-sample" title="Xóa">✕</button></div><div class="sample-io-body"><div class="sample-io-col"><label class="sample-io-col-label">INPUT</label><textarea class="sample-io-input" rows="3" placeholder="3">${this._esc(inputVal)}</textarea></div><div class="sample-io-col"><label class="sample-io-col-label">OUTPUT</label><textarea class="sample-io-output" rows="3" placeholder="1\n2\n3">${this._esc(outputVal)}</textarea></div></div><div class="sample-io-explain-row"><label class="sample-io-col-label">💡 GIẢI THÍCH <span style="text-transform:none;font-weight:400;letter-spacing:0">(tùy chọn)</span></label><input type="text" class="sample-io-explanation" placeholder="VD: n = 4 (1,2,3,4) có 2 số chẵn là 2,4" value="${this._esc(explainVal)}"></div>`;
+card.querySelector('.btn-rm-sample').onclick=()=>{if(c.children.length<=1){this._toast('Cần ít nhất 1 ví dụ','error');return}card.remove()};
+c.appendChild(card)}
+
+_getSampleIOs(){const cards=document.querySelectorAll('#sample-io-container .sample-io-card');return[...cards].map(c=>({input:c.querySelector('.sample-io-input').value,output:c.querySelector('.sample-io-output').value,explanation:c.querySelector('.sample-io-explanation').value})).filter(s=>s.input.trim()||s.output.trim())}
 
 _switchTab(id){document.querySelectorAll('#code-tabs .tab-btn').forEach(b=>{b.classList.toggle('active',b.dataset.tab===id)});document.querySelectorAll('#section-code .tab-panel').forEach(p=>{p.classList.toggle('active',p.id===id)});setTimeout(()=>{this.cmMain.refresh();this.cmBrute.refresh();this.cmAiPreview.refresh()},50)}
 
@@ -155,110 +184,289 @@ async _runStress(){const mc=this.cmMain.getValue().trim(),bc=this.cmBrute.getVal
 _showStressResult(r){const el=document.getElementById('stress-results');el.classList.remove('hidden');if(r.failed===0&&r.errors===0){el.className='stress-results pass';el.innerHTML=`<div class="stress-result-header">✅ ${r.passed}/${r.total} ĐÚNG!</div><p style="color:var(--success);font-size:.85rem">Code chính khớp brute force.</p>`}else{el.className='stress-results fail';let h=`<div class="stress-result-header">❌ ${r.failed} sai, ${r.errors} lỗi / ${r.total}</div>`;if(r.firstFail){const f=r.firstFail;h+=`<div class="stress-fail-detail"><div class="stress-fail-label">Input (Test ${f.index}):</div>${this._esc(f.input)}\n\n`;h+=f.error?`<div class="stress-fail-label">Lỗi:</div>${this._esc(f.error)}`:`<div class="stress-fail-label">Code chính:</div>${this._esc(f.mainOutput)}\n<div class="stress-fail-label">Brute:</div>${this._esc(f.bruteOutput)}`;h+='</div>'}el.innerHTML=h}}
 
 // Room management
-_showCreateRoomModal(){document.getElementById('modal-create-room').classList.remove('hidden');document.getElementById('room-title').focus()}
+_showCreateRoomModal(){
+const exs=this._teacherExercises||{};const keys=Object.keys(exs);
+const cl=document.getElementById('room-exercise-checklist');
+if(!keys.length){cl.innerHTML='<p style="color:var(--text-muted);text-align:center;padding:16px;font-size:.85rem">Chưa có bài tập. Hãy đăng bài tập trước.</p>'}
+else{let h='';keys.forEach(k=>{const ex=exs[k];const tc=ex.testCases?ex.testCases.length:0;
+h+=`<label class="room-ex-item"><input type="checkbox" value="${k}" class="room-ex-chk"><span class="room-ex-item-info"><strong>${this._esc(ex.title)}</strong><span class="room-ex-item-meta">${this._esc(ex.topic||'Chung')} • ${tc} test</span></span></label>`});
+cl.innerHTML=h}
+this._updateRoomExCount();
+document.getElementById('btn-room-select-all').onclick=()=>{cl.querySelectorAll('.room-ex-chk').forEach(c=>c.checked=true);this._updateRoomExCount()};
+document.getElementById('btn-room-deselect-all').onclick=()=>{cl.querySelectorAll('.room-ex-chk').forEach(c=>c.checked=false);this._updateRoomExCount()};
+cl.querySelectorAll('.room-ex-chk').forEach(c=>c.onchange=()=>this._updateRoomExCount());
+document.getElementById('modal-create-room').classList.remove('hidden');document.getElementById('room-title').focus()}
 
-async _confirmCreateRoom(){const title=document.getElementById('room-title').value.trim();const teacher=document.getElementById('room-teacher').value.trim();const time=document.getElementById('room-time').value.trim();if(!title||!teacher||!time){this._toast('Nhập đầy đủ thông tin','error');return}document.getElementById('modal-create-room').classList.add('hidden');try{this.roomCode=await this.fb.createRoom(title,teacher,time);document.getElementById('teacher-room-bar').classList.remove('hidden');document.getElementById('t-room-code').textContent=this.roomCode;this._setRoomStatus('waiting');this.fb.listenStudents(this.roomCode,s=>{document.getElementById('t-student-count').textContent=s?Object.keys(s).length:0});this.fb.listenLeaderboard(this.roomCode,lb=>this._renderLeaderboard(lb,'t-leaderboard-body'));document.getElementById('section-leaderboard-teacher').classList.remove('hidden');this._toast(`🏆 Phòng ${this.roomCode} đã tạo!`,'success')}catch(e){this._toast('Lỗi: '+e.message,'error')}}
+_updateRoomExCount(){const n=document.querySelectorAll('#room-exercise-checklist .room-ex-chk:checked').length;document.getElementById('room-ex-selected-count').textContent=`${n} bài đã chọn`}
+
+async _confirmCreateRoom(){const title=document.getElementById('room-title').value.trim();const time=document.getElementById('room-time').value.trim();if(!title||!time){this._toast('Nhập đầy đủ thông tin','error');return}
+const selectedIds=[...document.querySelectorAll('#room-exercise-checklist .room-ex-chk:checked')].map(c=>c.value);
+if(!selectedIds.length){this._toast('Chọn ít nhất 1 bài tập','error');return}
+document.getElementById('modal-create-room').classList.add('hidden');
+try{this.roomCode=await this.fb.createRoom(title,'Giáo viên',time);
+document.getElementById('teacher-room-bar').classList.remove('hidden');document.getElementById('t-room-code').textContent=this.roomCode;this._setRoomStatus('waiting');
+// Publish selected exercises as contest problems
+const exs=this._teacherExercises||{};
+for(let i=0;i<selectedIds.length;i++){const ex=exs[selectedIds[i]];if(!ex)continue;
+const data={title:ex.title,description:ex.description||'',fileIO:ex.fileIO||false,uppercase:ex.uppercase||false,taskName:ex.taskName||ex.title,timePerTest:5,subtasks:ex.subtasks||[{name:'Subtask 1',score:100}],sampleIO:ex.sampleIO||null,testCases:(ex.testCases||[]).map(tc=>({input:tc.input,output:tc.output,subtaskId:tc.subtaskId||0}))};
+await this.fb.publishProblem(this.roomCode,i,data)}
+this.publishedCount=selectedIds.length;
+// Render contest problem list
+const listEl=document.getElementById('t-contest-problem-list');
+let h='';selectedIds.forEach((id,i)=>{const ex=exs[id];h+=`<div style="padding:8px 12px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:6px;margin-bottom:4px;font-size:.85rem"><strong>Bài ${i+1}:</strong> ${this._esc(ex?.title||'?')} <span style="color:var(--text-muted)">• ${(ex?.testCases||[]).length} test</span></div>`});
+listEl.innerHTML=h;document.getElementById('t-contest-problems').classList.remove('hidden');
+this.fb.listenStudents(this.roomCode,s=>{document.getElementById('t-student-count').textContent=s?Object.keys(s).length:0});
+this.fb.listenLeaderboard(this.roomCode,lb=>this._renderLeaderboard(lb,'t-leaderboard-body'));
+this._toast(`🏆 Phòng ${this.roomCode} đã tạo với ${selectedIds.length} bài!`,'success')
+}catch(e){this._toast('Lỗi: '+e.message,'error')}}
 
 // Account management (root level — no roomCode needed)
 async _addSingleStudent(){const name=document.getElementById('new-stu-name').value.trim();const pass=document.getElementById('new-stu-pass').value.trim();if(!name||!pass){this._toast('Nhập tên và mật khẩu','error');return}try{await this.fb.createAccount(name,pass);document.getElementById('new-stu-name').value='';document.getElementById('new-stu-pass').value='';this._toast(`Đã tạo: ${name}`,'success')}catch(e){this._toast('Lỗi: '+e.message,'error')}}
 
 async _addBulkStudents(){const text=document.getElementById('bulk-students').value.trim();if(!text){this._toast('Nhập danh sách','error');return}const lines=text.split('\n').filter(l=>l.trim());const list=[];for(const line of lines){const parts=line.split(',').map(s=>s.trim());if(parts.length>=2)list.push({name:parts[0],pass:parts[1]});else this._toast(`Bỏ qua: ${line}`,'error')}if(!list.length)return;try{await this.fb.createAccountsBulk(list);document.getElementById('bulk-students').value='';document.getElementById('bulk-add-form').classList.add('hidden');this._toast(`Đã tạo ${list.length} tài khoản!`,'success')}catch(e){this._toast('Lỗi: '+e.message,'error')}}
 
-_renderAccountList(accts){const c=document.getElementById('account-list');const keys=Object.keys(accts);if(!keys.length){c.innerHTML='<p style="color:var(--text-muted);text-align:center;padding:16px">Chưa có tài khoản. Nhấn "+ Thêm HS" để tạo.</p>';return}let h='<table class="acct-table"><thead><tr><th>#</th><th>Tên đăng nhập</th><th>Mật khẩu</th><th>Xóa</th></tr></thead><tbody>';keys.forEach((k,i)=>{const a=accts[k];h+=`<tr><td>${i+1}</td><td style="font-weight:600">${this._esc(k)}</td><td><span class="acct-pass">${this._esc(a.password)}</span></td><td><button class="btn-danger-sm" onclick="window._uic._deleteAccount('${this._esc(k)}')">✕</button></td></tr>`});h+='</tbody></table>';c.innerHTML=h}
+_renderAccountList(accts){const c=document.getElementById('account-list');const keys=Object.keys(accts);if(!keys.length){c.innerHTML='<p style="color:var(--text-muted);text-align:center;padding:16px">Chưa có tài khoản. Nhấn "+ Thêm HS" để tạo.</p>';return}let h='<table class="acct-table"><thead><tr><th>#</th><th>Tên đăng nhập</th><th>Mật khẩu</th><th>Xóa</th></tr></thead><tbody>';keys.forEach((k,i)=>{const a=accts[k];h+=`<tr><td>${i+1}</td><td style="font-weight:600">${this._esc(k)}</td><td><span class="acct-pass" onclick="this.textContent=this.textContent==='\u2022\u2022\u2022\u2022\u2022\u2022'?'${this._esc(a.password)}':'\u2022\u2022\u2022\u2022\u2022\u2022'">••••••</span></td><td><button class="btn-danger-sm" onclick="window._uic._deleteAccount('${this._esc(k)}')">✕</button></td></tr>`});h+='</tbody></table>';c.innerHTML=h}
 
-async _deleteAccount(name){if(!confirm(`Xóa tài khoản: ${name}?`))return;try{await this.fb.deleteAccount(name);this._toast(`Đã xóa: ${name}`,'success')}catch(e){this._toast('Lỗi: '+e.message,'error')}}
+async _deleteAccount(name){const ok=await this._confirmDialog('🗑️ Xóa tài khoản',`Bạn chắc chắn muốn xóa tài khoản <strong>${this._esc(name)}</strong>? Dữ liệu bài làm của học sinh này sẽ bị mất.`,'Xóa','btn-danger');if(!ok)return;try{await this.fb.deleteAccount(name);this._toast(`Đã xóa: ${name}`,'success')}catch(e){this._toast('Lỗi: '+e.message,'error')}}
 
-// Teacher exercise management
-_renderTeacherExerciseList(exs){const c=document.getElementById('t-exercise-list');if(!exs||!Object.keys(exs).length){c.innerHTML='<p style="color:var(--text-muted);text-align:center;padding:16px">Chưa có bài tập nào.</p>';return}
+async _renderTeacherExerciseList(exs){const c=document.getElementById('t-exercise-list');if(!exs||!Object.keys(exs).length){c.innerHTML='<p style="color:var(--text-muted);text-align:center;padding:40px">Chưa có bài tập nào. Chuyển sang tab "Soạn Đề" để tạo.</p>';return}
 const res=this._teacherExResults||{};
-let h='<table class="acct-table"><thead><tr><th>#</th><th>Tên bài</th><th>Chủ đề</th><th>Tests</th><th>Ngày tạo</th><th>HS đã làm</th><th>Xóa</th></tr></thead><tbody>';
+let h='<table class="ex-mgmt-table"><thead><tr><th>#</th><th>Tên bài</th><th>Chủ đề</th><th>Tests</th><th>Ngày tạo</th><th>HS đã làm</th><th>Thao tác</th></tr></thead><tbody>';
 Object.keys(exs).forEach((k,i)=>{const ex=exs[k];const d=new Date(ex.createdAt);const tc=ex.testCases?ex.testCases.length:0;
 const exRes=res[k]||{};const doneCount=Object.keys(exRes).length;
 const totalAccts=this._cachedAccounts?Object.keys(this._cachedAccounts).length:0;
 const pct=totalAccts>0?Math.round(doneCount/totalAccts*100):0;
 const barColor=pct>=80?'var(--success)':pct>=40?'var(--warning,#f59e0b)':'var(--error)';
-h+=`<tr><td>${i+1}</td><td style="font-weight:600">${this._esc(ex.title)}</td><td><span class="oj-ex-topic">${this._esc(ex.topic||'Chung')}</span></td><td>${tc}</td><td>${d.toLocaleDateString('vi')}</td>`;
+h+=`<tr onclick="window._uic._openViewExercise('${k}')">`;
+h+=`<td>${i+1}</td><td style="font-weight:600">${this._esc(ex.title)}</td><td><span class="oj-ex-topic">${this._esc(ex.topic||'Chung')}</span></td><td>${tc}</td><td>${d.toLocaleDateString('vi')}</td>`;
 h+=`<td><div style="display:flex;align-items:center;gap:8px"><div style="flex:1;height:6px;background:rgba(255,255,255,.08);border-radius:3px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${barColor};border-radius:3px;transition:width .3s"></div></div><span style="font-size:.78rem;color:var(--text-muted);white-space:nowrap">${doneCount}/${totalAccts}</span></div></td>`;
-h+=`<td><button class="btn-danger-sm" onclick="window._uic._deleteExercise('${k}')">✕</button></td></tr>`});
+h+=`<td><div class="ex-mgmt-actions"><button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();window._uic._openViewExercise('${k}')">✏️</button><button class="btn-danger-sm" onclick="event.stopPropagation();window._uic._deleteExercise('${k}')">✕</button></div></td></tr>`});
 h+='</tbody></table>';c.innerHTML=h}
 
-async _deleteExercise(id){if(!confirm('Xóa bài tập này?'))return;try{await this.fb.deleteExercise(id);this._toast('Đã xóa bài tập!','success')}catch(e){this._toast('Lỗi: '+e.message,'error')}}
+async _deleteExercise(id){const ex=(this._teacherExercises||{})[id];const name=ex?ex.title:'bài tập';const ok=await this._confirmDialog('🗑️ Xóa bài tập',`Bạn chắc chắn muốn xóa <strong>${this._esc(name)}</strong>? Tất cả kết quả làm bài của HS sẽ bị mất.`,'Xóa','btn-danger');if(!ok)return;try{await this.fb.deleteExercise(id);this._toast('Đã xóa bài tập!','success')}catch(e){this._toast('Lỗi: '+e.message,'error')}}
+
+// === Exercise view/edit/save modal ===
+_openViewExercise(id){const exs=this._teacherExercises||{};const ex=exs[id];if(!ex)return;
+document.getElementById('view-ex-id').value=id;
+document.getElementById('view-ex-title').value=ex.title||'';
+document.getElementById('view-ex-topic').value=ex.topic||'';
+document.getElementById('view-ex-desc').value=ex.description||'';
+document.getElementById('view-ex-tests').value=ex.testCases?ex.testCases.length:0;
+document.getElementById('view-ex-subtasks').value=ex.subtasks?ex.subtasks.length:1;
+const res=this._teacherExResults||{};const exRes=res[id]||{};
+const stuEl=document.getElementById('view-ex-students');
+const stuKeys=Object.keys(exRes);
+if(!stuKeys.length){stuEl.innerHTML='<p style="color:var(--text-muted);font-size:.82rem">Chưa có học sinh nào nộp.</p>'}else{
+let sh='';stuKeys.forEach(name=>{const r=exRes[name];const cls=(r.score||0)>=100?'score-perfect':(r.score||0)>=50?'score-pass':'score-fail';sh+=`<div style="display:flex;justify-content:space-between;padding:4px 8px;border-bottom:1px solid var(--border);font-size:.82rem"><span style="font-weight:600">${this._esc(name)}</span><span class="progress-score ${cls}">${r.score||0}</span></div>`});stuEl.innerHTML=sh}
+const attEl=document.getElementById('view-ex-attachments');attEl.innerHTML='';
+if(ex.attachments){ex.attachments.forEach(att=>{attEl.innerHTML+=`<div class="file-chip"><a href="${att.url}" target="_blank">📎 ${this._esc(att.name)}</a></div>`})}
+document.getElementById('modal-view-exercise').classList.remove('hidden')}
+
+async _saveViewExercise(){const id=document.getElementById('view-ex-id').value;if(!id)return;
+const updates={title:document.getElementById('view-ex-title').value.trim(),topic:document.getElementById('view-ex-topic').value.trim()||'Không phân loại',description:document.getElementById('view-ex-desc').value};
+try{await this.fb.updateExercise(id,updates);document.getElementById('modal-view-exercise').classList.add('hidden');this._toast('Đã cập nhật bài tập!','success')}catch(e){this._toast('Lỗi: '+e.message,'error')}}
+
+// === File handling ===
+_handleFileSelect(files){this._pendingFiles=[];for(const f of files){if(f.size>5*1024*1024){this._toast(`${f.name} quá 5MB`,'error');continue}if(this._pendingFiles.length>=3)break;this._pendingFiles.push(f)}this._renderPendingFiles()}
+_renderPendingFiles(){const list=document.getElementById('ex-file-list');if(!list)return;list.innerHTML='';this._pendingFiles.forEach((f,i)=>{list.innerHTML+=`<div class="file-chip">📎 ${this._esc(f.name)} <span style="color:var(--text-muted);font-size:.68rem">(${(f.size/1024).toFixed(1)}KB)</span><button class="file-remove" onclick="window._uic._removePendingFile(${i})">✕</button></div>`})}
+_removePendingFile(idx){this._pendingFiles.splice(idx,1);this._renderPendingFiles()}
+
+// === Theory/Learning Materials CRUD ===
+_theoryFileData=null;
+_selectTheoryFile(file){if(!file)return;const allowed=['.pdf','.doc','.docx'];const ext='.'+file.name.split('.').pop().toLowerCase();if(!allowed.includes(ext)){this._toast('Chỉ hỗ trợ PDF, DOC, DOCX','error');return}
+if(file.size>5*1024*1024){this._toast('File quá 5MB','error');return}
+const reader=new FileReader();reader.onload=e=>{this._theoryFileData={name:file.name,size:file.size,type:file.type,data:e.target.result};
+const preview=document.getElementById('theory-file-preview');preview.innerHTML=`<div class="file-chip">📎 ${this._esc(file.name)} <span style="color:var(--text-muted);font-size:.68rem">(${(file.size/1024).toFixed(1)}KB)</span><button class="file-remove" onclick="window._uic._removeTheoryFile()">✕</button></div>`};reader.readAsDataURL(file)}
+_removeTheoryFile(){this._theoryFileData=null;const p=document.getElementById('theory-file-preview');if(p)p.innerHTML='';const f=document.getElementById('theory-file');if(f)f.value=''}
+
+async _publishTheory(){const title=document.getElementById('theory-title').value.trim();const topic=document.getElementById('theory-topic').value.trim()||'Chung';const content=document.getElementById('theory-content').value.trim();if(!title||!content){this._toast('Nhập tiêu đề và nội dung','error');return}
+const data={title,topic,content,createdAt:Date.now()};
+if(this._theoryFileData){data.file={name:this._theoryFileData.name,type:this._theoryFileData.type,size:this._theoryFileData.size,data:this._theoryFileData.data}}
+try{const id=Date.now().toString(36);await this.fb.db.ref(`theories/${id}`).set(data);document.getElementById('theory-title').value='';document.getElementById('theory-topic').value='';document.getElementById('theory-content').value='';this._removeTheoryFile();this._toast('📖 Đã đăng bài lý thuyết!','success')}catch(e){this._toast('Lỗi: '+e.message,'error')}}
+
+async _deleteTheory(id){if(!confirm('Xóa bài lý thuyết này?'))return;try{await this.fb.db.ref(`theories/${id}`).remove();this._toast('Đã xóa!','success')}catch(e){this._toast('Lỗi: '+e.message,'error')}}
+
+_renderTheoryList(theories,containerId,isTeacher){const c=document.getElementById(containerId);if(!c)return;const keys=Object.keys(theories||{});
+if(!keys.length){c.innerHTML='<p style="color:var(--text-muted);text-align:center;padding:40px">Chưa có bài lý thuyết nào.</p>';return}
+const filter=(document.getElementById(isTeacher?'t-theory-search':'stu-theory-search')||{}).value||'';
+const filtered=keys.filter(k=>{const t=theories[k];return(!filter||t.title.toLowerCase().includes(filter.toLowerCase())||t.topic.toLowerCase().includes(filter.toLowerCase()))});
+if(!filtered.length){c.innerHTML=`<p style="color:var(--text-muted);text-align:center;padding:20px">Không tìm thấy "${this._esc(filter)}"</p>`;return}
+let h='';filtered.forEach(k=>{const t=theories[k];const d=new Date(t.createdAt);
+let fileHtml='';if(t.file){const icon=t.file.name.endsWith('.pdf')?'📕':'📘';const isPdf=t.file.name.toLowerCase().endsWith('.pdf');
+fileHtml=`<div class="theory-file-attach"><div class="theory-file-actions">`;
+fileHtml+=`<button class="theory-download-btn" onclick="event.stopPropagation();window._uic._downloadTheoryFile('${k}')">${icon} ${this._esc(t.file.name)} <span style="font-size:.7rem;color:var(--text-muted)">(${(t.file.size/1024).toFixed(0)}KB)</span> ⬇️ Tải xuống</button>`;
+if(isPdf){fileHtml+=`<button class="theory-view-btn" onclick="event.stopPropagation();window._uic._viewPdf('${k}')">👁️ Xem trực tiếp</button>`}
+fileHtml+=`</div></div>`}
+h+=`<div class="theory-card"><div class="theory-card-header"><div><h3 class="theory-card-title">${this._esc(t.title)}</h3><span class="oj-ex-topic">${this._esc(t.topic)}</span> <span style="font-size:.72rem;color:var(--text-muted);margin-left:8px">${d.toLocaleDateString('vi')}</span></div>${isTeacher?`<button class="btn-danger-sm" onclick="event.stopPropagation();window._uic._deleteTheory('${k}')">✕</button>`:''}</div><div class="theory-card-body">${this._esc(t.content).replace(/\n/g,'<br>')}</div>${fileHtml}</div>`});
+c.innerHTML=h}
+
+// Download file with correct filename (convert data URL to Blob)
+_downloadTheoryFile(theoryId){const theories=this._cachedTheories||this._stuTheories||{};const t=theories[theoryId];if(!t||!t.file){this._toast('Không tìm thấy file','error');return}
+try{const dataUrl=t.file.data;const arr=dataUrl.split(',');const mime=arr[0].match(/:(.*?);/)[1];const bstr=atob(arr[1]);let n=bstr.length;const u8=new Uint8Array(n);while(n--)u8[n]=bstr.charCodeAt(n);
+const blob=new Blob([u8],{type:mime});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=t.file.name;document.body.appendChild(a);a.click();document.body.removeChild(a);setTimeout(()=>URL.revokeObjectURL(url),1000);
+this._toast(`⬇️ Đang tải: ${t.file.name}`,'success')}catch(e){this._toast('Lỗi tải file: '+e.message,'error')}}
+
+// View PDF inline in modal
+_viewPdf(theoryId){const theories=this._cachedTheories||this._stuTheories||{};const t=theories[theoryId];if(!t||!t.file){this._toast('Không tìm thấy file','error');return}
+let modal=document.getElementById('modal-pdf-viewer');if(!modal){modal=document.createElement('div');modal.id='modal-pdf-viewer';modal.className='modal-overlay';modal.innerHTML=`<div class="pdf-viewer-modal"><div class="pdf-viewer-header"><h3 id="pdf-viewer-title">📄 Xem PDF</h3><div class="pdf-viewer-actions"><button class="btn btn-sm btn-ghost" id="btn-pdf-download">⬇️ Tải xuống</button><button class="btn btn-sm btn-ghost" id="btn-pdf-close">✕ Đóng</button></div></div><div class="pdf-viewer-body"><iframe id="pdf-viewer-frame" style="width:100%;height:100%;border:none"></iframe></div></div>`;document.body.appendChild(modal)}
+document.getElementById('pdf-viewer-title').textContent=`📄 ${t.file.name}`;
+// Convert data URL to blob URL for iframe
+const arr=t.file.data.split(',');const mime=arr[0].match(/:(.*?);/)[1];const bstr=atob(arr[1]);let n=bstr.length;const u8=new Uint8Array(n);while(n--)u8[n]=bstr.charCodeAt(n);
+const blob=new Blob([u8],{type:mime});const blobUrl=URL.createObjectURL(blob);
+document.getElementById('pdf-viewer-frame').src=blobUrl;
+document.getElementById('btn-pdf-close').onclick=()=>{modal.classList.add('hidden');document.getElementById('pdf-viewer-frame').src='';URL.revokeObjectURL(blobUrl)};
+document.getElementById('btn-pdf-download').onclick=()=>this._downloadTheoryFile(theoryId);
+modal.classList.remove('hidden')}
+
+// === Teacher exercise list with search ===
+_renderTeacherExerciseList(exs){const c=document.getElementById('t-exercise-list');if(!exs||!Object.keys(exs).length){c.innerHTML='<p style="color:var(--text-muted);text-align:center;padding:40px">Chưa có bài tập nào. Chuyển sang tab "Soạn Đề" để tạo.</p>';return}
+const res=this._teacherExResults||{};
+const filter=(document.getElementById('t-exercise-search')||{}).value||'';
+const keys=Object.keys(exs).filter(k=>{const ex=exs[k];return(!filter||(ex.title||'').toLowerCase().includes(filter.toLowerCase())||(ex.topic||'').toLowerCase().includes(filter.toLowerCase()))});
+if(!keys.length){c.innerHTML=`<p style="color:var(--text-muted);text-align:center;padding:20px">Không tìm thấy bài tập "${this._esc(filter)}"</p>`;return}
+let h='<table class="ex-mgmt-table"><thead><tr><th>#</th><th>Tên bài</th><th>Chủ đề</th><th>Tests</th><th>Ngày tạo</th><th>HS đã làm</th><th>Thao tác</th></tr></thead><tbody>';
+keys.forEach((k,i)=>{const ex=exs[k];const d=new Date(ex.createdAt);const tc=ex.testCases?ex.testCases.length:0;
+const exRes=res[k]||{};const doneCount=Object.keys(exRes).length;
+const totalAccts=this._cachedAccounts?Object.keys(this._cachedAccounts).length:0;
+const pct=totalAccts>0?Math.round(doneCount/totalAccts*100):0;
+const barColor=pct>=80?'var(--success)':pct>=40?'var(--warning,#f59e0b)':'var(--error)';
+h+=`<tr onclick="window._uic._openViewExercise('${k}')">`;
+h+=`<td>${i+1}</td><td style="font-weight:600">${this._esc(ex.title)}</td><td><span class="oj-ex-topic">${this._esc(ex.topic||'Chung')}</span></td><td>${tc}</td><td>${d.toLocaleDateString('vi')}</td>`;
+h+=`<td><div style="display:flex;align-items:center;gap:8px"><div style="flex:1;height:6px;background:rgba(255,255,255,.08);border-radius:3px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${barColor};border-radius:3px;transition:width .3s"></div></div><span style="font-size:.78rem;color:var(--text-muted);white-space:nowrap">${doneCount}/${totalAccts}</span></div></td>`;
+h+=`<td><div class="ex-mgmt-actions"><button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();window._uic._openViewExercise('${k}')">✏️</button><button class="btn-danger-sm" onclick="event.stopPropagation();window._uic._deleteExercise('${k}')">✕</button></div></td></tr>`});
+h+='</tbody></table>';c.innerHTML=h}
 
 // Student progress cross-table
-_renderProgress(){const c=document.getElementById('t-progress-table');const exs=this._teacherExercises||{};const accts=this._cachedAccounts||{};const res=this._teacherExResults||{};
-const exKeys=Object.keys(exs);const stuNames=Object.keys(accts);
-if(!exKeys.length||!stuNames.length){c.innerHTML='<p style="color:var(--text-muted);text-align:center;padding:16px">Cần có bài tập và tài khoản HS để hiển thị tiến độ.</p>';return}
+_renderProgress(){const c=document.getElementById('t-progress-table');const exs=this._teacherExercises||{};const accts=this._cachedAccounts||{};const res=this._teacherExResults||{};const exKeys=Object.keys(exs);const stuNames=Object.keys(accts);if(!exKeys.length||!stuNames.length){c.innerHTML='<p style="color:var(--text-muted);text-align:center;padding:16px">Cần có bài tập và tài khoản HS để hiển thị tiến độ.</p>';return}
 let h='<div class="progress-table-wrap"><table class="progress-cross-table"><thead><tr><th class="sticky-col">Học sinh</th>';
 exKeys.forEach(k=>h+=`<th title="${this._esc(exs[k].title)}">${this._esc(exs[k].title).substring(0,12)}</th>`);
 h+='<th>Tổng</th></tr></thead><tbody>';
-stuNames.sort().forEach(name=>{
-h+=`<tr><td class="sticky-col" style="font-weight:600">${this._esc(name)}</td>`;
-let totalScore=0;let doneCount=0;
-exKeys.forEach(k=>{const r=res[k]&&res[k][name];
-if(r){const s=r.score||0;totalScore+=s;doneCount++;
-const cls=s>=100?'score-perfect':s>=50?'score-pass':'score-fail';
-h+=`<td><span class="progress-score ${cls}">${s}</span></td>`}else{h+=`<td><span class="progress-score score-none">—</span></td>`}});
+stuNames.sort().forEach(name=>{h+=`<tr><td class="sticky-col" style="font-weight:600">${this._esc(name)}</td>`;let totalScore=0;let doneCount=0;
+exKeys.forEach(k=>{const r=res[k]&&res[k][name];if(r){const s=r.score||0;totalScore+=s;doneCount++;const cls=s>=100?'score-perfect':s>=50?'score-pass':'score-fail';h+=`<td><span class="progress-score ${cls}">${s}</span></td>`}else{h+=`<td><span class="progress-score score-none">—</span></td>`}});
 const avg=exKeys.length>0?Math.round(totalScore/exKeys.length):0;
 h+=`<td><strong style="color:${avg>=80?'var(--success)':avg>=50?'var(--warning,#f59e0b)':'var(--text-muted)'}">${avg}</strong> <span style="font-size:.7rem;color:var(--text-muted)">(${doneCount}/${exKeys.length})</span></td></tr>`});
 h+='</tbody></table></div>';c.innerHTML=h}
 
+
 _setRoomStatus(s){const el=document.getElementById('t-room-status');el.textContent=s==='waiting'?'Chờ':s==='active'?'Đang thi':'Kết thúc';el.className='room-status-badge '+s}
 
-async _startContest(){if(!this.roomCode)return;await this.fb.startContest(this.roomCode);this._setRoomStatus('active');this._toast('Cuộc thi bắt đầu!','success');this.fb.listenRoomInfo(this.roomCode,info=>{if(info&&info.startTime&&info.timeLimit){const end=info.startTime+info.timeLimit*60000;const upd=()=>{const rem=Math.max(0,end-Date.now());const m=Math.floor(rem/60000),s=Math.floor(rem%60000/1000);document.getElementById('t-room-timer').textContent=`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;if(rem<=0){clearInterval(this.timerInterval);this._setRoomStatus('ended')}};this.timerInterval=setInterval(upd,1000);upd()}})}
+async _startContest(){if(!this.roomCode)return;
+const ok=await this._confirmDialog('▶️ Bắt đầu cuộc thi','Học sinh sẽ bắt đầu làm bài ngay khi bạn xác nhận. Bạn chắc chắn?','Bắt đầu','btn-accent');
+if(!ok)return;
+this._contestEnded=false;
+await this.fb.startContest(this.roomCode);this._setRoomStatus('active');this._toast('Cuộc thi bắt đầu!','success');
+this.fb.listenRoomInfo(this.roomCode,info=>{if(this._contestEnded)return;if(info&&info.startTime&&info.timeLimit){const end=info.startTime+info.timeLimit*60000;if(this.timerInterval)clearInterval(this.timerInterval);const upd=()=>{if(this._contestEnded)return;const rem=Math.max(0,end-Date.now());const m=Math.floor(rem/60000),s=Math.floor(rem%60000/1000);document.getElementById('t-room-timer').textContent=`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;if(rem<=0){clearInterval(this.timerInterval);this._setRoomStatus('ended')}};this.timerInterval=setInterval(upd,1000);upd()}})}
 
-async _endContest(){if(!this.roomCode)return;await this.fb.endContest(this.roomCode);this._setRoomStatus('ended');if(this.timerInterval)clearInterval(this.timerInterval);this._toast('Đã kết thúc!','info')}
+async _endContest(){if(!this.roomCode)return;
+const ok=await this._confirmDialog('⏹ Kết thúc cuộc thi','Tất cả học sinh sẽ bị dừng làm bài. Hành động này không thể hoàn tác!','Kết thúc','btn-danger');
+if(!ok)return;
+this._contestEnded=true;
+await this.fb.endContest(this.roomCode);this._setRoomStatus('ended');
+if(this.timerInterval){clearInterval(this.timerInterval);this.timerInterval=null}
+document.getElementById('t-room-timer').textContent='00:00';
+this._toast('Đã kết thúc cuộc thi!','info')}
 
 async _publishProblem(){if(!this.roomCode){this._toast('Tạo phòng thi trước','error');return}if(!this.themis.testCases.length){this._toast('Sinh test trước','error');return}const cfg=this.collectFormData();const desc=document.getElementById('problem-description').value||document.getElementById('ai-prompt').value||'Không có mô tả';const data={title:cfg.taskName,description:desc,fileIO:cfg.fileIO,uppercase:cfg.uppercase,taskName:cfg.taskName,timePerTest:5,subtasks:cfg.subtasks,testCases:this.themis.testCases.map(tc=>({input:tc.input,output:tc.output,subtaskId:tc.subtaskId}))};try{await this.fb.publishProblem(this.roomCode,this.publishedCount,data);this._toast(`Đã đăng Bài ${this.publishedCount+1}: ${cfg.taskName}`,'success');this.publishedCount++}catch(e){this._toast('Lỗi publish: '+e.message,'error')}}
 
-_showExerciseModal(){if(!this.themis.testCases.length){this._toast('Sinh test trước','error');return}const cfg=this.collectFormData();const desc=document.getElementById('problem-description').value||document.getElementById('ai-prompt').value||'Không có mô tả';document.getElementById('ex-title-input').value=cfg.taskName;document.getElementById('ex-desc-input').value=desc;document.getElementById('ex-test-count').textContent=this.themis.testCases.length;document.getElementById('ex-subtask-count').textContent=cfg.subtasks?cfg.subtasks.length:1;document.getElementById('modal-publish-exercise').classList.remove('hidden');document.getElementById('ex-topic').focus()}
+_showExerciseModal(){if(!this.themis.testCases.length){this._toast('Sinh test trước','error');return}const cfg=this.collectFormData();const desc=document.getElementById('problem-description').value||document.getElementById('ai-prompt').value||'Không có mô tả';const displayTitle=document.getElementById('problem-title').value.trim()||cfg.taskName;const topic=document.getElementById('problem-topic').value.trim()||'Không phân loại';document.getElementById('ex-title-input').value=displayTitle;document.getElementById('ex-desc-input').value=desc;document.getElementById('ex-test-count').textContent=this.themis.testCases.length;document.getElementById('ex-subtask-count').textContent=cfg.subtasks?cfg.subtasks.length:1;document.getElementById('ex-topic').value=topic;document.getElementById('modal-publish-exercise').classList.remove('hidden')}
 
-async _confirmPublishExercise(){const topic=document.getElementById('ex-topic').value.trim()||'Không phân loại';const cfg=this.collectFormData();const desc=document.getElementById('ex-desc-input').value;const data={title:cfg.taskName,description:desc,topic:topic,fileIO:cfg.fileIO,uppercase:cfg.uppercase,taskName:cfg.taskName,timePerTest:5,subtasks:cfg.subtasks,testCases:this.themis.testCases.map(tc=>({input:tc.input,output:tc.output,subtaskId:tc.subtaskId}))};document.getElementById('modal-publish-exercise').classList.add('hidden');try{await this.fb.publishExercise(data);this._toast(`📚 Đã đăng bài tập: ${cfg.taskName} (${topic})`,'success')}catch(e){this._toast('Lỗi: '+e.message,'error')}}
+async _confirmPublishExercise(){const topic=document.getElementById('ex-topic').value.trim()||document.getElementById('problem-topic').value.trim()||'Không phân loại';const cfg=this.collectFormData();const desc=document.getElementById('ex-desc-input').value;const displayTitle=document.getElementById('ex-title-input').value.trim()||cfg.taskName;const sampleIO=this._getSampleIOs();const data={title:displayTitle,description:desc,topic:topic,fileIO:cfg.fileIO,uppercase:cfg.uppercase,taskName:cfg.taskName,timePerTest:5,subtasks:cfg.subtasks,sampleIO:sampleIO.length?sampleIO:null,testCases:this.themis.testCases.map(tc=>({input:tc.input,output:tc.output,subtaskId:tc.subtaskId}))};document.getElementById('modal-publish-exercise').classList.add('hidden');try{await this.fb.publishExercise(data);this._toast(`📚 Đã đăng bài tập: ${displayTitle} (${topic})`,'success')}catch(e){this._toast('Lỗi: '+e.message,'error')}}
 
 async _exportCSV(){if(!this.roomCode)return;const csv=await this.fb.exportCSV(this.roomCode);if(!csv){this._toast('Chưa có dữ liệu','error');return}const b=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download=`BangDiem_${this.roomCode}.csv`;document.body.appendChild(a);a.click();document.body.removeChild(a);this._toast('Đã xuất CSV!','success')}
 
 // ===== STUDENT =====
-_initStudent(){document.getElementById('view-student').classList.remove('hidden');
+_initStudent(){if(this._studentInited){document.getElementById('view-student').classList.remove('hidden');return}this._studentInited=true;document.getElementById('view-student').classList.remove('hidden');
 const $=id=>document.getElementById(id);
 $('btn-stu-login').onclick=()=>this._stuLogin();
-$('btn-stu-logout').onclick=()=>this._stuLogout();
+$('btn-stu-logout').onclick=async()=>{const ok=await this._confirmDialog('🚪 Đăng xuất','Bạn chắc chắn muốn đăng xuất?','Đăng xuất','btn-accent');if(ok)this._stuLogout()};
 $('btn-join-room').onclick=()=>this._joinRoom();
 $('btn-stu-submit').onclick=()=>this._stuSubmit();
 $('btn-stu-back-join').onclick=()=>{$('stu-ended').classList.add('hidden');$('stu-dashboard').classList.remove('hidden');this.fb.cleanup()};
 $('stu-password').onkeydown=e=>{if(e.key==='Enter')this._stuLogin()};
+// Toggle password visibility
+const toggleBtn=$('btn-toggle-pass');if(toggleBtn)toggleBtn.onclick=()=>{const inp=$('stu-password');const isHidden=inp.type==='password';inp.type=isHidden?'text':'password';toggleBtn.textContent=isHidden?'🙈':'👁';toggleBtn.title=isHidden?'Ẩn mật khẩu':'Hiện mật khẩu'};
 // Dashboard nav tabs
-document.querySelectorAll('.oj-nav-tab[data-tab]').forEach(btn=>{btn.onclick=()=>{document.querySelectorAll('.oj-nav-tab[data-tab]').forEach(b=>b.classList.remove('active'));btn.classList.add('active');document.querySelectorAll('.oj-tab-panel').forEach(p=>p.classList.add('hidden'));$('tab-panel-'+btn.dataset.tab).classList.remove('hidden');if(btn.dataset.tab==='exercises'){this.fb.listenExercises(exs=>this._renderExerciseList(exs))}}});
+document.querySelectorAll('.oj-nav-tab[data-tab]').forEach(btn=>{btn.onclick=()=>{document.querySelectorAll('.oj-nav-tab[data-tab]').forEach(b=>b.classList.remove('active'));btn.classList.add('active');document.querySelectorAll('.oj-tab-panel').forEach(p=>p.classList.add('hidden'));$('tab-panel-'+btn.dataset.tab).classList.remove('hidden')}});
 // Back from contest to dashboard
-const backBtn=$('btn-stu-back-dash');if(backBtn)backBtn.onclick=()=>{$('stu-contest').classList.add('hidden');$('stu-dashboard').classList.remove('hidden');if(this.timerInterval){clearInterval(this.timerInterval);this.timerInterval=null}this.fb.cleanup()};
+const backBtn=$('btn-stu-back-dash');if(backBtn)backBtn.onclick=()=>{$('stu-contest').classList.add('hidden');$('stu-dashboard').classList.remove('hidden');this._currentExercise=null;if(this.timerInterval){clearInterval(this.timerInterval);this.timerInterval=null}this.fb.cleanup()};
 // Pane tabs (Desc/Results/Leaderboard)
 document.querySelectorAll('.oj-ptab[data-ptab]').forEach(btn=>{btn.onclick=()=>{document.querySelectorAll('.oj-ptab').forEach(b=>b.classList.remove('active'));btn.classList.add('active');document.querySelectorAll('.oj-ptab-content').forEach(p=>p.classList.remove('active'));$('ptab-'+btn.dataset.ptab).classList.add('active')}});
 // Draggable divider
 this._initDivider();
 // Auto-load exercises on dashboard show
-this._exerciseResults={};
-this.fb.listenExercises(exs=>{this._cachedExercises=exs;this._loadExerciseStatuses(exs)});
-this.fb.listenAllExerciseResults(res=>{this._exerciseResults=res;if(this._cachedExercises)this._renderExerciseList(this._cachedExercises)})}
+this._exerciseResults={};this._prevExCount=0;
+this.fb.listenExercises(exs=>{this._cachedExercises=exs;this._loadExerciseStatuses(exs);this._checkNewExerciseNotification(exs)});
+this.fb.listenAllExerciseResults(res=>{this._exerciseResults=res;if(this._cachedExercises){this._renderExerciseList(this._cachedExercises);this._renderStudentRanking()}});
+// Theory listener for student
+const thRef2=this.fb.db.ref('theories');thRef2.on('value',s=>{this._stuTheories=s.val()||{};this._renderTheoryList(this._stuTheories,'stu-theory-list',false)});this.fb._listeners.push(()=>thRef2.off());
+// Search bindings
+const stuExSearch=$('stu-exercise-search');if(stuExSearch)stuExSearch.oninput=()=>this._renderExerciseList(this._cachedExercises||{});
+const stuThSearch=$('stu-theory-search');if(stuThSearch)stuThSearch.oninput=()=>this._renderTheoryList(this._stuTheories||{},'stu-theory-list',false)}
 
-_loadExerciseStatuses(exs){this._renderExerciseList(exs)}
+_loadExerciseStatuses(exs){this._renderExerciseList(exs);this._renderStudentRanking();this._renderStudentStats()}
+
+_renderStudentStats(){const el=document.getElementById('stu-stats-bar');if(!el)return;const exs=this._cachedExercises||{};const res=this._exerciseResults||{};const total=Object.keys(exs).length;if(!total||!this.studentName){el.innerHTML='';return}
+let done=0,totalScore=0;Object.keys(exs).forEach(k=>{const r=res[k]&&res[k][this.studentName];if(r){done++;totalScore+=r.score||0}});
+const avg=done>0?Math.round(totalScore/done):0;
+el.innerHTML=`<div class="oj-stat-item"><span class="oj-stat-value">${total}</span><span class="oj-stat-label">Tổng bài</span></div><div class="oj-stat-item"><span class="oj-stat-value">${done}</span><span class="oj-stat-label">Đã làm</span></div><div class="oj-stat-item"><span class="oj-stat-value" style="color:${avg>=80?'var(--success)':avg>=50?'var(--warning)':'var(--text-muted)'}">${avg}</span><span class="oj-stat-label">Điểm TB</span></div>`}
+
+_renderStudentRanking(){const el=document.getElementById('stu-ranking');if(!el)return;const exs=this._cachedExercises||{};const res=this._exerciseResults||{};const exKeys=Object.keys(exs);
+if(!exKeys.length){el.innerHTML='<p style="color:var(--text-muted);text-align:center;padding:20px">Chưa có bài tập</p>';return}
+// Collect all student names from results
+const stuSet=new Set();exKeys.forEach(k=>{if(res[k])Object.keys(res[k]).forEach(n=>stuSet.add(n))});
+const students=[...stuSet].map(name=>{let totalScore=0,doneCount=0,perfectCount=0;
+exKeys.forEach(k=>{const r=res[k]&&res[k][name];if(r){totalScore+=r.score||0;doneCount++;if(r.score>=100)perfectCount++}});
+return{name,totalScore,doneCount,perfectCount,avg:doneCount>0?Math.round(totalScore/doneCount):0}});
+students.sort((a,b)=>b.perfectCount-a.perfectCount||b.totalScore-a.totalScore);
+if(!students.length){el.innerHTML='<p style="color:var(--text-muted);text-align:center;padding:20px">Chưa có dữ liệu</p>';return}
+const medals=['','\ud83e\udd47','\ud83e\udd48','\ud83e\udd49'];
+let h='<table class="oj-ranking-table"><thead><tr><th>Hạng</th><th>Học sinh</th><th>Hoàn thành</th><th>Điểm TB</th><th>Tổng</th></tr></thead><tbody>';
+students.forEach((s,i)=>{const rank=i+1;const isSelf=s.name===this.studentName;
+h+=`<tr class="${isSelf?'self-row':''}"><td style="text-align:center;font-weight:800">${medals[rank]||rank}</td><td style="font-weight:600">${this._esc(s.name)}</td><td>${s.perfectCount}/${exKeys.length}</td><td style="color:${s.avg>=80?'var(--success)':s.avg>=50?'var(--warning)':'var(--text-muted)'};font-weight:700">${s.avg}</td><td style="font-weight:700;color:var(--accent-light)">${s.totalScore}</td></tr>`});
+h+='</tbody></table>';el.innerHTML=h}
+
+// === Notification: new exercises the student hasn't done ===
+_checkNewExerciseNotification(exs){if(!this.studentName)return;const res=this._exerciseResults||{};const exKeys=Object.keys(exs||{});
+const notDone=exKeys.filter(k=>!(res[k]&&res[k][this.studentName]));
+const badge=document.getElementById('stu-notif-badge');
+if(badge){if(notDone.length>0){badge.textContent=notDone.length;badge.classList.remove('hidden')}else{badge.classList.add('hidden')}}
+// Show toast if new exercises appeared
+if(this._prevExCount>0&&exKeys.length>this._prevExCount){const newCount=exKeys.length-this._prevExCount;this._toast(`📢 Có ${newCount} bài tập mới! Kiểm tra ngay.`,'info')}
+this._prevExCount=exKeys.length}
 
 _initDivider(){const divider=document.getElementById('oj-divider');if(!divider)return;const left=document.getElementById('oj-pane-left');let dragging=false;divider.onmousedown=e=>{dragging=true;divider.classList.add('dragging');e.preventDefault()};document.onmousemove=e=>{if(!dragging)return;const container=left.parentElement;const rect=container.getBoundingClientRect();const pct=Math.min(70,Math.max(25,((e.clientX-rect.left)/rect.width)*100));left.style.width=pct+'%'};document.onmouseup=()=>{if(dragging){dragging=false;divider.classList.remove('dragging');if(this.cmStudent)this.cmStudent.refresh()}}}
+
 
 async _stuLogin(){const name=document.getElementById('stu-name').value.trim();const pass=document.getElementById('stu-password').value;const errEl=document.getElementById('stu-login-error');errEl.textContent='';if(!name||!pass){errEl.textContent='⚠️ Nhập đầy đủ tên và mật khẩu';return}try{await this.fb.verifyStudent(name,pass);this.studentName=name;document.getElementById('stu-login').classList.add('hidden');document.getElementById('stu-dashboard').classList.remove('hidden');document.getElementById('stu-welcome-name').textContent=name;this._toast(`Xin chào ${name}!`,'success')}catch(e){errEl.textContent='❌ '+e.message}}
 
 _stuLogout(){this.studentName=null;this.fb.cleanup();['stu-dashboard','stu-waiting','stu-contest','stu-ended'].forEach(id=>document.getElementById(id).classList.add('hidden'));document.getElementById('stu-login').classList.remove('hidden');document.getElementById('stu-name').value='';document.getElementById('stu-password').value=''}
 
-_renderExerciseList(exs){const c=document.getElementById('exercise-list');const keys=Object.keys(exs);if(!keys.length){c.innerHTML='<p style="color:var(--text-muted);text-align:center;padding:40px">📭 Chưa có bài tập nào. Giáo viên chưa đăng.</p>';c.className='';return}
-c.className='oj-exercise-list';
-let h='<div class="oj-ex-header"><span>TRẠNG THÁI</span><span>BÀI TẬP</span><span>CHỦ ĐỀ</span><span>THÔNG TIN</span></div>';
-keys.forEach(k=>{const ex=exs[k];const d=new Date(ex.createdAt);const tc=ex.testCases?ex.testCases.length:0;const topic=ex.topic||'Chung';
-// Check if current student has completed this exercise
+_renderExerciseList(exs){const c=document.getElementById('exercise-list');const allKeys=Object.keys(exs);if(!allKeys.length){c.innerHTML='<p style="color:var(--text-muted);text-align:center;padding:40px">📭 Chưa có bài tập nào. Giáo viên chưa đăng.</p>';c.className='';return}
+const filter=(document.getElementById('stu-exercise-search')||{}).value||'';
+const keys=allKeys.filter(k=>{const ex=exs[k];return(!filter||(ex.title||'').toLowerCase().includes(filter.toLowerCase())||(ex.topic||'').toLowerCase().includes(filter.toLowerCase()))});
+// Update result count
+const countEl=document.getElementById('stu-exercise-count');
+if(countEl){countEl.textContent=filter?`${keys.length}/${allKeys.length} bài`:`${allKeys.length} bài tập`}
+if(!keys.length){c.innerHTML=`<p style="color:var(--text-muted);text-align:center;padding:20px">Không tìm thấy "${this._esc(filter)}"</p>`;c.className='';return}
+c.className='oj-exercise-list-v2';
+// Count not-done for badge
+const notDoneCount=allKeys.filter(k=>!(this._exerciseResults[k]&&this._exerciseResults[k][this.studentName])).length;
+const badgeEl=document.getElementById('stu-notif-badge');if(badgeEl){if(notDoneCount>0){badgeEl.textContent=notDoneCount;badgeEl.classList.remove('hidden')}else{badgeEl.classList.add('hidden')}}
+let h='<table class="stu-ex-table"><thead><tr><th style="width:46px">STT</th><th>Bài tập</th><th style="width:100px">Chủ đề</th><th style="width:80px">Điểm</th><th style="width:90px">Số test</th><th style="width:85px">Ngày tạo</th></tr></thead><tbody>';
+keys.forEach((k,idx)=>{const ex=exs[k];const d=new Date(ex.createdAt);const tc=ex.testCases?ex.testCases.length:0;const topic=ex.topic||'Chung';
 const myResult=this.studentName&&this._exerciseResults[k]&&this._exerciseResults[k][this.studentName];
-const statusHtml=myResult?`<span class="oj-ex-status done" title="${myResult.score}/100 điểm">✅ ${myResult.score}</span>`:`<span class="oj-ex-status pending">○</span>`;
-h+=`<div class="oj-ex-row ${myResult?'oj-ex-done':''}" onclick="window._uic._openExercise('${k}')">`;
-h+=`${statusHtml}`;
-h+=`<div class="oj-ex-info"><span class="oj-ex-title">${this._esc(ex.title)}</span><span class="oj-ex-desc">${this._esc(ex.description||'').substring(0,80)}</span></div>`;
-h+=`<span class="oj-ex-topic">${this._esc(topic)}</span>`;
-h+=`<div class="oj-ex-stats"><span>${tc} test</span><span>•</span><span>${d.toLocaleDateString('vi')}</span></div>`;
-h+=`</div>`});c.innerHTML=h}
+const isDone=!!myResult;const score=myResult?myResult.score:null;
+const scoreClass=score>=100?'perfect':score>=50?'partial':'fail';
+const statusHtml=isDone?`<span class="stu-ex-score ${scoreClass}">${score}</span>`:`<span class="stu-ex-badge-new">MỚI</span>`;
+h+=`<tr class="${isDone?'stu-ex-done':'stu-ex-new'}" onclick="window._uic._openExercise('${k}')">`;
+h+=`<td class="stu-ex-idx">${idx+1}</td>`;
+h+=`<td><div class="stu-ex-name">${this._esc(ex.title)}</div><div class="stu-ex-desc-line">${this._esc(ex.description||'').substring(0,70)}${(ex.description||'').length>70?'…':''}</div></td>`;
+h+=`<td><span class="stu-ex-topic-pill">${this._esc(topic)}</span></td>`;
+h+=`<td class="stu-ex-score-cell">${statusHtml}</td>`;
+h+=`<td class="stu-ex-tests-cell">${tc} test</td>`;
+h+=`<td class="stu-ex-date-cell">${d.toLocaleDateString('vi')}</td>`;
+h+=`</tr>`});
+h+='</tbody></table>';c.innerHTML=h}
 
 async _openExercise(exId){const snap=await this.fb.db.ref(`exercises/${exId}`).once('value');const ex=snap.val();if(!ex)return;this._currentExercise={id:exId,...ex};this.problems=[ex];this.currentProbIdx=0;document.getElementById('stu-dashboard').classList.add('hidden');document.getElementById('stu-contest').classList.remove('hidden');document.getElementById('stu-contest-title').textContent=ex.title;document.getElementById('stu-player-name').textContent=this.studentName;
 document.getElementById('stu-timer').textContent='∞';document.getElementById('stu-timer').classList.remove('critical');
@@ -284,7 +492,9 @@ _initStudentEditor(){if(!this.cmStudent){const cfg={mode:'python',lineNumbers:tr
 _renderProblemTabs(){const c=document.getElementById('stu-problem-tabs');c.innerHTML='';this.problems.forEach((p,i)=>{const btn=document.createElement('button');btn.className='oj-ptab-btn'+(i===0?' active':'');btn.textContent=`Bài ${i+1}`;btn.onclick=()=>{c.querySelectorAll('.oj-ptab-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');this._showProblem(i)};c.appendChild(btn)})}
 
 _showProblem(idx){this.currentProbIdx=idx;const p=this.problems[idx];if(!p)return;document.getElementById('stu-problem-title').textContent=`Bài ${idx+1}: ${p.title}`;document.getElementById('stu-problem-meta').innerHTML=`${p.fileIO?'📁 File I/O: <strong>'+p.taskName+'.INP/.OUT</strong>':'⌨️ stdin/stdout'} &nbsp;•&nbsp; ${p.subtasks?.length||1} subtask &nbsp;•&nbsp; ${p.testCases?.length||0} test`;document.getElementById('stu-problem-desc').textContent=p.description||'Không có mô tả';
-const sio=document.getElementById('stu-sample-io');if(p.testCases&&p.testCases.length>0){const tc=p.testCases[0];sio.innerHTML=`<div class="sample-box"><div class="sample-box-title">Ví dụ Input</div><pre>${this._esc(tc.input)}</pre></div><div class="sample-box"><div class="sample-box-title">Ví dụ Output</div><pre>${this._esc(tc.output)}</pre></div>`}else{sio.innerHTML=''}
+const sio=document.getElementById('stu-sample-io');
+const samples=p.sampleIO&&p.sampleIO.length?p.sampleIO:(p.testCases&&p.testCases.length?[{input:p.testCases[0].input,output:p.testCases[0].output}]:[]);
+if(samples.length>0){let h='';samples.forEach((s,i)=>{const label=samples.length>1?` ${i+1}`:'';const explainHtml=s.explanation?`<div class="sample-io-display-explain">💡 Giải thích: ${this._esc(s.explanation)}</div>`:'';h+=`<div class="sample-io-display"><div class="sample-io-display-header">📝 Ví dụ${label}</div><div class="sample-io-display-grid"><div class="sample-box"><div class="sample-box-title">INPUT</div><pre>${this._esc(s.input)}</pre></div><div class="sample-box"><div class="sample-box-title">OUTPUT</div><pre>${this._esc(s.output)}</pre></div></div>${explainHtml}</div>`});sio.innerHTML=h}else{sio.innerHTML=''}
 document.getElementById('stu-results-card').classList.add('hidden');document.getElementById('no-results-msg').style.display='block';
 // Switch to desc tab
 document.querySelectorAll('.oj-ptab').forEach(b=>b.classList.remove('active'));document.querySelector('.oj-ptab[data-ptab="desc"]').classList.add('active');document.querySelectorAll('.oj-ptab-content').forEach(p=>p.classList.remove('active'));document.getElementById('ptab-desc').classList.add('active')}
@@ -364,6 +574,16 @@ async startGeneration(){if(this.isGenerating)return;this.isGenerating=true;docum
 _setProg(p,m){document.getElementById('progress-bar').style.width=p+'%';document.getElementById('progress-text').textContent=m;document.getElementById('progress-percent').textContent=p+'%'}
 
 _showPreview(){const data=this.themis.getPreviewData();document.getElementById('section-preview').classList.remove('hidden');const counts={};data.forEach(d=>{counts[d.subtaskName]=(counts[d.subtaskName]||0)+1});let si=0;document.getElementById('preview-stats').innerHTML=Object.entries(counts).map(([n,c])=>{si++;return`<div class="stat-chip st-c${Math.min(si,5)}">${n}: ${c}</div>`}).join('');document.getElementById('preview-tbody').innerHTML=data.map(d=>`<tr><td>${String(d.index).padStart(2,'0')}</td><td><span class="stat-chip st-c${Math.min(d.subtaskId,5)}" style="padding:2px 6px;font-size:.72rem">${d.subtaskName}</span></td><td><pre>${this._esc(d.input)}</pre></td><td><pre>${this._esc(d.output)}</pre></td></tr>`).join('');document.getElementById('section-preview').scrollIntoView({behavior:'smooth'})}
+
+_confirmDialog(title,message,confirmText='Xác nhận',btnClass='btn-accent'){
+return new Promise(resolve=>{
+const ov=document.createElement('div');ov.className='modal-overlay confirm-dialog-overlay';
+ov.innerHTML=`<div class="modal-content confirm-dialog"><h3>${title}</h3><p style="font-size:.9rem;color:var(--text-secondary);line-height:1.6;margin-bottom:20px">${message}</p><div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn btn-ghost btn-sm confirm-cancel">Hủy bỏ</button><button class="btn ${btnClass} confirm-ok">${confirmText}</button></div></div>`;
+document.body.appendChild(ov);
+requestAnimationFrame(()=>ov.classList.add('active'));
+ov.querySelector('.confirm-ok').onclick=()=>{ov.remove();resolve(true)};
+ov.querySelector('.confirm-cancel').onclick=()=>{ov.remove();resolve(false)};
+ov.onclick=e=>{if(e.target===ov){ov.remove();resolve(false)}}})}
 
 _toast(m,t='info'){const c=document.getElementById('toast-container');const el=document.createElement('div');el.className='toast '+t;el.textContent=m;c.appendChild(el);setTimeout(()=>el.remove(),4500)}
 _esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}}
