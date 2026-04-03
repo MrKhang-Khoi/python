@@ -489,6 +489,16 @@ textarea.ai-textarea{resize:vertical}
 .oj-btn-run{background:var(--success);color:#fff;border:none;padding:6px 18px;font-size:.82rem;font-weight:600;border-radius:var(--radius-sm);cursor:pointer;font-family:inherit;transition:all .2s}
 .oj-btn-run:hover{filter:brightness(1.15);transform:translateY(-1px)}
 .oj-btn-run:disabled{opacity:.5;cursor:not-allowed;transform:none}
+.oj-btn-test{background:linear-gradient(135deg,#0ea5e9,#6366f1);color:#fff;border:none;padding:6px 16px;font-size:.82rem;font-weight:600;border-radius:var(--radius-sm);cursor:pointer;font-family:inherit;transition:all .2s}
+.oj-btn-test:hover{filter:brightness(1.15);transform:translateY(-1px);box-shadow:0 3px 12px rgba(14,165,233,.3)}
+.oj-btn-test:disabled{opacity:.5;cursor:not-allowed;transform:none}
+.oj-btn-test.running{animation:pulse-test 1s ease-in-out infinite}
+@keyframes pulse-test{0%,100%{box-shadow:0 0 0 0 rgba(14,165,233,.4)}50%{box-shadow:0 0 0 6px rgba(14,165,233,0)}}
+.oj-custom-input-area{padding:0 8px;border-top:1px solid var(--border);background:rgba(0,0,0,.15);transition:all .3s ease}
+.oj-custom-input-area.hidden{display:none}
+.oj-custom-input-header{display:flex;justify-content:space-between;align-items:center;padding:6px 4px;font-size:.78rem;font-weight:600;color:var(--text-secondary)}
+.oj-custom-input{width:100%;background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-family:var(--font-mono);font-size:.8rem;padding:8px;resize:vertical;min-height:50px;max-height:120px}
+.oj-custom-input:focus{outline:none;border-color:var(--accent)}
 .oj-editor-wrap{flex:1;overflow:hidden}
 .oj-editor-wrap .CodeMirror{height:100% !important;font-size:.85rem}
 

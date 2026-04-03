@@ -394,12 +394,20 @@
                 <div class="oj-pane-right" id="oj-pane-right">
                     <div class="oj-editor-header">
                         <span class="oj-lang-badge">🐍 Python 3</span>
-                        <div style="display:flex;gap:6px"><button class="oj-btn-run" id="btn-stu-submit">▶ Nộp Bài</button></div>
+                        <div style="display:flex;gap:6px"><button class="oj-btn-test" id="btn-stu-run">🧪 Chạy thử</button><button class="oj-btn-run" id="btn-stu-submit">▶ Nộp Bài</button></div>
                     </div>
                     <div id="stu-editor-wrap" class="oj-editor-wrap"></div>
+                    <!-- Custom input area for testing -->
+                    <div id="oj-custom-input-area" class="oj-custom-input-area hidden">
+                        <div class="oj-custom-input-header">
+                            <span>📥 Input thử nghiệm</span>
+                            <button class="btn-sm btn-ghost" id="btn-use-sample-input">📋 Dùng ví dụ</button>
+                        </div>
+                        <textarea id="oj-custom-input" class="oj-custom-input" placeholder="Nhập dữ liệu đầu vào tại đây..." rows="3"></textarea>
+                    </div>
                     <div class="oj-console" id="oj-console">
                         <div class="oj-console-header"><span>Console</span><span id="stu-submit-status" class="oj-console-status"></span></div>
-                        <div id="oj-console-output" class="oj-console-body">Nhấn "▶ Nộp Bài" để chấm code</div>
+                        <div id="oj-console-output" class="oj-console-body">Nhấn "🧪 Chạy thử" để test code hoặc "▶ Nộp Bài" để chấm điểm</div>
                     </div>
                 </div>
             </div>

@@ -463,6 +463,9 @@ $('btn-stu-login').onclick=()=>this._stuLogin();
 $('btn-stu-logout').onclick=async()=>{const ok=await this._confirmDialog('🚪 Đăng xuất','Bạn chắc chắn muốn đăng xuất?','Đăng xuất','btn-accent');if(ok)this._stuLogout()};
 $('btn-join-room').onclick=()=>this._joinRoom();
 $('btn-stu-submit').onclick=()=>this._stuSubmit();
+$('btn-stu-run').onclick=()=>this._stuRun();
+// Toggle custom input visibility when Run button is present
+$('btn-use-sample-input').onclick=()=>this._fillSampleInput();
 $('btn-stu-back-join').onclick=()=>{$('stu-ended').classList.add('hidden');$('stu-dashboard').classList.remove('hidden');this.fb.cleanup()};
 $('stu-password').onkeydown=e=>{if(e.key==='Enter')this._stuLogin()};
 // Toggle password visibility
@@ -587,6 +590,84 @@ if(samples.length>0){let h='';samples.forEach((s,i)=>{const label=samples.length
 document.getElementById('stu-results-card').classList.add('hidden');document.getElementById('no-results-msg').style.display='block';
 // Switch to desc tab
 document.querySelectorAll('.oj-ptab').forEach(b=>b.classList.remove('active'));document.querySelector('.oj-ptab[data-ptab="desc"]').classList.add('active');document.querySelectorAll('.oj-ptab-content').forEach(p=>p.classList.remove('active'));document.getElementById('ptab-desc').classList.add('active')}
+
+// === RUN/TEST CODE (no grading) ===
+_fillSampleInput(){
+const p=this.problems[this.currentProbIdx];if(!p)return;
+const samples=p.sampleIO&&p.sampleIO.length?p.sampleIO:(p.testCases&&p.testCases.length?[{input:p.testCases[0].input,output:p.testCases[0].output}]:[]);
+if(samples.length>0){document.getElementById('oj-custom-input').value=samples[0].input;this._toast('📋 Đã điền input từ ví dụ','info')}
+else{this._toast('Không có ví dụ input','error')}}
+
+async _stuRun(){
+if(!this.cmStudent)return;
+const code=this.cmStudent.getValue().trim();
+if(!code){this._toast('Viết code trước','error');return}
+const p=this.problems[this.currentProbIdx];
+// Show custom input area
+const inputArea=document.getElementById('oj-custom-input-area');
+if(inputArea.classList.contains('hidden')){inputArea.classList.remove('hidden');
+// Auto-fill sample input if empty
+const inp=document.getElementById('oj-custom-input');
+if(!inp.value.trim())this._fillSampleInput();
+return}
+const customInput=document.getElementById('oj-custom-input').value;
+const statusEl=document.getElementById('stu-submit-status');
+const consoleOut=document.getElementById('oj-console-output');
+const runBtn=document.getElementById('btn-stu-run');
+statusEl.textContent='🧪 Đang chạy...';runBtn.disabled=true;runBtn.classList.add('running');
+consoleOut.innerHTML='<span style="color:var(--accent)">🔄 Đang khởi tạo Pyodide...</span>';
+try{
+await this.pyEngine.init();
+consoleOut.innerHTML='<span style="color:var(--accent)">⚡ Đang thực thi code...</span>';
+let output='',isFileIO=p&&p.fileIO;
+const taskName=p?p.taskName:'BAITAP';const uppercase=p?p.uppercase:true;
+const inpF=(uppercase?taskName.toUpperCase():taskName.toLowerCase())+(uppercase?'.INP':'.inp');
+const outF=(uppercase?taskName.toUpperCase():taskName.toLowerCase())+(uppercase?'.OUT':'.out');
+const t0=performance.now();
+if(isFileIO){output=await this.pyEngine.runFileIO(code,customInput,inpF,outF)}
+else{output=await this.pyEngine.runStdio(code,customInput)}
+const elapsed=Math.round(performance.now()-t0);
+// Success — show output
+let html='<div style="margin-bottom:8px"><strong style="color:var(--success);font-size:1.05rem">✅ Chạy thành công!</strong>';
+html+=` <span style="font-size:.78rem;color:var(--text-muted)">(${elapsed}ms)</span></div>`;
+if(isFileIO){html+=`<div style="font-size:.75rem;color:var(--text-muted);margin-bottom:4px">📁 File I/O: ${inpF} → ${outF}</div>`}
+html+='<div style="font-size:.78rem;font-weight:600;color:var(--text-secondary);margin-bottom:4px">📥 Input:</div>';
+html+=`<pre style="background:rgba(255,255,255,.03);padding:8px;border-radius:4px;font-size:.8rem;margin-bottom:8px;max-height:80px;overflow-y:auto;border:1px solid var(--border)">${this._esc(customInput||'(không có)')}</pre>`;
+html+='<div style="font-size:.78rem;font-weight:600;color:var(--text-secondary);margin-bottom:4px">📤 Output:</div>';
+html+=`<pre style="background:rgba(16,185,129,.05);padding:8px;border-radius:4px;font-size:.8rem;max-height:150px;overflow-y:auto;border:1px solid rgba(16,185,129,.2);color:var(--success)">${this._esc(output||'(không có output)')}</pre>`;
+// Compare with expected output if available
+const samples=p&&p.sampleIO&&p.sampleIO.length?p.sampleIO:(p&&p.testCases&&p.testCases.length?[{input:p.testCases[0].input,output:p.testCases[0].output}]:[]);
+const matchingSample=samples.find(s=>s.input.trim()===customInput.trim());
+if(matchingSample){const expected=matchingSample.output.trim();const actual=output.trim();
+if(actual===expected){html+='<div style="margin-top:8px;padding:8px;background:rgba(16,185,129,.08);border-radius:4px;font-weight:600;color:var(--success)">✅ Kết quả ĐÚNG so với ví dụ!</div>'}
+else{html+='<div style="margin-top:8px;padding:8px;background:rgba(239,68,68,.08);border-radius:4px">';
+html+='<div style="font-weight:600;color:var(--error);margin-bottom:4px">❌ Kết quả KHÁC so với ví dụ:</div>';
+html+=`<div style="font-size:.78rem"><span style="color:var(--text-muted)">Mong đợi:</span> <code style="color:var(--success)">${this._esc(expected)}</code></div>`;
+html+=`<div style="font-size:.78rem"><span style="color:var(--text-muted)">Nhận được:</span> <code style="color:var(--error)">${this._esc(actual)}</code></div></div>`}}
+consoleOut.innerHTML=html;statusEl.textContent='✅ Chạy xong'
+}catch(e){
+const errMsg=e.message;
+let html='<div style="margin-bottom:8px"><strong style="color:var(--error);font-size:1.05rem">💥 Lỗi khi chạy code</strong></div>';
+// Parse Python error for better display
+if(errMsg.includes('Python:')){const pyErr=errMsg.replace('Python: ','');
+// Try to extract line number
+const lineMatch=pyErr.match(/line\s+(\d+)/i);
+const errTypeMatch=pyErr.match(/(SyntaxError|NameError|TypeError|ValueError|IndexError|ZeroDivisionError|IndentationError|TabError|KeyError|AttributeError|ImportError|FileNotFoundError|RuntimeError|OverflowError|RecursionError|EOFError)[:\s]/);
+if(errTypeMatch){
+const errType=errTypeMatch[1];
+const errDescriptions={'SyntaxError':'Lỗi cú pháp — sai cấu trúc code','NameError':'Biến/hàm chưa được khai báo','TypeError':'Sai kiểu dữ liệu','ValueError':'Giá trị không hợp lệ (ví dụ: int("abc"))','IndexError':'Truy cập phần tử ngoài phạm vi mảng/list','ZeroDivisionError':'Chia cho 0','IndentationError':'Thụt lề sai — kiểm tra khoảng trắng đầu dòng','TabError':'Trộn Tab và Space — dùng 1 loại thôi','KeyError':'Key không tồn tại trong dictionary','AttributeError':'Phương thức/thuộc tính không tồn tại','ImportError':'Module không tồn tại','RecursionError':'Đệ quy quá sâu — kiểm tra điều kiện dừng','EOFError':'Hết dữ liệu input — kiểm tra số lần gọi input()'};
+html+=`<div style="padding:8px 12px;background:rgba(239,68,68,.06);border-left:3px solid var(--error);border-radius:0 4px 4px 0;margin-bottom:8px">`;
+html+=`<div style="font-weight:700;color:var(--error);font-size:.9rem">${errType}</div>`;
+html+=`<div style="font-size:.78rem;color:var(--text-secondary);margin-top:2px">${errDescriptions[errType]||''}</div>`;
+if(lineMatch)html+=`<div style="font-size:.78rem;color:var(--warning,#f59e0b);margin-top:4px">📍 Dòng ${lineMatch[1]} trong code của bạn</div>`;
+html+=`</div>`}
+html+=`<pre style="background:rgba(239,68,68,.08);padding:10px;border-radius:4px;font-size:.78rem;color:#f87171;white-space:pre-wrap;max-height:200px;overflow-y:auto">${this._esc(pyErr)}</pre>`;
+html+='<div style="color:var(--text-muted);font-size:.75rem;margin-top:8px">💡 <strong>Mẹo:</strong> Đọc kỹ dòng cuối của lỗi để biết nguyên nhân.</div>'}
+else if(errMsg.includes('TLE')){
+html+='<div style="padding:8px;background:rgba(245,158,11,.08);border-radius:4px;color:#f59e0b"><strong>⏰ Quá thời gian (TLE)</strong><br><span style="font-size:.78rem">Code chạy quá lâu. Kiểm tra vòng lặp vô hạn hoặc tối ưu thuật toán.</span></div>'}
+else{html+=`<div style="color:var(--error)">${this._esc(errMsg)}</div>`}
+consoleOut.innerHTML=html;statusEl.textContent='❌ Có lỗi'
+}finally{runBtn.disabled=false;runBtn.classList.remove('running')}}
 
 async _stuSubmit(){if(!this.cmStudent)return;
 // Check if contest time has expired (race condition guard)
