@@ -112,9 +112,9 @@ async _teacherLogin(){const pass=document.getElementById('teacher-password').val
 errEl.textContent='🔐 Đang xác thực...';
 try{
 const hash=await this._sha256(pass);
-const res=await fetch('/api/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({passwordHash:hash})});
+const res=await fetch(APPS_SCRIPT_URL,{method:'POST',body:JSON.stringify({action:'verify_teacher',passwordHash:hash}),headers:{'Content-Type':'text/plain'}});
 const data=await res.json();
-if(data.ok){this._teacherToken=data.token;sessionStorage.setItem('teacher_token',data.token);errEl.textContent='';this._selectRole('teacher')}
+if(data.ok){errEl.textContent='';this._selectRole('teacher')}
 else{errEl.textContent='❌ '+data.error;document.getElementById('teacher-password').classList.add('shake');setTimeout(()=>document.getElementById('teacher-password').classList.remove('shake'),500)}
 }catch(e){errEl.textContent='❌ Lỗi kết nối server'}}
 

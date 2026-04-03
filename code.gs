@@ -18,6 +18,9 @@
 const CONFIG = {
   FOLDER_NAME: 'Themis_Online_Judge_Files',  // Tên folder Google Drive
   SHEET_NAME: 'Themis_Database',              // Tên Google Sheet
+  // SHA-256 hash của mật khẩu giáo viên (không lưu plaintext)
+  // Đổi mật khẩu: chạy hàm updateTeacherPassword('mật_khẩu_mới') 
+  TEACHER_HASH: '82afc7b86a1a39e763dfa4eb4e1ac237e9c7d0241d88339b808b50b8c49e8b43',
 };
 
 // ===== SETUP (CHẠY 1 LẦN ĐẦU) =====
@@ -71,6 +74,9 @@ function doPost(e) {
     const action = data.action;
     
     switch (action) {
+      case 'verify_teacher':
+        return _handleTeacherAuth(data.passwordHash);
+      
       case 'upload_file':
         return _handleUpload(data);
       
@@ -92,6 +98,39 @@ function doPost(e) {
   } catch (err) {
     return _jsonResponse({ ok: false, error: err.message });
   }
+}
+
+// ===== TEACHER AUTH =====
+
+/**
+ * Xác thực giáo viên bằng SHA-256 hash
+ * Client gửi hash của mật khẩu → so sánh với TEACHER_HASH
+ */
+function _handleTeacherAuth(passwordHash) {
+  if (!passwordHash) return _jsonResponse({ ok: false, error: 'Thiếu mật khẩu' });
+  
+  if (passwordHash === CONFIG.TEACHER_HASH) {
+    return _jsonResponse({ ok: true, role: 'teacher' });
+  } else {
+    return _jsonResponse({ ok: false, error: 'Mật khẩu sai!' });
+  }
+}
+
+/**
+ * Đổi mật khẩu giáo viên — chạy trong Apps Script editor
+ * Cách dùng: chạy hàm updateTeacherPassword('mật_khẩu_mới_của_bạn')
+ */
+function updateTeacherPassword(newPassword) {
+  if (!newPassword) { Logger.log('❌ Nhập mật khẩu mới!'); return; }
+  const hash = _sha256(newPassword);
+  Logger.log('✅ Hash mới: ' + hash);
+  Logger.log('👉 Copy hash trên → paste vào CONFIG.TEACHER_HASH');
+  Logger.log('👉 Sau đó Deploy lại Web App (version mới)');
+}
+
+function _sha256(text) {
+  const raw = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, text);
+  return raw.map(b => ('0' + ((b + 256) % 256).toString(16)).slice(-2)).join('');
 }
 
 // ===== FILE HANDLERS =====
