@@ -738,7 +738,7 @@ const stuThSearch=$('stu-theory-search');if(stuThSearch)stuThSearch.oninput=()=>
 _registerStudentListeners(){
 this._exerciseResults={};this._prevExCount=0;
 this.fb.listenExercises(exs=>{this._cachedExercises=exs;this._loadExerciseStatuses(exs);this._checkNewExerciseNotification(exs)});
-this.fb.listenAllExerciseResults(res=>{this._exerciseResults=res;if(this._cachedExercises){this._renderExerciseList(this._cachedExercises);this._renderStudentRanking()}});
+this.fb.listenAllExerciseResults(res=>{this._exerciseResults=res;if(this._cachedExercises){this._renderExerciseList(this._cachedExercises);this._renderStudentRanking();this._renderStudentStats()}});
 const thRef2=this.fb.db.ref('theories');thRef2.on('value',s=>{this._stuTheories=s.val()||{};this._renderTheoryList(this._stuTheories,'stu-theory-list',false)});this.fb._listeners.push(()=>thRef2.off());
 // Load contest history for student
 this._loadStudentContestHistory()}
