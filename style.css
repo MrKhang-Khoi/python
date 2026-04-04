@@ -368,7 +368,8 @@ textarea.ai-textarea{resize:vertical}
 
 /* ===== EXERCISE TABLE V2 (Student) ===== */
 .oj-exercise-list-v2{border:1px solid var(--border);border-radius:var(--radius-md);overflow:hidden}
-.stu-ex-table{width:100%;border-collapse:collapse;font-size:.84rem}
+.stu-ex-table{width:100%;min-width:860px;border-collapse:collapse;font-size:.84rem}
+.oj-exercise-list-v2{overflow-x:auto}
 .stu-ex-table thead th{padding:10px 14px;text-align:left;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);background:rgba(255,255,255,.025);border-bottom:2px solid var(--border)}
 .stu-ex-table tbody tr{cursor:pointer;transition:all .15s;border-bottom:1px solid rgba(255,255,255,.04)}
 .stu-ex-table tbody tr:last-child{border-bottom:none}

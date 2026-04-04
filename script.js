@@ -456,6 +456,9 @@ if(ex.attachments){ex.attachments.forEach(att=>{attEl.innerHTML+=`<div class="fi
 const saveBtn=document.getElementById('btn-save-view-ex');if(saveBtn)saveBtn.disabled=false;
 const regradeBtn=document.getElementById('btn-regrade-exercise');
 if(regradeBtn){const hasStudents=Object.keys(exRes).length>0;regradeBtn.style.display=hasStudents?'':'none';regradeBtn.onclick=()=>this._reGradeExercise(id)}
+// Footer regrade button
+const footerRegradeBtn=document.getElementById('btn-regrade-view-ex');
+if(footerRegradeBtn){const hs2=Object.keys(exRes).length>0;footerRegradeBtn.style.display=hs2?'inline-flex':'none';footerRegradeBtn.onclick=()=>this._reGradeExercise(id)}
 // Add sample IO button binding
 const addSampleBtn=document.getElementById('btn-view-add-sample');if(addSampleBtn)addSampleBtn.onclick=()=>this._addViewSampleIO();
 const addStBtn=document.getElementById('btn-view-add-subtask');if(addStBtn)addStBtn.onclick=()=>this._addViewSubtask();
@@ -470,11 +473,6 @@ const updates={title:document.getElementById('view-ex-title').value.trim(),topic
 try{
 await this.fb.updateExercise(id,updates);
 this._toast('Đã cập nhật bài tập!','success');
-// Ask if re-grade needed after subtask change
-const res=this._teacherExResults||{};const stuKeys=Object.keys(res[id]||{});
-if(stuKeys.length>0){
-const ok=await this._confirmDialog('🔄 Chấm lại?',`Subtasks đã thay đổi. Chấm lại <strong>${stuKeys.length} học sinh</strong> bằng code đã nộp?`,'Chấm lại','btn-accent');
-if(ok){document.getElementById('modal-view-exercise').classList.add('hidden');await this._reGradeExercise(id);return}}
 this._tcViewOpen=false;
 const tcList=document.getElementById('view-ex-tc-list');if(tcList)tcList.style.display='none';
 document.getElementById('modal-view-exercise').classList.add('hidden')
@@ -1250,7 +1248,7 @@ if(!keys.length){c.innerHTML=`<p style="color:var(--text-muted);text-align:cente
 c.className='oj-exercise-list-v2';
 // Pagination
 const PAGE_SIZE=20;if(!this._exPage)this._exPage=1;const totalPages=Math.ceil(keys.length/PAGE_SIZE);if(this._exPage>totalPages)this._exPage=totalPages;const startIdx=(this._exPage-1)*PAGE_SIZE;const pageKeys=keys.slice(startIdx,startIdx+PAGE_SIZE);
-let h='<table class="stu-ex-table"><thead><tr><th style="width:40px">STT</th><th>Bài tập</th><th style="width:100px">Chủ đề</th><th style="width:80px">Độ khó</th><th style="width:88px">Trạng thái</th><th style="width:70px">Điểm</th><th style="width:80px">Số test</th><th style="width:80px">Ngày tạo</th></tr></thead><tbody>';
+let h='<table class="stu-ex-table"><thead><tr><th style="width:36px">STT</th><th>Bài tập</th><th style="width:90px">Chủ đề</th><th style="width:80px">Độ khó</th><th style="width:84px">Trạng thái</th><th style="width:56px">Điểm</th><th style="width:56px">Tests</th><th style="width:72px">Ngày tạo</th></tr></thead><tbody>';
 pageKeys.forEach((k,idx)=>{const ex=exs[k];const d=new Date(ex.createdAt);const tc=ex.testCases?ex.testCases.length:0;const topic=ex.topic||'Chung';
 const myResult=this.studentName&&this._exerciseResults[k]&&this._exerciseResults[k][this.studentName];
 const isDone=!!myResult;const score=myResult?myResult.score:null;
