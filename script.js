@@ -148,7 +148,7 @@ const thRef=this.fb.db.ref('theories');thRef.on('value',s=>{this._cachedTheories
 // Room history listener
 const roomRef=this.fb.db.ref('rooms');roomRef.on('value',s=>{this._allRooms=s.val()||{};this._renderRoomHistory()});this.fb._listeners.push(()=>roomRef.off());
 // Restore active room from localStorage (BUG-E fix)
-this._restoreActiveRoom()}
+this._restoreActiveRoom();this._initTeacherNotifListener()}
 
 _bindTeacherTabs(){const self=this;document.querySelectorAll('.t-tab[data-ttab]').forEach(btn=>{btn.onclick=()=>{document.querySelectorAll('.t-tab').forEach(b=>b.classList.remove('active'));btn.classList.add('active');document.querySelectorAll('.t-tab-panel').forEach(p=>p.classList.add('hidden'));const panel=document.getElementById('t-tab-'+btn.dataset.ttab);if(panel)panel.classList.remove('hidden');if(btn.dataset.ttab==='compose')setTimeout(()=>{self.cmMain&&self.cmMain.refresh();self.cmBrute&&self.cmBrute.refresh();self.cmAiPreview&&self.cmAiPreview.refresh()},50)}})}
 
@@ -218,7 +218,12 @@ if(thFileInput)thFileInput.onchange=e=>{if(e.target.files[0])this._selectTheoryF
 // Drag-drop for theory file zone
 const thZone=$('theory-file-zone');if(thZone){thZone.ondragover=e=>{e.preventDefault();thZone.classList.add('drag-over')};thZone.ondragleave=()=>thZone.classList.remove('drag-over');thZone.ondrop=e=>{e.preventDefault();thZone.classList.remove('drag-over');if(e.dataTransfer.files[0])this._selectTheoryFile(e.dataTransfer.files[0])}}
 // Sample I/O
-$('btn-add-sample-io').onclick=()=>this._addSampleIO();this._addSampleIO();}
+$('btn-add-sample-io').onclick=()=>this._addSampleIO();this._addSampleIO();
+// Notification bindings
+const btnSendNotif=$('btn-send-notif');if(btnSendNotif)btnSendNotif.onclick=()=>this._sendNotification();
+const btnCancelNotifEdit=$('btn-cancel-notif-edit');if(btnCancelNotifEdit)btnCancelNotifEdit.onclick=()=>this._cancelNotifEdit();
+document.querySelectorAll('input[name="notif-target"]').forEach(r=>r.onchange=()=>{const stuList=$('notif-stu-list');if(r.value==='select'&&r.checked){stuList.classList.remove('hidden');this._loadNotifStudentList()}else if(r.value==='all'&&r.checked){stuList.classList.add('hidden')}});
+}
 
 _sampleIOCounter=0;
 _addSampleIO(inputVal='',outputVal='',explainVal=''){this._sampleIOCounter++;const idx=this._sampleIOCounter;const c=document.getElementById('sample-io-container');const card=document.createElement('div');card.className='sample-io-card';card.dataset.sampleId=idx;
@@ -718,6 +723,10 @@ $('btn-stu-run').onclick=()=>this._stuRun();
 $('btn-use-sample-input').onclick=()=>this._fillSampleInput();
 $('btn-stu-back-join').onclick=()=>{$('stu-ended').classList.add('hidden');$('stu-dashboard').classList.remove('hidden');this.fb.cleanupExercise();this._renderExerciseList(this._cachedExercises||{});this._renderStudentRanking();this._renderStudentStats()};
 $('stu-password').onkeydown=e=>{if(e.key==='Enter')this._stuLogin()};
+// Notification bell
+const bellBtn=$('btn-stu-notif-bell');if(bellBtn)bellBtn.onclick=e=>{e.stopPropagation();const dd=$('stu-notif-dropdown');dd.classList.toggle('hidden')};
+document.addEventListener('click',e=>{const dd=document.getElementById('stu-notif-dropdown');const wrap=e.target.closest('.notif-bell-wrap');if(!wrap&&dd&&!dd.classList.contains('hidden'))dd.classList.add('hidden')});
+const markAllBtn=$('btn-mark-all-read');if(markAllBtn)markAllBtn.onclick=()=>this._markAllNotifsRead();
 // Toggle password visibility
 const toggleBtn=$('btn-toggle-pass');if(toggleBtn)toggleBtn.onclick=()=>{const inp=$('stu-password');const isHidden=inp.type==='password';inp.type=isHidden?'text':'password';toggleBtn.textContent=isHidden?'🙈':'👁';toggleBtn.title=isHidden?'Ẩn mật khẩu':'Hiện mật khẩu'};
 // Dashboard nav tabs
@@ -744,6 +753,8 @@ this._exerciseResults={};this._prevExCount=0;
 this.fb.listenExercises(exs=>{this._cachedExercises=exs;this._loadExerciseStatuses(exs);this._checkNewExerciseNotification(exs)},'student');
 this.fb.listenAllExerciseResults(res=>{this._exerciseResults=res;if(this._cachedExercises){this._renderExerciseList(this._cachedExercises);this._renderStudentRanking();this._renderStudentStats()}},'student');
 const thRef2=this.fb.db.ref('theories');thRef2.on('value',s=>{this._stuTheories=s.val()||{};this._renderTheoryList(this._stuTheories,'stu-theory-list',false)});this.fb._studentDashListeners.push(()=>thRef2.off());
+// Listen for notifications
+this._listenStudentNotifications();
 // Load contest history for student
 this._loadStudentContestHistory()}
 
@@ -918,6 +929,12 @@ async _joinRoom(){const code=document.getElementById('stu-room-code').value.trim
 
 async _showStudentEndedScreen(roomCode,info){
 document.getElementById('stu-ended').classList.remove('hidden');
+// Show contest title and info
+const titleEl=document.getElementById('stu-ended-title');
+titleEl.textContent=info.title||'Cuộc thi đã kết thúc!';
+const infoEl=document.getElementById('stu-ended-info');
+const d=new Date(info.createdAt||Date.now());
+infoEl.innerHTML=`<span>⏱ ${info.timeLimit||0} phút</span><span>📅 ${d.toLocaleDateString('vi')}</span><span>📝 ${info.problemCount||0} bài</span>`;
 // Load submitted code for review
 try{
 const codeSnap=await this.fb.db.ref(`rooms/${roomCode}/students/${this.studentName}/finalCode`).once('value');
@@ -933,6 +950,48 @@ const btn=document.createElement('button');btn.className='oj-ptab-btn'+(i===0?' 
 btn.onclick=()=>{tabsEl.querySelectorAll('.oj-ptab-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');preEl.textContent=codes[pi]||'(Chưa nộp)'};
 tabsEl.appendChild(btn)});
 preEl.textContent=codes[codeKeys[0]]||'(Chưa nộp)'}
+// Load problem descriptions
+try{
+const probSnap=await this.fb.db.ref(`rooms/${roomCode}/problems`).once('value');
+const probs=probSnap.val();
+if(probs){
+const probSection=document.getElementById('stu-ended-problems');
+probSection.classList.remove('hidden');
+const tabsEl=document.getElementById('stu-ended-prob-tabs');
+const detailEl=document.getElementById('stu-ended-prob-detail');
+// Get grades for each problem
+const gradeSnap=await this.fb.db.ref(`rooms/${roomCode}/gradeResults/${this.studentName}`).once('value');
+const myGrades=gradeSnap.val()||{};
+tabsEl.innerHTML='';
+const probKeys=Object.keys(probs).sort((a,b)=>parseInt(a)-parseInt(b));
+const showProb=(pi)=>{
+const p=probs[pi];
+const grade=myGrades[pi];
+const score=grade?grade.score:null;
+let scoreHtml='';
+if(score!==null){const cls=score>=100?'perfect':score>0?'partial':'zero';scoreHtml=`<div class="contest-prob-score ${cls}">🎯 Điểm: ${score}/100</div>`}
+let sampleHtml='';
+if(p.sampleIO&&p.sampleIO.length){
+sampleHtml='<div style="margin-top:12px">';
+p.sampleIO.forEach((s,si)=>{
+sampleHtml+=`<div class="sample-io-display"><div class="sample-io-display-header">Ví dụ ${si+1}</div><div class="sample-io-display-grid"><div class="sample-box"><div class="sample-box-title">INPUT</div><pre>${this._esc(s.input||'')}</pre></div><div class="sample-box"><div class="sample-box-title">OUTPUT</div><pre>${this._esc(s.output||'')}</pre></div></div>`;
+if(s.explanation)sampleHtml+=`<div class="sample-io-display-explain">💡 ${this._esc(s.explanation)}</div>`;
+sampleHtml+=`</div>`});
+sampleHtml+='</div>'}
+detailEl.innerHTML=`<div class="contest-prob-detail">
+<div class="contest-prob-title">📝 ${this._esc(p.title||'Bài '+(parseInt(pi)+1))}</div>
+${scoreHtml}
+<div class="contest-prob-desc">${this._esc(p.description||'Không có mô tả')}</div>
+${sampleHtml}</div>`};
+probKeys.forEach((pi,i)=>{
+const btn=document.createElement('button');btn.className='contest-prob-tab'+(i===0?' active':'');
+const p=probs[pi];const grade=myGrades[pi];
+const scoreIcon=grade?(grade.score>=100?'✅':grade.score>0?'🟡':'❌'):'⬜';
+btn.textContent=`${scoreIcon} Bài ${parseInt(pi)+1}`;
+btn.onclick=()=>{tabsEl.querySelectorAll('.contest-prob-tab').forEach(b=>b.classList.remove('active'));btn.classList.add('active');showProb(pi)};
+tabsEl.appendChild(btn)});
+if(probKeys.length)showProb(probKeys[0]);
+}}catch(e){console.warn('Load contest problems:',e)}
 // Check if published
 if(info.published){
 document.getElementById('stu-final-score').textContent='📊 GV đã công bố kết quả!';
@@ -949,8 +1008,8 @@ if(notes){let nh='<div style="margin-top:8px"><h4 style="font-size:.85rem;margin
 Object.keys(notes).forEach(pi=>{nh+=`<div style="padding:6px 10px;background:rgba(99,102,241,.06);border:1px solid rgba(99,102,241,.15);border-radius:6px;font-size:.78rem;margin-bottom:4px"><strong>Bài ${parseInt(pi)+1}:</strong> ${this._esc(notes[pi])}</div>`});
 nh+='</div>';document.getElementById('stu-contest-notes').innerHTML=nh}
 // Show AI analysis
-const gradeSnap=await this.fb.db.ref(`rooms/${roomCode}/gradeResults/${this.studentName}`).once('value');
-const grades=gradeSnap.val()||{};
+const gradeSnap2=await this.fb.db.ref(`rooms/${roomCode}/gradeResults/${this.studentName}`).once('value');
+const grades=gradeSnap2.val()||{};
 let aiHtml='';Object.keys(grades).forEach(pi=>{if(grades[pi].aiAnalysis){aiHtml+=`<div style="padding:6px 10px;background:rgba(16,185,129,.06);border:1px solid rgba(16,185,129,.15);border-radius:6px;font-size:.78rem;margin-bottom:4px"><strong>🤖 Bài ${parseInt(pi)+1}:</strong> ${this._esc(grades[pi].aiAnalysis).replace(/\n/g,'<br>')}</div>`}});
 if(aiHtml)document.getElementById('stu-contest-notes').innerHTML+='<div style="margin-top:8px"><h4 style="font-size:.85rem;margin-bottom:6px">🤖 Phân tích AI:</h4>'+aiHtml+'</div>';
 }else{document.getElementById('stu-final-score').textContent='⏳ Chờ GV chấm bài và công bố kết quả...'}
@@ -1363,6 +1422,193 @@ ov.onclick=e=>{if(e.target===ov){ov.remove();resolve(false)}}})}
 
 _copyText(text){navigator.clipboard.writeText(text).then(()=>this._toast('📋 Đã copy!','success')).catch(()=>{const t=document.createElement('textarea');t.value=text;t.style.position='fixed';t.style.opacity='0';document.body.appendChild(t);t.select();document.execCommand('copy');document.body.removeChild(t);this._toast('📋 Đã copy!','success')})}
 _toast(m,t='info'){const c=document.getElementById('toast-container');const el=document.createElement('div');el.className='toast '+t;el.textContent=m;c.appendChild(el);setTimeout(()=>el.remove(),4500)}
-_esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}}
+_esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
+
+// ============ TEACHER NOTIFICATION SYSTEM ============
+async _loadNotifStudentList(){
+try{
+const snap=await this.fb.db.ref('accounts').once('value');
+const accts=snap.val()||{};
+const el=document.getElementById('notif-stu-list');
+const keys=Object.keys(accts).filter(k=>k!=='Admin');
+if(!keys.length){el.innerHTML='<p style="color:var(--text-muted);font-size:.82rem;padding:8px">Chưa có học sinh</p>';return}
+el.innerHTML=keys.map(k=>`<label class="notif-stu-chip" onclick="this.classList.toggle('selected')"><input type="checkbox" value="${this._esc(k)}">${this._esc(k)}</label>`).join('');
+}catch(e){console.error('Load notif students:',e)}}
+
+async _sendNotification(){
+const title=document.getElementById('notif-title').value.trim();
+const message=document.getElementById('notif-message').value.trim();
+const type=document.getElementById('notif-type').value;
+if(!title){this._toast('⚠️ Nhập tiêu đề thông báo','error');return}
+if(!message){this._toast('⚠️ Nhập nội dung thông báo','error');return}
+const targetRadio=document.querySelector('input[name="notif-target"]:checked');
+const isAll=targetRadio&&targetRadio.value==='all';
+let recipients=[];
+if(isAll){recipients=['__all__']}
+else{
+const checkboxes=document.querySelectorAll('#notif-stu-list input[type="checkbox"]:checked');
+recipients=[...checkboxes].map(c=>c.value);
+if(!recipients.length){this._toast('⚠️ Chọn ít nhất 1 học sinh','error');return}}
+const editId=document.getElementById('notif-edit-id').value;
+try{
+const data={title,message,type,recipients,createdAt:Date.now(),createdBy:'teacher'};
+if(editId){
+await this.fb.db.ref(`notifications/${editId}`).update(data);
+this._toast('✅ Đã cập nhật thông báo!','success');
+}else{
+await this.fb.db.ref('notifications').push(data);
+this._toast('📤 Đã gửi thông báo!','success');}
+document.getElementById('notif-title').value='';
+document.getElementById('notif-message').value='';
+document.getElementById('notif-edit-id').value='';
+document.getElementById('btn-cancel-notif-edit').classList.add('hidden');
+document.getElementById('btn-send-notif').innerHTML='📤 Gửi Thông Báo';
+}catch(e){this._toast('Lỗi: '+e.message,'error')}}
+
+_cancelNotifEdit(){
+document.getElementById('notif-title').value='';
+document.getElementById('notif-message').value='';
+document.getElementById('notif-edit-id').value='';
+document.getElementById('btn-cancel-notif-edit').classList.add('hidden');
+document.getElementById('btn-send-notif').innerHTML='📤 Gửi Thông Báo'}
+
+_editNotification(id,notif){
+document.getElementById('notif-title').value=notif.title||'';
+document.getElementById('notif-message').value=notif.message||'';
+document.getElementById('notif-type').value=notif.type||'announcement';
+document.getElementById('notif-edit-id').value=id;
+document.getElementById('btn-cancel-notif-edit').classList.remove('hidden');
+document.getElementById('btn-send-notif').innerHTML='💾 Lưu Thay Đổi';
+// Set target
+if(notif.recipients&&notif.recipients[0]==='__all__'){
+document.querySelector('input[name="notif-target"][value="all"]').checked=true;
+document.getElementById('notif-stu-list').classList.add('hidden');
+}else{
+document.querySelector('input[name="notif-target"][value="select"]').checked=true;
+document.getElementById('notif-stu-list').classList.remove('hidden');
+this._loadNotifStudentList().then(()=>{
+const targets=notif.recipients||[];
+document.querySelectorAll('#notif-stu-list input[type="checkbox"]').forEach(cb=>{
+const isTarget=targets.includes(cb.value);
+cb.checked=isTarget;
+cb.closest('.notif-stu-chip').classList.toggle('selected',isTarget)})})}
+this._toast('✏️ Đang sửa thông báo...','info');
+document.getElementById('notif-title').scrollIntoView({behavior:'smooth',block:'center'})}
+
+async _deleteNotification(id){
+const ok=await this._confirmDialog('🗑️ Xóa thông báo','Bạn chắc chắn muốn xóa thông báo này?','Xóa','btn-danger');
+if(!ok)return;
+try{await this.fb.db.ref(`notifications/${id}`).remove();this._toast('🗑️ Đã xóa!','success')}catch(e){this._toast('Lỗi: '+e.message,'error')}}
+
+async _resendNotification(id){
+try{await this.fb.db.ref(`notifications/${id}`).update({createdAt:Date.now()});this._toast('🔄 Đã gửi lại!','success')}catch(e){this._toast('Lỗi: '+e.message,'error')}}
+
+_renderSentNotifications(notifs){
+const el=document.getElementById('notif-sent-list');if(!el)return;
+const keys=Object.keys(notifs||{});
+if(!keys.length){el.innerHTML='<p style="color:var(--text-muted);text-align:center;padding:20px">Chưa có thông báo nào</p>';return}
+keys.sort((a,b)=>(notifs[b].createdAt||0)-(notifs[a].createdAt||0));
+let h='';keys.forEach(id=>{
+const n=notifs[id];
+const d=new Date(n.createdAt||0);
+const typeLabel={deadline:'⏰ Hạn nộp',reminder:'🔔 Nhắc nhở',announcement:'📋 Thông báo'};
+const recipientText=n.recipients&&n.recipients[0]==='__all__'?'📢 Tất cả HS':`👤 ${n.recipients?n.recipients.join(', '):''}`;
+h+=`<div class="notif-sent-card">
+<div class="notif-sent-header">
+<div class="notif-sent-title">${this._esc(n.title)}</div>
+<div class="notif-sent-actions">
+<button class="btn btn-ghost btn-sm" onclick="window._uic._editNotification('${id}',${JSON.stringify(n).replace(/'/g,"\\'")})">✏️</button>
+<button class="btn btn-ghost btn-sm" onclick="window._uic._resendNotification('${id}')">🔄</button>
+<button class="btn-danger-sm" onclick="window._uic._deleteNotification('${id}')">✕</button>
+</div></div>
+<div class="notif-sent-body">${this._esc(n.message)}</div>
+<div class="notif-sent-meta">
+<span class="notif-type-badge ${n.type||'announcement'}">${typeLabel[n.type]||'📋 Thông báo'}</span>
+<span>📨 ${recipientText}</span>
+<span>📅 ${d.toLocaleString('vi')}</span>
+</div></div>`});
+el.innerHTML=h}
+
+_initTeacherNotifListener(){
+const ref=this.fb.db.ref('notifications');
+ref.on('value',s=>{this._renderSentNotifications(s.val()||{})});
+this.fb._listeners.push(()=>ref.off())}
+
+// ============ STUDENT NOTIFICATION LISTENER ============
+_listenStudentNotifications(){
+const ref=this.fb.db.ref('notifications');
+ref.on('value',s=>{
+const all=s.val()||{};
+const myNotifs={};
+Object.keys(all).forEach(id=>{
+const n=all[id];
+if(n.recipients&&(n.recipients.includes('__all__')||n.recipients.includes(this.studentName))){
+myNotifs[id]=n}});
+this._studentNotifs=myNotifs;
+this._renderStudentNotifs()});
+this.fb._studentDashListeners.push(()=>ref.off())}
+
+_renderStudentNotifs(){
+const notifs=this._studentNotifs||{};
+const el=document.getElementById('stu-notif-list');
+const bellBtn=document.getElementById('btn-stu-notif-bell');
+if(!el)return;
+const readNotifs=JSON.parse(localStorage.getItem(`themis_read_notifs_${this.studentName}`)||'{}');
+const keys=Object.keys(notifs);
+if(!keys.length){el.innerHTML='<div class="notif-dropdown-empty">🔔 Không có thông báo mới</div>';if(bellBtn){const badge=bellBtn.querySelector('.notif-bell-badge');if(badge)badge.remove()}return}
+keys.sort((a,b)=>(notifs[b].createdAt||0)-(notifs[a].createdAt||0));
+let unreadCount=0;
+let h='';
+keys.forEach(id=>{
+const n=notifs[id];
+const isRead=!!readNotifs[id];
+if(!isRead)unreadCount++;
+const d=new Date(n.createdAt||0);
+const typeIcons={deadline:'⏰',reminder:'🔔',announcement:'📋'};
+const ago=this._timeAgo(n.createdAt);
+h+=`<div class="notif-item ${isRead?'':'unread'}" onclick="window._uic._markNotifRead('${id}')">
+<div class="notif-item-title">${!isRead?'<span class="notif-unread-dot"></span>':''}${typeIcons[n.type]||'📋'} ${this._esc(n.title)}</div>
+<div class="notif-item-body">${this._esc(n.message)}</div>
+<div class="notif-item-time">${ago}</div>
+</div>`});
+el.innerHTML=h;
+// Update badge
+if(bellBtn){
+const existing=bellBtn.querySelector('.notif-bell-badge');
+if(existing)existing.remove();
+if(unreadCount>0){
+const badge=document.createElement('span');
+badge.className='notif-bell-badge';
+badge.textContent=unreadCount;
+bellBtn.appendChild(badge)}}}
+
+_markNotifRead(id){
+const key=`themis_read_notifs_${this.studentName}`;
+const read=JSON.parse(localStorage.getItem(key)||'{}');
+read[id]=true;
+localStorage.setItem(key,JSON.stringify(read));
+this._renderStudentNotifs()}
+
+_markAllNotifsRead(){
+const key=`themis_read_notifs_${this.studentName}`;
+const notifs=this._studentNotifs||{};
+const read=JSON.parse(localStorage.getItem(key)||'{}');
+Object.keys(notifs).forEach(id=>read[id]=true);
+localStorage.setItem(key,JSON.stringify(read));
+this._renderStudentNotifs();
+this._toast('✅ Đã đánh dấu tất cả đã đọc','success')}
+
+_timeAgo(ts){
+if(!ts)return '';
+const diff=Date.now()-ts;
+const mins=Math.floor(diff/60000);
+if(mins<1)return 'Vừa xong';
+if(mins<60)return `${mins} phút trước`;
+const hrs=Math.floor(mins/60);
+if(hrs<24)return `${hrs} giờ trước`;
+const days=Math.floor(hrs/24);
+if(days<7)return `${days} ngày trước`;
+return new Date(ts).toLocaleDateString('vi')}
+}
 
 document.addEventListener('DOMContentLoaded',()=>{const uic=new UIController();window._uic=uic;uic.init()});

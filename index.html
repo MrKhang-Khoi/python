@@ -292,6 +292,44 @@
                     <div style="display:flex;gap:6px"><button class="btn btn-success btn-sm" id="btn-save-bulk">✅ Tạo tất cả</button><button class="btn btn-ghost btn-sm" id="btn-cancel-bulk">Hủy</button></div>
                 </div>
                 <div id="account-list"><p style="color:var(--text-muted);text-align:center;padding:16px">Đang tải...</p></div>
+            <!-- NOTIFICATION SYSTEM -->
+            <div style="margin-top:24px">
+                <h2 class="tab-panel-title" style="margin-bottom:16px">📢 Thông Báo Cho Học Sinh</h2>
+                <div class="notif-compose">
+                    <h3>✍️ Soạn Thông Báo</h3>
+                    <div class="form-group" style="margin-bottom:10px">
+                        <label>Loại thông báo</label>
+                        <select id="notif-type" class="preset-dropdown" style="width:200px">
+                            <option value="announcement">📋 Thông báo chung</option>
+                            <option value="deadline">⏰ Hạn nộp bài</option>
+                            <option value="reminder">🔔 Nhắc nhở</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin-bottom:10px">
+                        <label>Tiêu đề</label>
+                        <input type="text" id="notif-title" placeholder="VD: Hoàn thành bài tập Vòng lặp For trước 5/4/2026">
+                    </div>
+                    <div class="form-group" style="margin-bottom:10px">
+                        <label>Nội dung chi tiết</label>
+                        <textarea id="notif-message" rows="3" class="ai-textarea" placeholder="Nội dung thông báo chi tiết..."></textarea>
+                    </div>
+                    <div class="form-group" style="margin-bottom:12px">
+                        <label>Gửi đến</label>
+                        <div class="notif-recipients">
+                            <label><input type="radio" name="notif-target" value="all" checked> 📢 Tất cả HS</label>
+                            <label><input type="radio" name="notif-target" value="select"> 👤 Chọn HS</label>
+                        </div>
+                        <div id="notif-stu-list" class="notif-stu-checklist hidden"></div>
+                    </div>
+                    <div style="display:flex;gap:8px">
+                        <button class="btn btn-accent" id="btn-send-notif">📤 Gửi Thông Báo</button>
+                        <input type="hidden" id="notif-edit-id" value="">
+                        <button class="btn btn-ghost btn-sm hidden" id="btn-cancel-notif-edit">Hủy sửa</button>
+                    </div>
+                </div>
+                <h3 style="font-size:.95rem;font-weight:700;margin-bottom:10px;color:var(--text-secondary)">📋 Thông Báo Đã Gửi</h3>
+                <div id="notif-sent-list"><p style="color:var(--text-muted);text-align:center;padding:20px">Chưa có thông báo nào</p></div>
+            </div>
             </div>
 
             <!-- ===== TAB: THỐNG KÊ ===== -->
@@ -361,6 +399,13 @@
                     <button class="oj-nav-tab" id="nav-tab-contest" data-tab="contest">🏆 Kỳ Thi</button>
                 </div>
                 <div class="oj-nav-right">
+                    <div class="notif-bell-wrap">
+                        <button class="notif-bell-btn" id="btn-stu-notif-bell" title="Thông báo">🔔</button>
+                        <div id="stu-notif-dropdown" class="notif-dropdown hidden">
+                            <div class="notif-dropdown-header"><span>🔔 Thông Báo</span><button class="btn btn-ghost btn-sm" id="btn-mark-all-read" style="font-size:.72rem;padding:2px 8px">Đã đọc hết</button></div>
+                            <div id="stu-notif-list"></div>
+                        </div>
+                    </div>
                     <span class="oj-nav-user" id="stu-welcome-name">---</span>
                     <button class="oj-nav-btn" id="btn-stu-logout">Đăng xuất</button>
                 </div>
@@ -492,14 +537,21 @@
         </div>
         <!-- ENDED -->
         <div id="stu-ended" class="stu-screen hidden">
-            <div class="splash-card" style="max-width:600px">
+            <div class="splash-card" style="max-width:700px">
                 <div class="splash-logo" style="background:linear-gradient(135deg,var(--success),#059669)"><span>🏁</span></div>
-                <h2 style="margin:16px 0 6px">Cuộc thi đã kết thúc!</h2>
+                <h2 style="margin:16px 0 6px" id="stu-ended-title">Cuộc thi đã kết thúc!</h2>
+                <div class="contest-detail-info" id="stu-ended-info"></div>
                 <p class="splash-sub" id="stu-final-score">⏳ Chờ GV chấm bài và công bố kết quả...</p>
                 <div id="stu-contest-results" class="hidden" style="width:100%;text-align:left;margin-top:16px">
                     <h3 style="font-size:.92rem;font-weight:700;margin-bottom:8px">📊 Kết quả của bạn</h3>
                     <div id="stu-contest-lb" style="margin-bottom:12px"></div>
                     <div id="stu-contest-notes"></div>
+                </div>
+                <!-- CONTEST PROBLEMS DETAIL -->
+                <div id="stu-ended-problems" class="contest-problems-section hidden">
+                    <h3 style="font-size:.92rem;font-weight:700;margin-bottom:10px">📋 Đề Thi Chi Tiết</h3>
+                    <div id="stu-ended-prob-tabs" class="contest-prob-tabs"></div>
+                    <div id="stu-ended-prob-detail"></div>
                 </div>
                 <div id="stu-submitted-code-review" class="hidden" style="width:100%;text-align:left;margin-top:12px">
                     <h3 style="font-size:.92rem;font-weight:700;margin-bottom:8px">💻 Code đã nộp</h3>

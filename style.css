@@ -731,3 +731,63 @@ textarea.ai-textarea{resize:vertical}
   .splash-btn{padding:16px}
   .splash-btn-icon{font-size:1.6rem}
 }
+
+/* ============ TEACHER NOTIFICATION SYSTEM ============ */
+.notif-compose{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-md);padding:20px;margin-bottom:20px}
+.notif-compose h3{font-size:1rem;font-weight:700;margin:0 0 14px;display:flex;align-items:center;gap:8px}
+.notif-recipients{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+.notif-recipients label{display:flex;align-items:center;gap:5px;font-size:.82rem;color:var(--text-secondary);cursor:pointer;padding:5px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);background:rgba(255,255,255,.02);transition:all .2s}
+.notif-recipients label:hover{border-color:var(--accent);background:rgba(99,102,241,.05)}
+.notif-recipients label input{accent-color:var(--accent)}
+.notif-stu-checklist{max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-sm);background:rgba(0,0,0,.12);padding:6px;display:flex;flex-wrap:wrap;gap:4px}
+.notif-stu-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:6px;font-size:.78rem;cursor:pointer;border:1px solid var(--border);background:rgba(255,255,255,.02);transition:all .15s;color:var(--text-secondary)}
+.notif-stu-chip:hover{border-color:var(--accent);background:rgba(99,102,241,.08)}
+.notif-stu-chip.selected{border-color:var(--accent);background:rgba(99,102,241,.12);color:var(--accent-light)}
+.notif-stu-chip input{display:none}
+.notif-sent-list{margin-top:16px}
+.notif-sent-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px 16px;margin-bottom:10px;transition:border-color .2s;animation:slideIn .3s}
+.notif-sent-card:hover{border-color:var(--border-hover)}
+.notif-sent-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:6px;gap:8px}
+.notif-sent-title{font-weight:700;font-size:.92rem;color:var(--text-primary)}
+.notif-sent-actions{display:flex;gap:4px;flex-shrink:0}
+.notif-sent-body{font-size:.84rem;color:var(--text-secondary);line-height:1.6;white-space:pre-wrap;margin-bottom:8px}
+.notif-sent-meta{display:flex;gap:12px;font-size:.72rem;color:var(--text-muted);flex-wrap:wrap}
+.notif-sent-meta span{display:inline-flex;align-items:center;gap:3px}
+.notif-type-badge{font-size:.68rem;font-weight:700;padding:2px 8px;border-radius:10px;text-transform:uppercase;letter-spacing:.04em}
+.notif-type-badge.deadline{background:rgba(239,68,68,.12);color:#f87171}
+.notif-type-badge.reminder{background:rgba(245,158,11,.12);color:#fbbf24}
+.notif-type-badge.announcement{background:rgba(99,102,241,.12);color:var(--accent-light)}
+
+/* ============ STUDENT NOTIFICATION BELL ============ */
+.notif-bell-wrap{position:relative}
+.notif-bell-btn{background:none;border:1px solid var(--border);color:var(--text-muted);font-size:1.1rem;padding:4px 8px;border-radius:var(--radius-sm);cursor:pointer;transition:all .2s;position:relative;line-height:1}
+.notif-bell-btn:hover{color:var(--text-primary);border-color:var(--accent);background:rgba(99,102,241,.08)}
+.notif-bell-btn .notif-bell-badge{position:absolute;top:-5px;right:-5px;background:var(--error,#ef4444);color:#fff;font-size:.6rem;font-weight:800;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 4px;animation:notifPulse 2s infinite}
+.notif-dropdown{position:absolute;top:calc(100% + 8px);right:0;width:340px;max-height:400px;overflow-y:auto;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-md);box-shadow:0 12px 40px rgba(0,0,0,.5);z-index:200;animation:slideUp .2s ease}
+.notif-dropdown-header{padding:12px 14px;border-bottom:1px solid var(--border);font-weight:700;font-size:.88rem;color:var(--text-primary);display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;background:var(--bg-card);z-index:1}
+.notif-dropdown-empty{padding:30px 16px;text-align:center;color:var(--text-muted);font-size:.85rem}
+.notif-item{padding:12px 14px;border-bottom:1px solid rgba(255,255,255,.04);cursor:pointer;transition:background .15s}
+.notif-item:last-child{border-bottom:none}
+.notif-item:hover{background:rgba(99,102,241,.04)}
+.notif-item.unread{background:rgba(99,102,241,.06);border-left:3px solid var(--accent)}
+.notif-item-title{font-weight:600;font-size:.85rem;color:var(--text-primary);margin-bottom:3px;display:flex;align-items:center;gap:6px}
+.notif-item-body{font-size:.78rem;color:var(--text-secondary);line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.notif-item-time{font-size:.68rem;color:var(--text-muted);margin-top:4px}
+.notif-unread-dot{width:7px;height:7px;border-radius:50%;background:var(--accent);flex-shrink:0}
+
+/* ============ CONTEST DETAIL VIEW (Ended Screen) ============ */
+.contest-detail-header{text-align:center;margin-bottom:20px}
+.contest-detail-info{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin-top:8px}
+.contest-detail-info span{display:inline-flex;align-items:center;gap:4px;font-size:.82rem;color:var(--text-secondary);padding:4px 10px;background:rgba(255,255,255,.03);border-radius:999px;border:1px solid var(--border)}
+.contest-problems-section{width:100%;text-align:left;margin-top:16px}
+.contest-prob-tabs{display:flex;gap:4px;margin-bottom:12px;flex-wrap:wrap}
+.contest-prob-tab{background:rgba(255,255,255,.04);border:1px solid var(--border);color:var(--text-secondary);font-size:.82rem;font-weight:600;padding:6px 14px;cursor:pointer;border-radius:var(--radius-sm);transition:all .2s;font-family:inherit}
+.contest-prob-tab:hover{border-color:var(--accent);background:rgba(99,102,241,.06)}
+.contest-prob-tab.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.contest-prob-detail{background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:var(--radius-sm);padding:16px;animation:fadeIn .3s}
+.contest-prob-title{font-size:1rem;font-weight:700;color:var(--text-primary);margin-bottom:8px}
+.contest-prob-desc{font-size:.86rem;color:var(--text-secondary);line-height:1.7;white-space:pre-wrap;margin-bottom:12px}
+.contest-prob-score{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:6px;font-weight:700;font-size:.85rem;margin-bottom:12px}
+.contest-prob-score.perfect{background:rgba(16,185,129,.12);color:#34d399}
+.contest-prob-score.partial{background:rgba(245,158,11,.1);color:#fbbf24}
+.contest-prob-score.zero{background:rgba(239,68,68,.08);color:#f87171}
