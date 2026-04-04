@@ -67,7 +67,7 @@ getDownloadUrl(fileId){return'https://drive.google.com/uc?export=download&id='+f
 
 // ============ FIREBASE MANAGER ============
 class FirebaseManager{
-constructor(){firebase.initializeApp(FIREBASE_CONFIG);this.db=firebase.database();try{this.storage=firebase.storage()}catch(e){console.warn('Firebase Storage unavailable:',e)};this._listeners=[]}
+constructor(){firebase.initializeApp(FIREBASE_CONFIG);this.db=firebase.database();try{this.storage=firebase.storage()}catch(e){console.warn('Firebase Storage unavailable:',e)};this._listeners=[];this._exerciseListeners=[];this._studentDashListeners=[]}
 _ref(path){return this.db.ref(path)}
 generateCode(){return String(Math.floor(100000+Math.random()*900000))}
 async createRoom(title,teacher,timeLimit){const code=this.generateCode();await this._ref('rooms/'+code+'/info').set({title,teacher,timeLimit:parseInt(timeLimit)||90,createdAt:Date.now(),status:'waiting',startTime:0,problemCount:0});return code}
@@ -81,6 +81,8 @@ listenRoomInfo(roomCode,cb){const ref=this._ref(`rooms/${roomCode}/info`);ref.on
 listenLeaderboard(roomCode,cb){const ref=this._ref(`rooms/${roomCode}/leaderboard`);ref.on('value',s=>cb(s.val()));this._listeners.push(()=>ref.off())}
 listenStudents(roomCode,cb){const ref=this._ref(`rooms/${roomCode}/students`);ref.on('value',s=>cb(s.val()));this._listeners.push(()=>ref.off())}
 cleanup(){this._listeners.forEach(fn=>fn());this._listeners=[]}
+cleanupExercise(){this._exerciseListeners.forEach(fn=>fn());this._exerciseListeners=[]}
+cleanupStudentDash(){this._studentDashListeners.forEach(fn=>fn());this._studentDashListeners=[]}
 // Account management — stored at ROOT /accounts/ (permanent)
 async createAccount(username,password){const h=await _hashSHA256(password);await this._ref(`accounts/${username}`).set({passwordHash:h,createdAt:Date.now()})}
 async createAccountsBulk(list){for(const item of list){const h=await _hashSHA256(item.pass);await this._ref(`accounts/${item.name}`).set({passwordHash:h,createdAt:Date.now()})}}
@@ -91,10 +93,10 @@ listenAccounts(cb){const ref=this._ref('accounts');ref.on('value',s=>cb(s.val()|
 async publishExercise(data){const id=Date.now().toString(36);await this._ref(`exercises/${id}`).set({...data,createdAt:Date.now()});return id}
 async updateExercise(id,updates){await this._ref(`exercises/${id}`).update(updates)}
 async deleteExercise(id){await this._ref(`exercises/${id}`).remove()}
-listenExercises(cb){const ref=this._ref('exercises');ref.on('value',s=>cb(s.val()||{}));this._listeners.push(()=>ref.off())}
+listenExercises(cb,group){const ref=this._ref('exercises');ref.on('value',s=>cb(s.val()||{}));const offFn=()=>ref.off();if(group==='student')this._studentDashListeners.push(offFn);else this._listeners.push(offFn)}
 async submitExerciseResult(exId,username,result){await this._ref(`exerciseResults/${exId}/${username}`).set({score:result.score,submittedAt:Date.now(),details:result.details,code:result.code||''})}
 async getExerciseResults(exId,username){const snap=await this._ref(`exerciseResults/${exId}/${username}`).once('value');return snap.val()}
-listenAllExerciseResults(cb){const ref=this._ref('exerciseResults');ref.on('value',s=>cb(s.val()||{}));this._listeners.push(()=>ref.off())}
+listenAllExerciseResults(cb,group){const ref=this._ref('exerciseResults');ref.on('value',s=>cb(s.val()||{}));const offFn=()=>ref.off();if(group==='student')this._studentDashListeners.push(offFn);else if(group==='exercise')this._exerciseListeners.push(offFn);else this._listeners.push(offFn)}
 async exportCSV(roomCode){const infoSnap=await this._ref(`rooms/${roomCode}/info`).once('value');const info=infoSnap.val();const lbSnap=await this._ref(`rooms/${roomCode}/leaderboard`).once('value');const lb=lbSnap.val();if(!lb)return'';const pCount=info.problemCount||1;let csv='Hạng,Họ tên,Tổng điểm';for(let i=0;i<pCount;i++)csv+=`,Bài ${i+1}`;csv+='\n';const sorted=Object.values(lb).sort((a,b)=>b.totalScore-a.totalScore||(a.lastSubmit-b.lastSubmit));sorted.forEach((s,i)=>{csv+=`${i+1},${s.name},${s.totalScore}`;for(let j=0;j<pCount;j++)csv+=`,${s.problems&&s.problems[j]||0}`;csv+='\n'});return csv}}
 
 // ============ STUDENT GRADER ============
@@ -714,32 +716,34 @@ $('btn-stu-submit').onclick=()=>this._stuSubmit();
 $('btn-stu-run').onclick=()=>this._stuRun();
 // Toggle custom input visibility when Run button is present
 $('btn-use-sample-input').onclick=()=>this._fillSampleInput();
-$('btn-stu-back-join').onclick=()=>{$('stu-ended').classList.add('hidden');$('stu-dashboard').classList.remove('hidden');this.fb.cleanup()};
+$('btn-stu-back-join').onclick=()=>{$('stu-ended').classList.add('hidden');$('stu-dashboard').classList.remove('hidden');this.fb.cleanupExercise();this._renderExerciseList(this._cachedExercises||{});this._renderStudentRanking();this._renderStudentStats()};
 $('stu-password').onkeydown=e=>{if(e.key==='Enter')this._stuLogin()};
 // Toggle password visibility
 const toggleBtn=$('btn-toggle-pass');if(toggleBtn)toggleBtn.onclick=()=>{const inp=$('stu-password');const isHidden=inp.type==='password';inp.type=isHidden?'text':'password';toggleBtn.textContent=isHidden?'🙈':'👁';toggleBtn.title=isHidden?'Ẩn mật khẩu':'Hiện mật khẩu'};
 // Dashboard nav tabs
 document.querySelectorAll('.oj-nav-tab[data-tab]').forEach(btn=>{btn.onclick=()=>{document.querySelectorAll('.oj-nav-tab[data-tab]').forEach(b=>b.classList.remove('active'));btn.classList.add('active');document.querySelectorAll('.oj-tab-panel').forEach(p=>p.classList.add('hidden'));$('tab-panel-'+btn.dataset.tab).classList.remove('hidden')}});
-// Back from contest to dashboard
-const backBtn=$('btn-stu-back-dash');if(backBtn)backBtn.onclick=()=>{$('stu-contest').classList.add('hidden');$('stu-dashboard').classList.remove('hidden');this._currentExercise=null;if(this.timerInterval){clearInterval(this.timerInterval);this.timerInterval=null}this.fb.cleanup()};
+// Back from contest to dashboard — only cleanup exercise-specific listeners, NOT dashboard listeners
+const backBtn=$('btn-stu-back-dash');if(backBtn)backBtn.onclick=()=>{$('stu-contest').classList.add('hidden');$('stu-dashboard').classList.remove('hidden');this._currentExercise=null;if(this.timerInterval){clearInterval(this.timerInterval);this.timerInterval=null}this.fb.cleanupExercise();this._renderExerciseList(this._cachedExercises||{});this._renderStudentRanking();this._renderStudentStats()};
 // Pane tabs (Desc/Results/Leaderboard)
 document.querySelectorAll('.oj-ptab[data-ptab]').forEach(btn=>{btn.onclick=()=>{document.querySelectorAll('.oj-ptab').forEach(b=>b.classList.remove('active'));btn.classList.add('active');document.querySelectorAll('.oj-ptab-content').forEach(p=>p.classList.remove('active'));$('ptab-'+btn.dataset.ptab).classList.add('active')}});
 // Draggable divider
 this._initDivider();
-// Auto-load exercises on dashboard show
-this._registerStudentListeners();
+// NOTE: Do NOT call _registerStudentListeners() here — it registers before login (studentName=null)
+// Listeners will be registered in _stuLogin() after successful authentication
 // Search bindings
 const stuExSearch=$('stu-exercise-search');if(stuExSearch)stuExSearch.oninput=()=>{this._exPage=1;this._renderExerciseList(this._cachedExercises||{})};
 const stuStatusFilter=$('stu-status-filter');if(stuStatusFilter)stuStatusFilter.onchange=()=>{this._exPage=1;this._renderExerciseList(this._cachedExercises||{})};
 const stuThSearch=$('stu-theory-search');if(stuThSearch)stuThSearch.oninput=()=>this._renderTheoryList(this._stuTheories||{},'stu-theory-list',false)}
 
 // Register Firebase listeners for exercises, results, theories
-// Called on first init AND every re-login
+// Called ONLY after successful login when studentName is set
 _registerStudentListeners(){
+// Cleanup any existing student dashboard listeners first to prevent duplicates
+this.fb.cleanupStudentDash();
 this._exerciseResults={};this._prevExCount=0;
-this.fb.listenExercises(exs=>{this._cachedExercises=exs;this._loadExerciseStatuses(exs);this._checkNewExerciseNotification(exs)});
-this.fb.listenAllExerciseResults(res=>{this._exerciseResults=res;if(this._cachedExercises){this._renderExerciseList(this._cachedExercises);this._renderStudentRanking();this._renderStudentStats()}});
-const thRef2=this.fb.db.ref('theories');thRef2.on('value',s=>{this._stuTheories=s.val()||{};this._renderTheoryList(this._stuTheories,'stu-theory-list',false)});this.fb._listeners.push(()=>thRef2.off());
+this.fb.listenExercises(exs=>{this._cachedExercises=exs;this._loadExerciseStatuses(exs);this._checkNewExerciseNotification(exs)},'student');
+this.fb.listenAllExerciseResults(res=>{this._exerciseResults=res;if(this._cachedExercises){this._renderExerciseList(this._cachedExercises);this._renderStudentRanking();this._renderStudentStats()}},'student');
+const thRef2=this.fb.db.ref('theories');thRef2.on('value',s=>{this._stuTheories=s.val()||{};this._renderTheoryList(this._stuTheories,'stu-theory-list',false)});this.fb._studentDashListeners.push(()=>thRef2.off());
 // Load contest history for student
 this._loadStudentContestHistory()}
 
@@ -854,7 +858,7 @@ async _stuLogin(){const name=document.getElementById('stu-name').value.trim();co
 this._registerStudentListeners();
 this._toast(`Xin chào ${name}!`,'success')}catch(e){errEl.textContent='❌ '+e.message}}
 
-_stuLogout(){this.studentName=null;this._currentExercise=null;this._cachedExercises=null;this._exerciseResults={};this.roomCode=null;this.problems=[];this.currentProbIdx=0;if(this.timerInterval){clearInterval(this.timerInterval);this.timerInterval=null}if(this._autoSaveInterval){clearInterval(this._autoSaveInterval);this._autoSaveInterval=null}this.fb.cleanup();['stu-dashboard','stu-waiting','stu-contest','stu-ended'].forEach(id=>document.getElementById(id).classList.add('hidden'));document.getElementById('stu-login').classList.remove('hidden');document.getElementById('stu-name').value='';document.getElementById('stu-password').value='';document.getElementById('stu-login-error').textContent='';if(this.cmStudent){this.cmStudent.setValue('# Viết code tại đây\n')}}
+_stuLogout(){this.studentName=null;this._currentExercise=null;this._cachedExercises=null;this._exerciseResults={};this.roomCode=null;this.problems=[];this.currentProbIdx=0;if(this.timerInterval){clearInterval(this.timerInterval);this.timerInterval=null}if(this._autoSaveInterval){clearInterval(this._autoSaveInterval);this._autoSaveInterval=null}this.fb.cleanupExercise();this.fb.cleanupStudentDash();this.fb.cleanup();['stu-dashboard','stu-waiting','stu-contest','stu-ended'].forEach(id=>document.getElementById(id).classList.add('hidden'));document.getElementById('stu-login').classList.remove('hidden');document.getElementById('stu-name').value='';document.getElementById('stu-password').value='';document.getElementById('stu-login-error').textContent='';if(this.cmStudent){this.cmStudent.setValue('# Viết code tại đây\n')}}
 
 _renderExerciseList(exs){const c=document.getElementById('exercise-list');const allKeys=Object.keys(exs);if(!allKeys.length){c.innerHTML='<p style="color:var(--text-muted);text-align:center;padding:40px">📭 Chưa có bài tập nào. Giáo viên chưa đăng.</p>';c.className='';return}
 const filter=(document.getElementById('stu-exercise-search')||{}).value||'';
@@ -906,7 +910,9 @@ else if(prev){this._toast(`Điểm trước: ${prev.score}/100`,'info')}
 if(prev){this._showStudentResults({score:prev.score,details:prev.details},ex)}
 // BUG-05 FIX: Build leaderboard from exercise results instead of non-existent room leaderboard
 const exRes=this._exerciseResults||{};const exResultsForThis=exRes[exId]||{};const pseudoLb={};Object.keys(exResultsForThis).forEach(name=>{const r=exResultsForThis[name];pseudoLb[name]={name,totalScore:r.score||0,problems:{0:r.score||0},lastSubmit:r.submittedAt||0}});this._renderLeaderboard(pseudoLb,'stu-leaderboard-body',this.studentName);
-this.fb.listenAllExerciseResults(res=>{const lr=res[exId]||{};const lb={};Object.keys(lr).forEach(n=>{const r=lr[n];lb[n]={name:n,totalScore:r.score||0,problems:{0:r.score||0},lastSubmit:r.submittedAt||0}});this._renderLeaderboard(lb,'stu-leaderboard-body',this.studentName)})}
+// Use 'exercise' group so cleanup only removes this listener, not dashboard listeners
+this.fb.cleanupExercise();
+this.fb.listenAllExerciseResults(res=>{const lr=res[exId]||{};const lb={};Object.keys(lr).forEach(n=>{const r=lr[n];lb[n]={name:n,totalScore:r.score||0,problems:{0:r.score||0},lastSubmit:r.submittedAt||0}});this._renderLeaderboard(lb,'stu-leaderboard-body',this.studentName)},'exercise')}
 
 async _joinRoom(){const code=document.getElementById('stu-room-code').value.trim();const errEl=document.getElementById('stu-join-error');errEl.textContent='';if(!code){errEl.textContent='⚠️ Nhập mã phòng thi';return}try{this.roomCode=code;this._currentExercise=null;const info=await this.fb.joinRoom(code,this.studentName);document.getElementById('stu-dashboard').classList.add('hidden');document.getElementById('stu-waiting-info').textContent=`Phòng: ${code} — ${info.title}`;if(info.status==='active'){this._stuStartContest(info)}else if(info.status==='ended'){this._showStudentEndedScreen(code,info)}else{document.getElementById('stu-waiting').classList.remove('hidden')}this.fb.listenRoomInfo(code,ri=>{if(!ri)return;if(ri.status==='active'){document.getElementById('stu-waiting').classList.add('hidden');this._stuStartContest(ri)}else if(ri.status==='ended'){if(this.timerInterval)clearInterval(this.timerInterval);document.getElementById('stu-contest').classList.add('hidden');this._showStudentEndedScreen(code,ri)}});this._toast(`Đã vào phòng ${code}!`,'success')}catch(e){errEl.textContent='❌ '+e.message}}
 
