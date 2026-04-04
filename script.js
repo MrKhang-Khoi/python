@@ -611,8 +611,10 @@ let h='<h3 style="font-size:.92rem;font-weight:700;margin-bottom:12px;color:var(
 sorted.forEach(r=>{const d=new Date(r.createdAt);const statusCls=r.status==='ended'?'ended':r.status==='active'?'active':'waiting';
 const studentCount=rooms[r.code]&&rooms[r.code].students?Object.keys(rooms[r.code].students).length:0;
 const lb=rooms[r.code]&&rooms[r.code].leaderboard;const lbCount=lb?Object.keys(lb).length:0;
+const gradeStatus=r.gradeStatus||'pending';
+const gradeBadge=gradeStatus==='published'?'<span style="font-size:.68rem;padding:2px 6px;background:rgba(16,185,129,.15);color:#10b981;border-radius:3px;margin-left:6px">📢 Đã công bố</span>':gradeStatus==='graded'?'<span style="font-size:.68rem;padding:2px 6px;background:rgba(245,158,11,.15);color:#f59e0b;border-radius:3px;margin-left:6px">✅ Đã chấm</span>':'';
 h+=`<div class="room-history-card" onclick="window._uic._viewRoomHistory('${r.code}')">`;
-h+=`<div class="room-history-header"><span class="room-history-code">#${r.code}</span><span class="room-status-badge ${statusCls}">${statusCls==='ended'?'Kết thúc':statusCls==='active'?'Đang thi':'Chờ'}</span></div>`;
+h+=`<div class="room-history-header"><span class="room-history-code">#${r.code}</span><div style="display:flex;align-items:center;gap:4px"><span class="room-status-badge ${statusCls}">${statusCls==='ended'?'Kết thúc':statusCls==='active'?'Đang thi':'Chờ'}</span>${gradeBadge}<button class="btn-danger-sm" style="font-size:.65rem;padding:2px 4px" onclick="event.stopPropagation();window._uic._deleteRoom('${r.code}')" title="Xóa kỳ thi">🗑️</button></div></div>`;
 h+=`<div class="room-history-title">${this._esc(r.title||'Không tên')}</div>`;
 h+=`<div class="room-history-meta">`;
 h+=`<span>⏱ ${r.timeLimit||0} phút</span>`;
@@ -781,12 +783,63 @@ if(prev){this._showStudentResults({score:prev.score,details:prev.details},ex)}
 const exRes=this._exerciseResults||{};const exResultsForThis=exRes[exId]||{};const pseudoLb={};Object.keys(exResultsForThis).forEach(name=>{const r=exResultsForThis[name];pseudoLb[name]={name,totalScore:r.score||0,problems:{0:r.score||0},lastSubmit:r.submittedAt||0}});this._renderLeaderboard(pseudoLb,'stu-leaderboard-body',this.studentName);
 this.fb.listenAllExerciseResults(res=>{const lr=res[exId]||{};const lb={};Object.keys(lr).forEach(n=>{const r=lr[n];lb[n]={name:n,totalScore:r.score||0,problems:{0:r.score||0},lastSubmit:r.submittedAt||0}});this._renderLeaderboard(lb,'stu-leaderboard-body',this.studentName)})}
 
-async _joinRoom(){const code=document.getElementById('stu-room-code').value.trim();const errEl=document.getElementById('stu-join-error');errEl.textContent='';if(!code){errEl.textContent='⚠️ Nhập mã phòng thi';return}try{this.roomCode=code;this._currentExercise=null;const info=await this.fb.joinRoom(code,this.studentName);document.getElementById('stu-dashboard').classList.add('hidden');document.getElementById('stu-waiting-info').textContent=`Phòng: ${code} — ${info.title}`;if(info.status==='active'){this._stuStartContest(info)}else if(info.status==='ended'){document.getElementById('stu-ended').classList.remove('hidden')}else{document.getElementById('stu-waiting').classList.remove('hidden')}this.fb.listenRoomInfo(code,ri=>{if(!ri)return;if(ri.status==='active'){document.getElementById('stu-waiting').classList.add('hidden');this._stuStartContest(ri)}else if(ri.status==='ended'){if(this.timerInterval)clearInterval(this.timerInterval);document.getElementById('stu-contest').classList.add('hidden');document.getElementById('stu-ended').classList.remove('hidden');document.getElementById('stu-final-score').textContent='Cuộc thi kết thúc!'}});this._toast(`Đã vào phòng ${code}!`,'success')}catch(e){errEl.textContent='❌ '+e.message}}
+async _joinRoom(){const code=document.getElementById('stu-room-code').value.trim();const errEl=document.getElementById('stu-join-error');errEl.textContent='';if(!code){errEl.textContent='⚠️ Nhập mã phòng thi';return}try{this.roomCode=code;this._currentExercise=null;const info=await this.fb.joinRoom(code,this.studentName);document.getElementById('stu-dashboard').classList.add('hidden');document.getElementById('stu-waiting-info').textContent=`Phòng: ${code} — ${info.title}`;if(info.status==='active'){this._stuStartContest(info)}else if(info.status==='ended'){this._showStudentEndedScreen(code,info)}else{document.getElementById('stu-waiting').classList.remove('hidden')}this.fb.listenRoomInfo(code,ri=>{if(!ri)return;if(ri.status==='active'){document.getElementById('stu-waiting').classList.add('hidden');this._stuStartContest(ri)}else if(ri.status==='ended'){if(this.timerInterval)clearInterval(this.timerInterval);document.getElementById('stu-contest').classList.add('hidden');this._showStudentEndedScreen(code,ri)}});this._toast(`Đã vào phòng ${code}!`,'success')}catch(e){errEl.textContent='❌ '+e.message}}
+
+async _showStudentEndedScreen(roomCode,info){
+document.getElementById('stu-ended').classList.remove('hidden');
+// Load submitted code for review
+try{
+const codeSnap=await this.fb.db.ref(`rooms/${roomCode}/students/${this.studentName}/finalCode`).once('value');
+const codes=codeSnap.val()||{};
+const codeKeys=Object.keys(codes);
+if(codeKeys.length>0){
+document.getElementById('stu-submitted-code-review').classList.remove('hidden');
+const tabsEl=document.getElementById('stu-code-review-tabs');
+const preEl=document.getElementById('stu-code-review-content');
+tabsEl.innerHTML='';
+codeKeys.forEach((pi,i)=>{
+const btn=document.createElement('button');btn.className='oj-ptab-btn'+(i===0?' active':'');btn.textContent=`Bài ${parseInt(pi)+1}`;
+btn.onclick=()=>{tabsEl.querySelectorAll('.oj-ptab-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');preEl.textContent=codes[pi]||'(Chưa nộp)'};
+tabsEl.appendChild(btn)});
+preEl.textContent=codes[codeKeys[0]]||'(Chưa nộp)'}
+// Check if published
+if(info.published){
+document.getElementById('stu-final-score').textContent='📊 GV đã công bố kết quả!';
+document.getElementById('stu-contest-results').classList.remove('hidden');
+// Show leaderboard
+const lbSnap=await this.fb.db.ref(`rooms/${roomCode}/leaderboard`).once('value');
+const lb=lbSnap.val();
+this.publishedCount=info.problemCount||1;
+if(lb){this._renderLeaderboard(lb,'stu-contest-lb',this.studentName)}
+// Show teacher notes
+const noteSnap=await this.fb.db.ref(`rooms/${roomCode}/teacherNotes/${this.studentName}`).once('value');
+const notes=noteSnap.val();
+if(notes){let nh='<div style="margin-top:8px"><h4 style="font-size:.85rem;margin-bottom:6px">💬 Nhận xét GV:</h4>';
+Object.keys(notes).forEach(pi=>{nh+=`<div style="padding:6px 10px;background:rgba(99,102,241,.06);border:1px solid rgba(99,102,241,.15);border-radius:6px;font-size:.78rem;margin-bottom:4px"><strong>Bài ${parseInt(pi)+1}:</strong> ${this._esc(notes[pi])}</div>`});
+nh+='</div>';document.getElementById('stu-contest-notes').innerHTML=nh}
+// Show AI analysis
+const gradeSnap=await this.fb.db.ref(`rooms/${roomCode}/gradeResults/${this.studentName}`).once('value');
+const grades=gradeSnap.val()||{};
+let aiHtml='';Object.keys(grades).forEach(pi=>{if(grades[pi].aiAnalysis){aiHtml+=`<div style="padding:6px 10px;background:rgba(16,185,129,.06);border:1px solid rgba(16,185,129,.15);border-radius:6px;font-size:.78rem;margin-bottom:4px"><strong>🤖 Bài ${parseInt(pi)+1}:</strong> ${this._esc(grades[pi].aiAnalysis).replace(/\n/g,'<br>')}</div>`}});
+if(aiHtml)document.getElementById('stu-contest-notes').innerHTML+='<div style="margin-top:8px"><h4 style="font-size:.85rem;margin-bottom:6px">🤖 Phân tích AI:</h4>'+aiHtml+'</div>';
+}else{document.getElementById('stu-final-score').textContent='⏳ Chờ GV chấm bài và công bố kết quả...'}
+}catch(e){console.error('Load ended screen:',e);document.getElementById('stu-final-score').textContent='⏳ Chờ kết quả...'}}
+
 
 async _stuStartContest(info){document.getElementById('stu-contest').classList.remove('hidden');document.getElementById('stu-contest-title').textContent=info.title;document.getElementById('stu-player-name').textContent=this.studentName;
-const end=info.startTime+info.timeLimit*60000;if(this.timerInterval)clearInterval(this.timerInterval);const upd=()=>{const rem=Math.max(0,end-Date.now());const h=Math.floor(rem/3600000),m=Math.floor(rem%3600000/60000),s=Math.floor(rem%60000/1000);const el=document.getElementById('stu-timer');el.textContent=`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;el.classList.toggle('critical',rem<300000);if(rem<=0){clearInterval(this.timerInterval);this.timerInterval=null;document.getElementById('btn-stu-submit').disabled=true;this._toast('⏰ Hết thời gian! Không thể nộp thêm.','error')}};this.timerInterval=setInterval(upd,1000);upd();
-this.problems=await this.fb.getProblems(this.roomCode);if(!this.problems||!this.problems.length){document.getElementById('stu-problem-desc').textContent='Chưa có đề bài';return}this._renderProblemTabs();this._showProblem(0);this._initStudentEditor();
-this.fb.listenLeaderboard(this.roomCode,lb=>this._renderLeaderboard(lb,'stu-leaderboard-body',this.studentName))}
+// Timer
+const end=info.startTime+info.timeLimit*60000;if(this.timerInterval)clearInterval(this.timerInterval);const upd=()=>{const rem=Math.max(0,end-Date.now());const h=Math.floor(rem/3600000),m=Math.floor(rem%3600000/60000),s=Math.floor(rem%60000/1000);const el=document.getElementById('stu-timer');el.textContent=`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;el.classList.toggle('critical',rem<300000);if(rem<=0){clearInterval(this.timerInterval);this.timerInterval=null;document.getElementById('btn-stu-submit').disabled=true;this._toast('⏰ Hết thời gian! Không thể nộp thêm.','error');this._showContestEndedReadonly()}};this.timerInterval=setInterval(upd,1000);upd();
+// Load problems — HIDE test cases from client in contest mode
+const allProblems=await this.fb.getProblems(this.roomCode);
+if(!allProblems||!allProblems.length){document.getElementById('stu-problem-desc').textContent='Chưa có đề bài';return}
+// Strip testCases for security: only keep sampleIO, description, title, fileIO, etc.
+this.problems=allProblems.map(p=>({title:p.title,description:p.description,fileIO:p.fileIO,taskName:p.taskName,uppercase:p.uppercase,subtasks:p.subtasks,sampleIO:p.sampleIO,timePerTest:p.timePerTest,_testCount:p.testCases?p.testCases.length:0}));
+this._renderProblemTabs();this._showProblem(0);this._initStudentEditor();
+// Hide leaderboard in contest mode — show message instead
+const lbBody=document.getElementById('stu-leaderboard-body');
+if(lbBody)lbBody.innerHTML='<div style="text-align:center;padding:32px;color:var(--text-muted)"><div style="font-size:2rem;margin-bottom:8px">🔒</div><p style="font-size:.85rem">Bảng xếp hạng sẽ được công bố<br>sau khi GV chấm bài.</p></div>';
+// Track submission count per problem
+this._contestSubmissions={};this._contestRoomInfo=info}
 
 _initStudentEditor(){if(!this.cmStudent){const cfg={mode:'python',lineNumbers:true,indentUnit:4,tabSize:4,matchBrackets:true,autoCloseBrackets:true,styleActiveLine:true,extraKeys:{'Tab':cm=>cm.execCommand('indentMore'),'Shift-Tab':cm=>cm.execCommand('indentLess')}};this.cmStudent=CodeMirror(document.getElementById('stu-editor-wrap'),{...cfg,value:'# Viết code tại đây\n'})}else{this.cmStudent.setValue('# Viết code tại đây\n')}setTimeout(()=>this.cmStudent.refresh(),100);
 // F04: Auto-save code to localStorage every 30s
@@ -796,7 +849,10 @@ this.cmStudent.on('change',()=>{if(this._currentExercise){const code=this.cmStud
 
 _renderProblemTabs(){const c=document.getElementById('stu-problem-tabs');c.innerHTML='';this.problems.forEach((p,i)=>{const btn=document.createElement('button');btn.className='oj-ptab-btn'+(i===0?' active':'');btn.textContent=`Bài ${i+1}`;btn.onclick=()=>{c.querySelectorAll('.oj-ptab-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');this._showProblem(i)};c.appendChild(btn)})}
 
-_showProblem(idx){this.currentProbIdx=idx;const p=this.problems[idx];if(!p)return;document.getElementById('stu-problem-title').textContent=`Bài ${idx+1}: ${p.title}`;document.getElementById('stu-problem-meta').innerHTML=`${p.fileIO?'📁 File I/O: <strong>'+p.taskName+'.INP/.OUT</strong>':'⌨️ stdin/stdout'} &nbsp;•&nbsp; ${p.subtasks?.length||1} subtask &nbsp;•&nbsp; ${p.testCases?.length||0} test`;document.getElementById('stu-problem-desc').textContent=p.description||'Không có mô tả';
+_showProblem(idx){this.currentProbIdx=idx;const p=this.problems[idx];if(!p)return;document.getElementById('stu-problem-title').textContent=`Bài ${idx+1}: ${p.title}`;
+const isContest=!!this.roomCode&&!this._currentExercise;
+const testInfo=p.testCases?p.testCases.length:(p._testCount||'?');
+document.getElementById('stu-problem-meta').innerHTML=`${p.fileIO?'📁 File I/O: <strong>'+p.taskName+'.INP/.OUT</strong>':'⌨️ stdin/stdout'} &nbsp;•&nbsp; ${p.subtasks?.length||1} subtask${isContest?' &nbsp;•&nbsp; 🔒 Test ẩn':' &nbsp;•&nbsp; '+testInfo+' test'}`;document.getElementById('stu-problem-desc').textContent=p.description||'Không có mô tả';
 const sio=document.getElementById('stu-sample-io');
 const samples=p.sampleIO&&p.sampleIO.length?p.sampleIO:(p.testCases&&p.testCases.length?[{input:p.testCases[0].input,output:p.testCases[0].output}]:[]);
 if(samples.length>0){let h='';samples.forEach((s,i)=>{const label=samples.length>1?` ${i+1}`:'';const explainHtml=s.explanation?`<div class="sample-io-display-explain">💡 Giải thích: ${this._esc(s.explanation)}</div>`:'';const inpEnc=encodeURIComponent(s.input);const outEnc=encodeURIComponent(s.output);h+=`<div class="sample-io-display"><div class="sample-io-display-header">📝 Ví dụ${label}</div><div class="sample-io-display-grid"><div class="sample-box"><div class="sample-box-title">INPUT <button class="btn-copy-io" onclick="window._uic._copyText(decodeURIComponent('${inpEnc}'))" title="Copy input">📋</button></div><pre>${this._esc(s.input)}</pre></div><div class="sample-box"><div class="sample-box-title">OUTPUT <button class="btn-copy-io" onclick="window._uic._copyText(decodeURIComponent('${outEnc}'))" title="Copy output">📋</button></div><pre>${this._esc(s.output)}</pre></div></div>${explainHtml}</div>`});sio.innerHTML=h}else{sio.innerHTML=''}
@@ -883,58 +939,65 @@ consoleOut.innerHTML=html;statusEl.textContent='❌ Có lỗi'
 }finally{runBtn.disabled=false;runBtn.classList.remove('running')}}
 
 async _stuSubmit(){if(!this.cmStudent)return;
-// Check if contest time has expired (race condition guard)
 if(document.getElementById('btn-stu-submit').disabled){this._toast('⏰ Hết thời gian!','error');return}
 const code=this.cmStudent.getValue().trim();if(!code){this._toast('Viết code trước','error');return}
-// F05: Confirm before submit
-const isContest=!!this.roomCode;if(!isContest){const ok=await this._confirmDialog('📝 Xác nhận nộp bài','Code sẽ được chấm điểm. Bạn có thể nộp lại nhiều lần.','Nộp bài','btn-accent');if(!ok)return}const p=this.problems[this.currentProbIdx];if(!p){this._toast('Không có đề','error');return}const statusEl=document.getElementById('stu-submit-status');const consoleOut=document.getElementById('oj-console-output');statusEl.innerHTML='⏳ Đang chấm...';consoleOut.innerHTML='<span style="color:var(--text-muted)">🔄 Đang khởi tạo Pyodide...</span>';document.getElementById('btn-stu-submit').disabled=true;
+const isContest=!!this.roomCode&&!this._currentExercise;
+const p=this.problems[this.currentProbIdx];if(!p){this._toast('Không có đề','error');return}
+const statusEl=document.getElementById('stu-submit-status');const consoleOut=document.getElementById('oj-console-output');
+
+// === CONTEST MODE: chỉ lưu code, KHÔNG chấm ===
+if(isContest){
+document.getElementById('btn-stu-submit').disabled=true;
+statusEl.innerHTML='<span class="progress-spinner"></span> Đang nộp...';
+try{
+// Track submissions
+if(!this._contestSubmissions)this._contestSubmissions={};
+if(!this._contestSubmissions[this.currentProbIdx])this._contestSubmissions[this.currentProbIdx]=0;
+this._contestSubmissions[this.currentProbIdx]++;
+const subCount=this._contestSubmissions[this.currentProbIdx];
+// Save code to Firebase (NO grading)
+await this.fb.db.ref(`rooms/${this.roomCode}/students/${this.studentName}/submissions/${this.currentProbIdx}/${Date.now()}`).set({code:code.substring(0,15000),submittedAt:Date.now(),attempt:subCount});
+// Also save as finalCode (latest submission)
+await this.fb.db.ref(`rooms/${this.roomCode}/students/${this.studentName}/finalCode/${this.currentProbIdx}`).set(code.substring(0,15000));
+statusEl.textContent=`✅ Đã nộp! (Lần ${subCount})`;
+consoleOut.innerHTML=`<div style="padding:16px;text-align:center"><div style="font-size:2rem;margin-bottom:8px">✅</div><div style="font-weight:600;font-size:1rem;margin-bottom:4px">Đã nộp bài thành công!</div><div style="color:var(--text-muted);font-size:.82rem">Lần nộp: ${subCount} • Bạn có thể nộp lại bất kỳ lúc nào trước khi hết giờ.</div><div style="color:var(--text-muted);font-size:.78rem;margin-top:8px">⚠️ Bài sẽ được GV chấm sau khi kết thúc cuộc thi.</div></div>`;
+this._toast(`📝 Bài ${this.currentProbIdx+1}: Đã nộp (lần ${subCount})`,'success');
+}catch(e){statusEl.textContent='⚠️ Lỗi nộp!';this._toast('Lỗi nộp bài: '+e.message,'error')}
+finally{document.getElementById('btn-stu-submit').disabled=false}
+return}
+
+// === EXERCISE MODE: chấm ngay (giữ nguyên logic cũ) ===
+if(!this._currentExercise){const ok=await this._confirmDialog('📝 Xác nhận nộp bài','Code sẽ được chấm điểm. Bạn có thể nộp lại nhiều lần.','Nộp bài','btn-accent');if(!ok)return}
+statusEl.innerHTML='⏳ Đang chấm...';consoleOut.innerHTML='<span style="color:var(--text-muted)">🔄 Đang khởi tạo Pyodide...</span>';document.getElementById('btn-stu-submit').disabled=true;
 try{const result=await this.grader.grade(code,p.testCases,p.subtasks||[],p.fileIO,p.taskName,p.uppercase,p.timePerTest||5,(c,t)=>{statusEl.textContent=`Test ${c}/${t}`;consoleOut.innerHTML=`<span style="color:var(--accent)">⚡ Đang chấm test ${c}/${t}...</span>`});
-// Build detailed console output
-const ac=result.details.filter(d=>d.verdict==='AC').length;
-const wa=result.details.filter(d=>d.verdict==='WA').length;
-const re=result.details.filter(d=>d.verdict==='RE').length;
-const tle=result.details.filter(d=>d.verdict==='TLE').length;
-const total=result.details.length;
+const ac=result.details.filter(d=>d.verdict==='AC').length;const wa=result.details.filter(d=>d.verdict==='WA').length;const re=result.details.filter(d=>d.verdict==='RE').length;const tle=result.details.filter(d=>d.verdict==='TLE').length;const total=result.details.length;
 let con=`<div style="margin-bottom:6px"><strong style="color:${result.score>=100?'var(--success)':result.score>=50?'var(--warning,#f59e0b)':'var(--error)'};font-size:1.1rem">${result.score}/100 điểm</strong></div>`;
 con+=`<div style="display:flex;gap:12px;margin-bottom:8px;font-size:.82rem">`;
 con+=`<span style="color:var(--success)">✅ AC: ${ac}/${total}</span>`;
-if(wa>0)con+=`<span style="color:var(--error)">❌ WA: ${wa}</span>`;
-if(re>0)con+=`<span style="color:#f43f5e">💥 RE: ${re}</span>`;
-if(tle>0)con+=`<span style="color:#f59e0b">⏰ TLE: ${tle}</span>`;
+if(wa>0)con+=`<span style="color:var(--error)">❌ WA: ${wa}</span>`;if(re>0)con+=`<span style="color:#f43f5e">💥 RE: ${re}</span>`;if(tle>0)con+=`<span style="color:#f59e0b">⏰ TLE: ${tle}</span>`;
 con+=`</div>`;
-// Show error details for first few failures
 const failures=result.details.filter(d=>d.verdict!=='AC').slice(0,3);
 if(failures.length>0){con+=`<div style="border-top:1px solid var(--border);padding-top:6px;margin-top:4px;font-size:.78rem">`;
 con+=`<div style="color:var(--text-muted);margin-bottom:4px">⚠️ Chi tiết lỗi (${Math.min(3,result.details.filter(d=>d.verdict!=='AC').length)} test đầu):</div>`;
 failures.forEach(f=>{const testNum=f.testIdx+1;
 con+=`<div style="margin:2px 0;padding:3px 6px;background:rgba(255,255,255,.03);border-radius:3px">`;
 con+=`Test ${testNum} — <span class="verdict ${f.verdict}" style="font-weight:700">${f.verdict}</span>`;
-if(f.verdict==='RE')con+=` <span style="color:#f43f5e">Lỗi runtime</span>`;
-if(f.verdict==='WA')con+=` <span style="color:var(--error)">Sai kết quả</span>`;
-if(f.verdict==='TLE')con+=` <span style="color:#f59e0b">Quá thời gian (${f.time}ms)</span>`;
+if(f.verdict==='RE')con+=` <span style="color:#f43f5e">Lỗi runtime</span>`;if(f.verdict==='WA')con+=` <span style="color:var(--error)">Sai kết quả</span>`;if(f.verdict==='TLE')con+=` <span style="color:#f59e0b">Quá thời gian (${f.time}ms)</span>`;
 con+=`</div>`});con+=`</div>`}
-consoleOut.innerHTML=con;
-this._showStudentResults(result,p);
-// Save result — capture IDs now to prevent async race conditions
-const exRef=this._currentExercise;const roomRef=this.roomCode;const probIdx=this.currentProbIdx;
+consoleOut.innerHTML=con;this._showStudentResults(result,p);
+const exRef=this._currentExercise;const probIdx=this.currentProbIdx;
 const trimmedResult={score:result.score,details:result.details,code:(result.code||'').substring(0,10000)};
 if(exRef){try{await this.fb.submitExerciseResult(exRef.id,this.studentName,trimmedResult);
 localStorage.removeItem('themis_draft_'+exRef.id);
 this.drive.logData('Submissions',[exRef.id+'_'+this.studentName+'_'+Date.now(),this.studentName,exRef.id,exRef.title,result.score,new Date().toISOString(),result.score>=100?'PERFECT':result.score>0?'PARTIAL':'ZERO']).catch(()=>{});
-statusEl.textContent='✅ Đã nộp!';this._toast(`📚 ${exRef.title}: ${result.score} điểm`,'success')}catch(e){statusEl.textContent='⚠️ Lỗi lưu!';this._toast('⚠️ Lỗi lưu kết quả: '+e.message+'. Thử nộp lại!','error');console.error('Save exercise result failed:',e)}}
-else if(roomRef){try{await this.fb.submitResult(roomRef,this.studentName,probIdx,trimmedResult);
-this.drive.logData('ContestResults',[roomRef+'_'+this.studentName+'_'+probIdx,this.studentName,probIdx,result.score,new Date().toISOString()]).catch(()=>{});
-statusEl.textContent='✅ Đã nộp!';this._toast(`Bài ${probIdx+1}: ${result.score} điểm`,'success')}catch(e){statusEl.textContent='⚠️ Lỗi lưu!';this._toast('⚠️ Lỗi lưu kết quả: '+e.message,'error');console.error('Save contest result failed:',e)}}
-else{statusEl.textContent='⚠️ Không xác định bài!';this._toast('⚠️ Không tìm thấy thông tin bài tập. Quay lại danh sách và thử lại!','error')}}catch(e){
-statusEl.textContent='';
-// Check if it's a Python error
-const errMsg=e.message;
+statusEl.textContent='✅ Đã nộp!';this._toast(`📚 ${exRef.title}: ${result.score} điểm`,'success')}catch(e){statusEl.textContent='⚠️ Lỗi lưu!';this._toast('⚠️ Lỗi lưu: '+e.message,'error')}}
+else{statusEl.textContent='⚠️ Không xác định bài!';this._toast('⚠️ Không tìm thấy thông tin bài tập.','error')}}catch(e){
+statusEl.textContent='';const errMsg=e.message;
 let con='<div style="color:var(--error);font-weight:600;margin-bottom:6px">💥 Lỗi khi chạy code</div>';
 if(errMsg.includes('Python:')){const pyErr=errMsg.replace('Python: ','');
 con+=`<pre style="background:rgba(239,68,68,.08);padding:8px;border-radius:4px;font-size:.78rem;color:#f87171;white-space:pre-wrap;max-height:200px;overflow-y:auto">${this._esc(pyErr)}</pre>`;
-con+=`<div style="color:var(--text-muted);font-size:.75rem;margin-top:6px">💡 Kiểm tra lại cú pháp, biến, và logic trong code.</div>`}else{con+=`<div style="color:var(--error)">${this._esc(errMsg)}</div>`}
-consoleOut.innerHTML=con;
-this._toast('Lỗi: '+errMsg.substring(0,60),'error')}finally{document.getElementById('btn-stu-submit').disabled=false}}
+con+=`<div style="color:var(--text-muted);font-size:.75rem;margin-top:6px">💡 Kiểm tra lại cú pháp, biến, và logic.</div>`}else{con+=`<div style="color:var(--error)">${this._esc(errMsg)}</div>`}
+consoleOut.innerHTML=con;this._toast('Lỗi: '+errMsg.substring(0,60),'error')}finally{document.getElementById('btn-stu-submit').disabled=false}}
 
 _showStudentResults(result,problem){const card=document.getElementById('stu-results-card');card.classList.remove('hidden');document.getElementById('no-results-msg').style.display='none';const scoreEl=document.getElementById('stu-score');scoreEl.textContent=result.score;scoreEl.className='oj-score-value'+(result.score===100?' perfect':'');
 const sumEl=document.getElementById('stu-subtask-summary');let sumH='';for(const st of (problem.subtasks||[])){const stTests=(result.details||[]).filter(d=>d.subtaskId===st.id);const ac=stTests.filter(d=>d.verdict==='AC').length;const total=stTests.length;const allAC=total>0&&ac===total;const pts=allAC?st.percent:0;sumH+=`<div class="subtask-summary-row ${allAC?'pass':'fail'}"><span class="st-sum-name">${st.name}</span><div class="st-sum-bar"><div class="st-sum-bar-fill ${allAC?'full':ac>0?'partial':'zero'}" style="width:${total?ac/total*100:0}%"></div></div><span style="font-size:.78rem;color:var(--text-muted)">${ac}/${total} AC</span><span class="st-sum-score">${pts}đ</span></div>`}sumEl.innerHTML=sumH;
@@ -944,6 +1007,188 @@ document.querySelectorAll('.oj-ptab').forEach(b=>b.classList.remove('active'));d
 
 // ===== LEADERBOARD =====
 _renderLeaderboard(lb,containerId,selfName){const c=document.getElementById(containerId);if(!lb||!Object.keys(lb).length){c.innerHTML='<p style="color:var(--text-muted);text-align:center;padding:20px">Chưa có dữ liệu</p>';return}const sorted=Object.values(lb).sort((a,b)=>b.totalScore-a.totalScore||(a.lastSubmit-b.lastSubmit));const pCount=this.problems?.length||this.publishedCount||1;let h='<table class="lb-table"><thead><tr><th>Hạng</th><th>Họ tên</th><th>Tổng</th>';for(let i=0;i<pCount;i++)h+=`<th>Bài ${i+1}</th>`;h+='</tr></thead><tbody>';sorted.forEach((s,i)=>{const rank=i+1;const rankCls=rank<=3?`lb-rank-${rank}`:'';const isSelf=s.name===selfName;const medals=['','🥇','🥈','🥉'];h+=`<tr class="${isSelf?'self':''} lb-flash"><td class="lb-rank ${rankCls}">${medals[rank]||rank}</td><td class="lb-name">${this._esc(s.name)}</td><td class="lb-score">${s.totalScore}</td>`;for(let j=0;j<pCount;j++){const ps=s.problems&&s.problems[j]||0;const cls=ps>=100?'full':ps>0?'partial':'zero';h+=`<td><span class="lb-prob-score ${cls}">${ps}</span></td>`}h+='</tr>'});h+='</tbody></table>';c.innerHTML=h}
+
+// ===== CONTEST ENDED READONLY (HS xem code đã nộp) =====
+async _showContestEndedReadonly(){if(!this.roomCode||!this.studentName)return;
+// Make editor readonly
+if(this.cmStudent)this.cmStudent.setOption('readOnly',true);
+document.getElementById('btn-stu-submit').disabled=true;
+document.getElementById('btn-stu-submit').textContent='🔒 Hết giờ';
+// Load submitted code for current problem
+try{
+const snap=await this.fb.db.ref(`rooms/${this.roomCode}/students/${this.studentName}/finalCode`).once('value');
+const finalCodes=snap.val()||{};
+if(finalCodes[this.currentProbIdx]&&this.cmStudent){this.cmStudent.setValue(finalCodes[this.currentProbIdx])}
+const consoleOut=document.getElementById('oj-console-output');
+consoleOut.innerHTML=`<div style="padding:16px;text-align:center"><div style="font-size:2rem;margin-bottom:8px">⏰</div><div style="font-weight:600;font-size:1rem;margin-bottom:4px">Đã hết thời gian!</div><div style="color:var(--text-muted);font-size:.82rem">Code bên trên là bài bạn đã nộp (chỉ xem, không sửa được).</div><div style="color:var(--text-muted);font-size:.78rem;margin-top:8px">⏳ Chờ GV chấm bài và công bố kết quả...</div></div>`;
+}catch(e){console.error('Load final code failed:',e)}}
+
+// ===== PHASE 2: GV CHẤM BÀI HÀNG LOẠT =====
+async _gradeAllStudents(){if(!this.roomCode){this._toast('Không có phòng thi','error');return}
+const ok=await this._confirmDialog('🔬 Chấm bài','Hệ thống sẽ chạy code của TẤT CẢ học sinh với test cases. Quá trình này có thể mất vài phút.','Bắt đầu chấm','btn-accent');
+if(!ok)return;
+const gradeBtn=document.getElementById('btn-grade-all');if(gradeBtn)gradeBtn.disabled=true;
+const progressEl=document.getElementById('grade-progress');if(progressEl)progressEl.classList.remove('hidden');
+const statusEl=document.getElementById('grade-status');
+try{
+// 1. Load all problems WITH test cases
+const probSnap=await this.fb.db.ref(`rooms/${this.roomCode}/problems`).once('value');
+const problems=probSnap.val()||[];const probArr=Array.isArray(problems)?problems:Object.values(problems);
+// 2. Load all student finalCodes
+const stuSnap=await this.fb.db.ref(`rooms/${this.roomCode}/students`).once('value');
+const students=stuSnap.val()||{};
+const stuNames=Object.keys(students).filter(n=>students[n].finalCode);
+if(!stuNames.length){this._toast('Không có HS nào đã nộp bài','error');if(gradeBtn)gradeBtn.disabled=false;if(progressEl)progressEl.classList.add('hidden');return}
+// 3. Init engine
+await this.pyEngine.init();
+const totalJobs=stuNames.length*probArr.length;let done=0;
+const allResults={};
+// 4. Grade each student × each problem
+for(const name of stuNames){allResults[name]={};
+const codes=students[name].finalCode||{};
+for(let pi=0;pi<probArr.length;pi++){
+const p=probArr[pi];const code=codes[pi];
+done++;if(statusEl)statusEl.textContent=`Đang chấm: ${name} — Bài ${pi+1} (${done}/${totalJobs})`;
+if(document.getElementById('grade-bar'))document.getElementById('grade-bar').style.width=(done/totalJobs*100)+'%';
+if(!code){allResults[name][pi]={score:0,details:[],note:'Chưa nộp'};continue}
+try{
+const result=await this.grader.grade(code,p.testCases||[],p.subtasks||[],p.fileIO,p.taskName,p.uppercase,p.timePerTest||5);
+allResults[name][pi]={score:result.score,details:result.details,code};
+// Save to Firebase
+await this.fb.db.ref(`rooms/${this.roomCode}/gradeResults/${name}/${pi}`).set({score:result.score,details:result.details,gradedAt:Date.now()});
+}catch(e){allResults[name][pi]={score:0,details:[],error:e.message,code};
+await this.fb.db.ref(`rooms/${this.roomCode}/gradeResults/${name}/${pi}`).set({score:0,details:[],error:e.message,gradedAt:Date.now()});}}}
+// 5. Update room status
+await this.fb.db.ref(`rooms/${this.roomCode}/info/gradeStatus`).set('graded');
+if(progressEl)progressEl.classList.add('hidden');
+if(gradeBtn){gradeBtn.disabled=false;gradeBtn.textContent='✅ Đã chấm xong'}
+this._gradeResults=allResults;this._gradeProblems=probArr;
+this._renderGradeResults(allResults,probArr,stuNames);
+this._toast('🎉 Chấm xong tất cả!','success');
+}catch(e){if(progressEl)progressEl.classList.add('hidden');if(gradeBtn)gradeBtn.disabled=false;this._toast('Lỗi chấm: '+e.message,'error')}}
+
+_renderGradeResults(results,problems,stuNames){
+const container=document.getElementById('grade-results');if(!container)return;container.classList.remove('hidden');
+let h='<h3 style="font-size:.95rem;font-weight:700;margin-bottom:12px">📊 Kết Quả Chấm</h3>';
+h+='<table class="lb-table"><thead><tr><th>#</th><th>Họ tên</th>';
+problems.forEach((_,i)=>h+=`<th>Bài ${i+1}</th>`);
+h+='<th>Tổng</th><th>Chi tiết</th></tr></thead><tbody>';
+const rows=stuNames.map(name=>{let total=0;const scores=[];
+problems.forEach((_,pi)=>{const r=results[name]?.[pi];const s=r?.score||0;total+=s;scores.push(s)});
+return{name,total,scores}}).sort((a,b)=>b.total-a.total);
+rows.forEach((r,idx)=>{
+h+=`<tr><td>${idx+1}</td><td style="font-weight:600">${this._esc(r.name)}</td>`;
+r.scores.forEach(s=>{const cls=s>=100?'full':s>0?'partial':'zero';h+=`<td><span class="lb-prob-score ${cls}">${s}</span></td>`});
+h+=`<td class="lb-score">${r.total}</td>`;
+h+=`<td><button class="btn btn-sm btn-ghost" onclick="window._uic._viewStudentSubmissions('${this._esc(r.name)}')">👁️</button></td>`;
+h+='</tr>'});
+h+='</tbody></table>';
+// AI Analysis button
+h+=`<div style="margin-top:12px;display:flex;gap:8px;align-items:center"><button class="btn btn-accent btn-sm" id="btn-publish-results" onclick="window._uic._publishResults()">📢 Công Bố Kết Quả</button><button class="btn btn-ghost btn-sm" id="btn-ai-analyze-all" onclick="window._uic._aiAnalyzeAll()">🤖 AI Phân Tích (tùy chọn)</button></div>`;
+container.innerHTML=h}
+
+// ===== AI ANALYSIS (optional) =====
+async _aiAnalyzeAll(){if(!this._gradeResults||!this._gradeProblems){this._toast('Chấm bài trước','error');return}
+const k=document.getElementById('ai-api-key')?.value?.trim()||this.gemini.getApiKey();
+if(!k){this._toast('Nhập Gemini API Key trong tab AI trước','error');return}
+this.gemini.setApiKey(k);
+const ok=await this._confirmDialog('🤖 AI Phân Tích','AI sẽ phân tích code của từng HS. Cần API key và mất vài phút.','Phân tích','btn-accent');
+if(!ok)return;
+const names=Object.keys(this._gradeResults);
+const statusEl=document.getElementById('grade-status');if(statusEl)statusEl.textContent='AI đang phân tích...';
+let count=0;
+for(const name of names){
+for(let pi=0;pi<this._gradeProblems.length;pi++){
+const r=this._gradeResults[name]?.[pi];if(!r||!r.code)continue;
+count++;if(statusEl)statusEl.textContent=`AI phân tích: ${name} — Bài ${pi+1} (${count})`;
+try{
+const p=this._gradeProblems[pi];
+const prompt=`Phân tích code Python của học sinh cho bài "${p.title||'?'}".\nĐề bài: ${p.description||'N/A'}\nĐiểm: ${r.score}/100\n\nCode:\n\`\`\`python\n${r.code}\n\`\`\`\n\nHãy:\n1. Nêu lỗi logic chính (nếu có)\n2. Đánh giá phong cách code\n3. Gợi ý cải thiện ngắn gọn\n\nTrả lời bằng tiếng Việt, tối đa 150 từ.`;
+const resp=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${k}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:0.2,maxOutputTokens:300}})});
+const d=await resp.json();const analysis=d.candidates?.[0]?.content?.parts?.[0]?.text||'Không phân tích được';
+await this.fb.db.ref(`rooms/${this.roomCode}/gradeResults/${name}/${pi}/aiAnalysis`).set(analysis);
+if(this._gradeResults[name]?.[pi])this._gradeResults[name][pi].aiAnalysis=analysis;
+}catch(e){console.error('AI analyze failed:',name,pi,e)}
+await new Promise(r=>setTimeout(r,500))}}
+if(statusEl)statusEl.textContent='✅ AI phân tích xong!';
+this._toast('🤖 AI đã phân tích xong!','success')}
+
+// ===== VIEW STUDENT SUBMISSIONS =====
+async _viewStudentSubmissions(name){if(!this.roomCode)return;
+try{
+const snap=await this.fb.db.ref(`rooms/${this.roomCode}/students/${name}`).once('value');
+const stu=snap.val();if(!stu)return;
+const gradeSnap=await this.fb.db.ref(`rooms/${this.roomCode}/gradeResults/${name}`).once('value');
+const grades=gradeSnap.val()||{};
+const probCount=this.publishedCount||this._gradeProblems?.length||1;
+let h=`<div class="modal-overlay" id="modal-student-detail" style="display:flex"><div class="modal-content" style="max-width:800px;max-height:85vh;overflow-y:auto">`;
+h+=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><h3>👤 ${this._esc(name)}</h3><button class="btn btn-ghost btn-sm" onclick="document.getElementById('modal-student-detail').remove()">✕ Đóng</button></div>`;
+for(let pi=0;pi<probCount;pi++){
+const g=grades[pi]||{};const code=(stu.finalCode&&stu.finalCode[pi])||'(Chưa nộp)';
+h+=`<div style="margin-bottom:16px;padding:12px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:8px">`;
+h+=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><strong>Bài ${pi+1}</strong><span class="lb-prob-score ${g.score>=100?'full':g.score>0?'partial':'zero'}">${g.score||0} điểm</span></div>`;
+h+=`<pre style="background:rgba(0,0,0,.3);padding:10px;border-radius:4px;font-size:.75rem;max-height:200px;overflow:auto;margin-bottom:8px;white-space:pre-wrap">${this._esc(code)}</pre>`;
+if(g.aiAnalysis){h+=`<div style="padding:8px 12px;background:rgba(99,102,241,.06);border:1px solid rgba(99,102,241,.15);border-radius:6px;font-size:.78rem;margin-bottom:8px"><strong>🤖 AI:</strong> ${this._esc(g.aiAnalysis).replace(/\n/g,'<br>')}</div>`}
+// Submission history
+if(stu.submissions&&stu.submissions[pi]){
+const subs=stu.submissions[pi];const subKeys=Object.keys(subs).sort();
+h+=`<details style="font-size:.78rem;color:var(--text-muted)"><summary>📜 ${subKeys.length} lần nộp</summary>`;
+subKeys.forEach(ts=>{const sub=subs[ts];const d=new Date(parseInt(ts));
+h+=`<div style="padding:4px 8px;margin:2px 0;background:rgba(255,255,255,.02);border-radius:4px">Lần ${sub.attempt||'?'} — ${d.toLocaleTimeString('vi')}</div>`});
+h+=`</details>`}
+// Teacher note input
+const existingNote=this._teacherNotes?.[name]||'';
+h+=`<div style="margin-top:8px"><label style="font-size:.72rem;font-weight:600;color:var(--text-muted)">💬 Nhận xét GV:</label><textarea id="tnote-${this._esc(name)}-${pi}" rows="2" style="width:100%;margin-top:4px;background:var(--bg-card);border:1px solid var(--border);border-radius:4px;padding:6px;font-size:.78rem;color:var(--text-primary);resize:vertical" placeholder="Nhập nhận xét cho ${this._esc(name)}...">${this._esc(existingNote)}</textarea></div>`;
+h+=`</div>`}
+h+=`<div style="display:flex;gap:8px;margin-top:12px"><button class="btn btn-accent btn-sm" onclick="window._uic._saveTeacherNotes('${this._esc(name)}',${probCount})">💾 Lưu nhận xét</button></div>`;
+h+=`</div></div>`;
+document.body.insertAdjacentHTML('beforeend',h);
+}catch(e){this._toast('Lỗi: '+e.message,'error')}}
+
+async _saveTeacherNotes(name,probCount){
+for(let pi=0;pi<probCount;pi++){
+const el=document.getElementById(`tnote-${name}-${pi}`);
+if(el&&el.value.trim()){
+await this.fb.db.ref(`rooms/${this.roomCode}/teacherNotes/${name}/${pi}`).set(el.value.trim())}}
+this._toast('💾 Đã lưu nhận xét!','success')}
+
+// ===== PHASE 3: PUBLISH RESULTS =====
+async _publishResults(){if(!this.roomCode){this._toast('Không có phòng thi','error');return}
+const ok=await this._confirmDialog('📢 Công Bố Kết Quả','Học sinh sẽ thấy điểm và nhận xét. Hành động này không thể hoàn tác.','Công bố','btn-accent');
+if(!ok)return;
+try{
+// Build leaderboard from grade results
+const gradeSnap=await this.fb.db.ref(`rooms/${this.roomCode}/gradeResults`).once('value');
+const grades=gradeSnap.val()||{};
+const lb={};
+for(const name of Object.keys(grades)){
+let total=0;const problems={};
+for(const pi of Object.keys(grades[name])){
+const s=grades[name][pi].score||0;total+=s;problems[pi]=s;}
+lb[name]={name,totalScore:total,problems,lastSubmit:Date.now()}}
+// Set leaderboard
+await this.fb.db.ref(`rooms/${this.roomCode}/leaderboard`).set(lb);
+await this.fb.db.ref(`rooms/${this.roomCode}/info`).update({gradeStatus:'published',published:true,publishedAt:Date.now()});
+// Log to Google Sheet
+const names=Object.keys(lb);
+for(const name of names){
+this.drive.logData('ContestResults',[this.roomCode,name,lb[name].totalScore,...Object.values(lb[name].problems),new Date().toISOString()]).catch(()=>{});}
+this._renderLeaderboard(lb,'t-leaderboard-body');
+const pubBtn=document.getElementById('btn-publish-results');if(pubBtn){pubBtn.textContent='✅ Đã công bố';pubBtn.disabled=true}
+this._toast('📢 Đã công bố kết quả!','success');
+}catch(e){this._toast('Lỗi: '+e.message,'error')}}
+
+// ===== PHASE 5: DELETE ROOM =====
+async _deleteRoom(roomCode){
+const ok=await this._confirmDialog('🗑️ Xóa kỳ thi','Xóa TOÀN BỘ dữ liệu phòng thi #'+roomCode+'?\nBao gồm: đề bài, bài nộp, kết quả.\n\nHành động này KHÔNG THỂ hoàn tác!','Xóa vĩnh viễn','btn-danger');
+if(!ok)return;
+try{
+await this.fb.db.ref(`rooms/${roomCode}`).remove();
+this.drive.deleteRow('Rooms',roomCode).catch(()=>{});
+if(this.roomCode===roomCode){this.roomCode=null;localStorage.removeItem('themis_activeRoom');
+document.getElementById('teacher-room-bar').classList.add('hidden')}
+this._toast('🗑️ Đã xóa phòng #'+roomCode,'success');
+}catch(e){this._toast('Lỗi: '+e.message,'error')}}
 
 // ===== SUBTASK/LINE/VAR (same as v3, compacted) =====
 addSubtask(pct=0,name=null){this.subtaskCounter++;const id=this.subtaskCounter;if(!name)name='Subtask '+id;const c=document.createElement('div');c.className='subtask-card';c.dataset.stId=id;c.innerHTML=`<span class="subtask-name">${name}</span><input type="number" class="subtask-pct-input" value="${pct}" min="0" max="100" step="5"><span>%</span><span class="subtask-count">0</span><button class="btn-danger-sm btn-rm-st">✕</button>`;c.querySelector('.subtask-pct-input').oninput=()=>this._updateSTTotal();c.querySelector('.btn-rm-st').onclick=()=>{if(document.getElementById('subtasks-container').children.length<=1){this._toast('Cần ít nhất 1 subtask','error');return}c.remove();this._updateSTTotal();this._rebuildConstraints();this._validateForm()};document.getElementById('subtasks-container').appendChild(c);this._updateSTTotal();this._validateForm()}

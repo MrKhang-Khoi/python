@@ -316,6 +316,19 @@
                     <h3 style="font-size:.92rem;font-weight:700;margin-bottom:10px;color:var(--text-secondary)">📋 Đề thi đã đăng</h3>
                     <div id="t-contest-problem-list"></div>
                 </div>
+                <!-- GRADING SECTION -->
+                <div id="grading-section" style="margin-bottom:20px">
+                    <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+                        <button class="btn btn-accent btn-sm" id="btn-grade-all" onclick="window._uic._gradeAllStudents()">🔬 Chấm Tất Cả</button>
+                        <span id="grade-status" style="font-size:.82rem;color:var(--text-muted)"></span>
+                    </div>
+                    <div id="grade-progress" class="hidden" style="margin-bottom:12px">
+                        <div style="height:6px;background:rgba(255,255,255,.08);border-radius:3px;overflow:hidden">
+                            <div id="grade-bar" style="height:100%;width:0%;background:var(--accent);border-radius:3px;transition:width .3s"></div>
+                        </div>
+                    </div>
+                    <div id="grade-results" class="hidden"></div>
+                </div>
                 <div id="t-leaderboard-body"><p style="color:var(--text-muted);text-align:center;padding:40px">Tạo phòng thi và thêm đề bài để bắt đầu.</p></div>
             </div>
         </main>
@@ -474,10 +487,20 @@
         </div>
         <!-- ENDED -->
         <div id="stu-ended" class="stu-screen hidden">
-            <div class="splash-card" style="max-width:500px">
+            <div class="splash-card" style="max-width:600px">
                 <div class="splash-logo" style="background:linear-gradient(135deg,var(--success),#059669)"><span>🏁</span></div>
                 <h2 style="margin:16px 0 6px">Cuộc thi đã kết thúc!</h2>
-                <p class="splash-sub" id="stu-final-score">Điểm: ---</p>
+                <p class="splash-sub" id="stu-final-score">⏳ Chờ GV chấm bài và công bố kết quả...</p>
+                <div id="stu-contest-results" class="hidden" style="width:100%;text-align:left;margin-top:16px">
+                    <h3 style="font-size:.92rem;font-weight:700;margin-bottom:8px">📊 Kết quả của bạn</h3>
+                    <div id="stu-contest-lb" style="margin-bottom:12px"></div>
+                    <div id="stu-contest-notes"></div>
+                </div>
+                <div id="stu-submitted-code-review" class="hidden" style="width:100%;text-align:left;margin-top:12px">
+                    <h3 style="font-size:.92rem;font-weight:700;margin-bottom:8px">💻 Code đã nộp</h3>
+                    <div id="stu-code-review-tabs" style="display:flex;gap:4px;margin-bottom:8px"></div>
+                    <pre id="stu-code-review-content" style="background:rgba(0,0,0,.3);padding:10px;border-radius:4px;font-size:.75rem;max-height:250px;overflow:auto;white-space:pre-wrap"></pre>
+                </div>
                 <button class="btn btn-ghost" id="btn-stu-back-join" style="margin-top:12px">↩ Quay lại</button>
             </div>
         </div>
