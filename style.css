@@ -359,7 +359,7 @@ textarea.ai-textarea{resize:vertical}
 .oj-nav-btn:hover{color:var(--danger);border-color:var(--danger)}
 
 /* ===== OJ CONTENT ===== */
-.oj-content{max-width:960px;margin:0 auto;padding:28px 20px}
+.oj-content{max-width:1100px;margin:0 auto;padding:28px 20px}
 .oj-page-header{margin-bottom:24px}
 .oj-page-title{font-size:1.6rem;font-weight:800;color:var(--text-primary);margin:0}
 .oj-page-sub{color:var(--text-muted);font-size:.9rem;margin:4px 0 0}
@@ -367,9 +367,8 @@ textarea.ai-textarea{resize:vertical}
 .oj-section-divider{height:1px;background:var(--border);margin:32px 0}
 
 /* ===== EXERCISE TABLE V2 (Student) ===== */
-.oj-exercise-list-v2{border:1px solid var(--border);border-radius:var(--radius-md);overflow:hidden}
-.stu-ex-table{width:100%;min-width:860px;border-collapse:collapse;font-size:.84rem}
-.oj-exercise-list-v2{overflow-x:auto}
+.oj-exercise-list-v2{border:1px solid var(--border);border-radius:var(--radius-md);overflow-x:auto;overflow-y:hidden}
+.stu-ex-table{width:100%;min-width:880px;border-collapse:collapse;font-size:.84rem}
 .stu-ex-table thead th{padding:10px 14px;text-align:left;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);background:rgba(255,255,255,.025);border-bottom:2px solid var(--border)}
 .stu-ex-table tbody tr{cursor:pointer;transition:all .15s;border-bottom:1px solid rgba(255,255,255,.04)}
 .stu-ex-table tbody tr:last-child{border-bottom:none}
