@@ -796,3 +796,128 @@ textarea.ai-textarea{resize:vertical}
 .room-prob-card:hover{background:rgba(99,102,241,.04) !important;border-color:rgba(99,102,241,.2) !important}
 .room-prob-score{background:var(--bg-card);border:1px solid rgba(99,102,241,.25);border-radius:6px;color:var(--accent-light);transition:all .2s}
 .room-prob-score:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(99,102,241,.15);outline:none}
+
+/* Anti-cheat badge */
+.anti-cheat-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);border-radius:20px;font-size:.7rem;font-weight:700;color:#f87171;animation:pulse-cheat 2s infinite}
+@keyframes pulse-cheat{0%,100%{opacity:1}50%{opacity:.6}}
+
+/* Auto-save indicator */
+.auto-save-indicator{font-size:.72rem;color:var(--text-muted);transition:all .3s;min-width:80px;text-align:center}
+.auto-save-indicator.saved{color:var(--success);transform:scale(1.05)}
+
+/* Warning timer (< 10 min) */
+.oj-timer.warning-timer{color:#fbbf24;animation:none}
+.oj-timer.critical{color:#f87171 !important;animation:timer-blink .5s infinite !important}
+@keyframes timer-blink{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* ===== RESPONSIVE MOBILE ===== */
+@media(max-width:768px){
+  /* Global */
+  .container{padding:0 8px !important}
+  body{font-size:13px}
+  
+  /* Splash */
+  .splash-card{margin:12px;padding:24px 16px}
+  .splash-buttons{flex-direction:column;gap:10px}
+  .splash-btn{min-height:70px}
+  
+  /* Teacher header */
+  .header-content{flex-direction:column;gap:8px;text-align:center}
+  .logo-group h1{font-size:1.1rem}
+  .t-tabbar-inner{overflow-x:auto;gap:0;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+  .t-tabbar-inner::-webkit-scrollbar{display:none}
+  .t-tab{white-space:nowrap;font-size:.72rem;padding:8px 10px;min-width:max-content}
+  
+  /* Teacher room bar */
+  .room-bar-inner{flex-direction:column;gap:6px;padding:6px 8px}
+  .room-info-left,.room-info-right{justify-content:center;flex-wrap:wrap}
+  
+  /* Grid layouts */
+  .grid-2col{grid-template-columns:1fr !important}
+  
+  /* Card sections */
+  .card{margin:8px 0;padding:12px}
+  .card-header{flex-direction:column;gap:6px}
+  
+  /* Student navbar */
+  .oj-navbar{flex-wrap:wrap;padding:6px 8px;gap:4px}
+  .oj-nav-left{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .oj-nav-left::-webkit-scrollbar{display:none}
+  .oj-nav-right{width:100%;justify-content:flex-end;flex-wrap:wrap;gap:4px}
+  .oj-nav-tab{font-size:.72rem;padding:6px 8px;white-space:nowrap}
+  .oj-nav-title{font-size:.82rem}
+  .oj-nav-logo{font-size:1.1rem}
+  .oj-nav-user{font-size:.72rem}
+  .oj-nav-btn{font-size:.72rem;padding:4px 8px}
+  
+  /* Contest split pane → stacked */
+  .oj-split-pane{flex-direction:column !important;height:auto !important}
+  .oj-pane-left,.oj-pane-right{width:100% !important;min-width:100% !important;max-width:100% !important;height:auto !important;min-height:300px}
+  .oj-pane-left{max-height:45vh;overflow-y:auto}
+  .oj-pane-right{min-height:50vh}
+  .oj-divider{display:none !important}
+  
+  /* Editor */
+  .oj-editor-header{flex-wrap:wrap;gap:6px;padding:6px 8px}
+  .oj-editor-wrap{min-height:200px}
+  .CodeMirror{font-size:12px !important}
+  
+  /* Buttons */
+  .btn,.oj-btn-run,.oj-btn-test{min-height:40px;font-size:.82rem}
+  
+  /* Timer */
+  .oj-timer-box{padding:4px 8px}
+  .oj-timer{font-size:1rem}
+  
+  /* Tables */
+  .lb-table,.acct-table,.oj-ranking-table,.oj-results-table{font-size:.72rem}
+  .lb-table th,.lb-table td,.oj-ranking-table th,.oj-ranking-table td{padding:4px 6px}
+  
+  /* Problem tabs */
+  .oj-problem-tabs{overflow-x:auto;max-width:calc(100vw - 120px)}
+  .oj-ptab-btn{font-size:.72rem;padding:4px 8px;white-space:nowrap}
+  
+  /* Stats bar */
+  .oj-stats-bar{flex-wrap:wrap;gap:8px;padding:12px}
+  .oj-stat-item{min-width:60px}
+  
+  /* Search/filter */
+  .search-with-count{flex-direction:column;gap:6px}
+  .search-input{font-size:.85rem}
+  
+  /* Exercise list */
+  .oj-exercise-list{gap:8px}
+  .oj-exercise-card{padding:12px}
+  
+  /* Room history */
+  .room-history-grid{grid-template-columns:1fr !important}
+  
+  /* Console */
+  .oj-console-body{font-size:.75rem;max-height:200px}
+  
+  /* Modals */
+  .modal-content{margin:8px;max-width:calc(100vw - 16px) !important;max-height:90vh;padding:16px}
+  
+  /* Notification dropdown */
+  .notif-dropdown{right:-40px;width:calc(100vw - 20px);max-width:350px}
+  
+  /* Contest ended screen */
+  .contest-prob-tab{font-size:.72rem;padding:4px 8px}
+  .contest-prob-detail{padding:10px}
+  .contest-prob-desc{font-size:.8rem}
+  .sample-io-display-grid{grid-template-columns:1fr !important}
+  
+  /* Teacher specific */
+  .subtask-card{padding:8px}
+  .var-limits{flex-direction:column}
+}
+
+@media(max-width:480px){
+  .oj-nav-left .oj-nav-tab:not(.active){display:none}
+  .oj-timer{font-size:.9rem}
+  .splash-title{font-size:1.2rem}
+  .splash-sub{font-size:.78rem}
+  .oj-page-title{font-size:1rem}
+  .oj-page-sub{font-size:.75rem}
+  .anti-cheat-badge{font-size:.65rem;padding:2px 6px}
+}

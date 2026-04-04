@@ -728,9 +728,22 @@ h+=`<button class="btn btn-ghost btn-sm" onclick="window._uic._aiAnalyzeRoom('${
 h+=`</div>`;
 }
 
+// Anti-cheat report
+h+=`<div id="t-history-anticheat"></div>`;
 // Leaderboard / grade results
 h+=`<div id="t-history-lb"></div>`;
 container.innerHTML=h;
+// Load anti-cheat data
+try{const acSnap=await this.fb.db.ref(`rooms/${code}/students`).once('value');const stuData=acSnap.val()||{};
+const cheaters=Object.entries(stuData).filter(([,d])=>d.antiCheat&&d.antiCheat.tabSwitches>0).sort((a,b)=>(b[1].antiCheat.tabSwitches||0)-(a[1].antiCheat.tabSwitches||0));
+if(cheaters.length>0){const acEl=document.getElementById('t-history-anticheat');
+let acH='<div style="margin-bottom:16px;padding:12px;background:rgba(239,68,68,.04);border:1px solid rgba(239,68,68,.15);border-radius:8px">';
+acH+='<div style="font-weight:700;font-size:.85rem;color:#f87171;margin-bottom:8px">\ud83d\udd12 B\u00e1o c\u00e1o gi\u00e1m s\u00e1t thi</div>';
+cheaters.forEach(([name,d])=>{const c=d.antiCheat;const severity=c.tabSwitches>=5?'#f87171':c.tabSwitches>=3?'#f59e0b':'var(--text-muted)';
+acH+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 8px;border-bottom:1px solid rgba(255,255,255,.04)">`;
+acH+=`<span style="font-weight:500">${this._esc(name)}</span>`;
+acH+=`<span style="font-weight:700;color:${severity}">\u26a0\ufe0f ${c.tabSwitches} l\u1ea7n chuy\u1ec3n tab</span></div>`});
+acH+='</div>';if(acEl)acEl.innerHTML=acH}}catch(e){console.warn('Anti-cheat report:',e)}
 
 // Load gradeResults if available
 if(gs==='graded'||gs==='published'){
@@ -773,10 +786,12 @@ document.addEventListener('click',e=>{const dd=document.getElementById('stu-noti
 const markAllBtn=$('btn-mark-all-read');if(markAllBtn)markAllBtn.onclick=()=>this._markAllNotifsRead();
 // Toggle password visibility
 const toggleBtn=$('btn-toggle-pass');if(toggleBtn)toggleBtn.onclick=()=>{const inp=$('stu-password');const isHidden=inp.type==='password';inp.type=isHidden?'text':'password';toggleBtn.textContent=isHidden?'🙈':'👁';toggleBtn.title=isHidden?'Ẩn mật khẩu':'Hiện mật khẩu'};
+// Change password button
+const chgPassBtn=$('btn-change-pass');if(chgPassBtn)chgPassBtn.onclick=()=>this._showChangePasswordModal();
 // Dashboard nav tabs
 document.querySelectorAll('.oj-nav-tab[data-tab]').forEach(btn=>{btn.onclick=()=>{document.querySelectorAll('.oj-nav-tab[data-tab]').forEach(b=>b.classList.remove('active'));btn.classList.add('active');document.querySelectorAll('.oj-tab-panel').forEach(p=>p.classList.add('hidden'));$('tab-panel-'+btn.dataset.tab).classList.remove('hidden')}});
 // Back from contest to dashboard — only cleanup exercise-specific listeners, NOT dashboard listeners
-const backBtn=$('btn-stu-back-dash');if(backBtn)backBtn.onclick=()=>{$('stu-contest').classList.add('hidden');$('stu-dashboard').classList.remove('hidden');this._currentExercise=null;if(this.timerInterval){clearInterval(this.timerInterval);this.timerInterval=null}this.fb.cleanupExercise();this._renderExerciseList(this._cachedExercises||{});this._renderStudentRanking();this._renderStudentStats()};
+const backBtn=$('btn-stu-back-dash');if(backBtn)backBtn.onclick=()=>{$('stu-contest').classList.add('hidden');$('stu-dashboard').classList.remove('hidden');this._currentExercise=null;if(this.timerInterval){clearInterval(this.timerInterval);this.timerInterval=null}if(this._contestAutoSave){clearInterval(this._contestAutoSave);this._contestAutoSave=null}this._stopAntiCheat();this.fb.cleanupExercise();this._renderExerciseList(this._cachedExercises||{});this._renderStudentRanking();this._renderStudentStats()};
 // Pane tabs (Desc/Results/Leaderboard)
 document.querySelectorAll('.oj-ptab[data-ptab]').forEach(btn=>{btn.onclick=()=>{document.querySelectorAll('.oj-ptab').forEach(b=>b.classList.remove('active'));btn.classList.add('active');document.querySelectorAll('.oj-ptab-content').forEach(p=>p.classList.remove('active'));$('ptab-'+btn.dataset.ptab).classList.add('active')}});
 // Draggable divider
@@ -904,6 +919,89 @@ if(badge){if(notDone.length>0){badge.textContent=notDone.length;badge.classList.
 // Show toast if new exercises appeared
 if(this._prevExCount>0&&exKeys.length>this._prevExCount){const newCount=exKeys.length-this._prevExCount;this._toast(`📢 Có ${newCount} bài tập mới! Kiểm tra ngay.`,'info')}
 this._prevExCount=exKeys.length}
+
+_stuLogout(){this.studentName=null;this._currentExercise=null;this._cachedExercises=null;this._exerciseResults={};this.roomCode=null;this.problems=[];this.currentProbIdx=0;if(this.timerInterval){clearInterval(this.timerInterval);this.timerInterval=null}if(this._autoSaveInterval){clearInterval(this._autoSaveInterval);this._autoSaveInterval=null}if(this._contestAutoSave){clearInterval(this._contestAutoSave);this._contestAutoSave=null}this._stopAntiCheat();this.fb.cleanupExercise();this.fb.cleanupStudentDash();this.fb.cleanup();['stu-dashboard','stu-waiting','stu-contest','stu-ended'].forEach(id=>document.getElementById(id).classList.add('hidden'));document.getElementById('stu-login').classList.remove('hidden');document.getElementById('stu-name').value='';document.getElementById('stu-password').value='';document.getElementById('stu-login-error').textContent='';if(this.cmStudent){this.cmStudent.setValue('# Viết code tại đây\n')}}
+
+// ===== 🔒 ANTI-CHEAT SYSTEM (contest mode only) =====
+_startAntiCheat(){this._tabSwitchCount=0;this._antiCheatActive=true;
+// 1. Detect tab switches
+this._visibilityHandler=()=>{if(document.hidden&&this._antiCheatActive){this._tabSwitchCount++;
+// Save to Firebase for teacher to see
+if(this.roomCode&&this.studentName){this.fb.db.ref(`rooms/${this.roomCode}/students/${this.studentName}/antiCheat`).update({tabSwitches:this._tabSwitchCount,lastSwitch:Date.now()}).catch(()=>{})}
+// Show warning to student
+const warn=this._tabSwitchCount>=3?'🚨 CẢNH BÁO NGHIÊM TRỌNG: Bạn đã rời khỏi tab thi '+this._tabSwitchCount+' lần! GV sẽ nhận được báo cáo.':'⚠️ Phát hiện chuyển tab ('+this._tabSwitchCount+' lần). GV có thể theo dõi hành vi này.';
+this._toast(warn,this._tabSwitchCount>=3?'error':'info')}};
+document.addEventListener('visibilitychange',this._visibilityHandler);
+// 2. Block paste in code editor (contest only)
+if(this.cmStudent){this._pasteHandler=(cm,e)=>{if(this._antiCheatActive){e.preventDefault();this._toast('📋 Paste bị tắt trong kỳ thi. Hãy tự gõ code!','error')}};this.cmStudent.on('beforeChange',(cm,change)=>{if(this._antiCheatActive&&change.origin==='paste'){change.cancel();this._toast('📋 Paste bị tắt trong kỳ thi','error')}})}
+// 3. Warn on navigation attempts
+this._beforeUnloadHandler=e=>{if(this._antiCheatActive){e.preventDefault();e.returnValue='Bạn đang trong kỳ thi! Rời khỏi sẽ mất code chưa lưu.'}};
+window.addEventListener('beforeunload',this._beforeUnloadHandler);
+// Show anti-cheat indicator
+const indicator=document.getElementById('anti-cheat-badge');if(indicator)indicator.classList.remove('hidden')}
+
+_stopAntiCheat(){this._antiCheatActive=false;
+if(this._visibilityHandler){document.removeEventListener('visibilitychange',this._visibilityHandler);this._visibilityHandler=null}
+if(this._beforeUnloadHandler){window.removeEventListener('beforeunload',this._beforeUnloadHandler);this._beforeUnloadHandler=null}
+const indicator=document.getElementById('anti-cheat-badge');if(indicator)indicator.classList.add('hidden')}
+
+// ===== 🔑 CHANGE PASSWORD =====
+async _changePassword(){const oldPass=document.getElementById('chg-old-pass')?.value;const newPass=document.getElementById('chg-new-pass')?.value;const confirmPass=document.getElementById('chg-confirm-pass')?.value;const errEl=document.getElementById('chg-pass-error');
+if(!oldPass||!newPass||!confirmPass){if(errEl)errEl.textContent='⚠️ Điền đầy đủ các trường';return}
+if(newPass.length<4){if(errEl)errEl.textContent='⚠️ Mật khẩu mới phải ≥ 4 ký tự';return}
+if(newPass!==confirmPass){if(errEl)errEl.textContent='⚠️ Mật khẩu xác nhận không khớp';return}
+try{
+// Verify old password
+await this.fb.verifyStudent(this.studentName,oldPass);
+// Update to new password
+const newHash=await _hashSHA256(newPass);
+await this.fb.db.ref(`accounts/${this.studentName}`).update({passwordHash:newHash});
+// Log to Google Sheet
+this.drive.logData('PasswordChanges',[this.studentName,new Date().toISOString()]).catch(()=>{});
+if(errEl)errEl.textContent='';
+document.getElementById('modal-change-pass')?.remove();
+this._toast('🔑 Đổi mật khẩu thành công!','success');
+}catch(e){if(errEl)errEl.textContent='❌ '+e.message}}
+
+_showChangePasswordModal(){
+let h='<div class="modal-overlay" id="modal-change-pass" style="display:flex"><div class="modal-content" style="max-width:400px">';
+h+='<h3 style="margin-bottom:16px">🔑 Đổi Mật Khẩu</h3>';
+h+='<div class="form-group"><label>Mật khẩu hiện tại</label><input type="password" id="chg-old-pass" placeholder="Nhập mật khẩu cũ..."></div>';
+h+='<div class="form-group"><label>Mật khẩu mới</label><input type="password" id="chg-new-pass" placeholder="Tối thiểu 4 ký tự"></div>';
+h+='<div class="form-group"><label>Xác nhận mật khẩu mới</label><input type="password" id="chg-confirm-pass" placeholder="Nhập lại mật khẩu mới"></div>';
+h+='<p id="chg-pass-error" style="color:var(--danger);font-size:.82rem;min-height:1.2em"></p>';
+h+='<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">';
+h+='<button class="btn btn-ghost btn-sm" onclick="document.getElementById(\'modal-change-pass\').remove()">Hủy</button>';
+h+='<button class="btn btn-accent btn-sm" onclick="window._uic._changePassword()">💾 Lưu</button>';
+h+='</div></div></div>';
+document.body.insertAdjacentHTML('beforeend',h)}
+
+// ===== 💡 SMART ERROR HINTS (Enhanced verdict explanations) =====
+_getVerdictHint(verdict,details,problem){
+const hints={
+'WA':{icon:'❌',title:'Wrong Answer — Sai kết quả',tips:['Kiểm tra lại logic xử lý, đặc biệt tại các giá trị biên (min, max)','Kiểm tra format output: thừa dấu cách, thiếu xuống dòng?','Thử chạy với ví dụ mẫu để so sánh','Với bài mảng: kiểm tra chỉ số bắt đầu từ 0 hay 1']},
+'RE':{icon:'💥',title:'Runtime Error — Lỗi khi chạy',tips:['IndexError: Truy cập ngoài phạm vi mảng → kiểm tra len()','ZeroDivisionError: Chia cho 0 → thêm kiểm tra if','ValueError: int() nhận chuỗi không hợp lệ → kiểm tra input','RecursionError: Đệ quy quá sâu → kiểm tra điều kiện dừng']},
+'TLE':{icon:'⏰',title:'Time Limit Exceeded — Quá thời gian',tips:['Thuật toán O(n²) có thể quá chậm → thử O(n log n) hoặc O(n)','Kiểm tra vòng lặp vô hạn: while True cần break/return','Dùng sys.stdin.readline thay vì input() để đọc nhanh hơn','Tránh sort/min/max lặp lại nhiều lần trong vòng lặp']},
+'MLE':{icon:'📦',title:'Memory Limit Exceeded — Quá bộ nhớ',tips:['Tránh tạo mảng quá lớn (> 10⁷ phần tử)','Dùng generator thay list khi không cần lưu toàn bộ','Giải phóng biến lớn khi không dùng nữa']}
+};
+return hints[verdict]||null}
+
+_renderSmartHints(result,consoleHtml){
+const failures=result.details.filter(d=>d.verdict!=='AC');
+if(!failures.length)return consoleHtml;
+// Group verdicts
+const verdictCounts={};failures.forEach(f=>{verdictCounts[f.verdict]=(verdictCounts[f.verdict]||0)+1});
+let hintsHtml='<div style="margin-top:10px;border-top:1px solid var(--border);padding-top:10px">';
+hintsHtml+='<div style="font-weight:700;font-size:.85rem;margin-bottom:8px;color:var(--accent-light)">💡 Gợi ý sửa lỗi:</div>';
+for(const [v,count] of Object.entries(verdictCounts)){
+const hint=this._getVerdictHint(v);
+if(hint){hintsHtml+=`<div style="margin-bottom:8px;padding:8px 10px;background:rgba(99,102,241,.04);border:1px solid rgba(99,102,241,.1);border-radius:6px">`;
+hintsHtml+=`<div style="font-weight:600;font-size:.82rem;margin-bottom:4px">${hint.icon} ${hint.title} <span style="color:var(--text-muted);font-weight:400">(${count} test)</span></div>`;
+hintsHtml+='<ul style="margin:0;padding-left:16px;font-size:.78rem;color:var(--text-secondary);line-height:1.6">';
+hint.tips.slice(0,3).forEach(t=>hintsHtml+=`<li>${t}</li>`);
+hintsHtml+='</ul></div>'}}
+hintsHtml+='</div>';
+return consoleHtml+hintsHtml}
 
 _initDivider(){const divider=document.getElementById('oj-divider');if(!divider)return;const left=document.getElementById('oj-pane-left');let dragging=false;divider.onmousedown=e=>{dragging=true;divider.classList.add('dragging');e.preventDefault()};document.onmousemove=e=>{if(!dragging)return;const container=left.parentElement;const rect=container.getBoundingClientRect();const pct=Math.min(70,Math.max(25,((e.clientX-rect.left)/rect.width)*100));left.style.width=pct+'%'};document.onmouseup=()=>{if(dragging){dragging=false;divider.classList.remove('dragging');if(this.cmStudent)this.cmStudent.refresh()}}}
 
@@ -1063,25 +1161,47 @@ if(aiHtml)document.getElementById('stu-contest-notes').innerHTML+='<div style="m
 
 
 async _stuStartContest(info){document.getElementById('stu-contest').classList.remove('hidden');document.getElementById('stu-contest-title').textContent=info.title;document.getElementById('stu-player-name').textContent=this.studentName;
-// Timer
-const end=info.startTime+info.timeLimit*60000;if(this.timerInterval)clearInterval(this.timerInterval);const upd=()=>{const rem=Math.max(0,end-Date.now());const h=Math.floor(rem/3600000),m=Math.floor(rem%3600000/60000),s=Math.floor(rem%60000/1000);const el=document.getElementById('stu-timer');el.textContent=`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;el.classList.toggle('critical',rem<300000);if(rem<=0){clearInterval(this.timerInterval);this.timerInterval=null;document.getElementById('btn-stu-submit').disabled=true;this._toast('⏰ Hết thời gian! Không thể nộp thêm.','error');this._showContestEndedReadonly()}};this.timerInterval=setInterval(upd,1000);upd();
+// Timer with visual urgency
+const end=info.startTime+info.timeLimit*60000;if(this.timerInterval)clearInterval(this.timerInterval);const upd=()=>{const rem=Math.max(0,end-Date.now());const h=Math.floor(rem/3600000),m=Math.floor(rem%3600000/60000),s=Math.floor(rem%60000/1000);const el=document.getElementById('stu-timer');el.textContent=`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+el.classList.toggle('critical',rem<300000);el.classList.toggle('warning-timer',rem>=300000&&rem<600000);
+if(rem<=0){clearInterval(this.timerInterval);this.timerInterval=null;document.getElementById('btn-stu-submit').disabled=true;this._toast('⏰ Hết thời gian! Không thể nộp thêm.','error');this._stopAntiCheat();this._showContestEndedReadonly()}};this.timerInterval=setInterval(upd,1000);upd();
 // Load problems — HIDE test cases from client in contest mode
 const allProblems=await this.fb.getProblems(this.roomCode);
 if(!allProblems||!allProblems.length){document.getElementById('stu-problem-desc').textContent='Chưa có đề bài';return}
 // Strip testCases for security: only keep sampleIO, description, title, fileIO, etc.
 this.problems=allProblems.map(p=>({title:p.title,description:p.description,fileIO:p.fileIO,taskName:p.taskName,uppercase:p.uppercase,subtasks:p.subtasks,sampleIO:p.sampleIO,timePerTest:p.timePerTest,_testCount:p.testCases?p.testCases.length:0}));
 this._renderProblemTabs();this._showProblem(0);this._initStudentEditor();
+// Restore auto-saved code from Firebase if available
+try{const draftSnap=await this.fb.db.ref(`rooms/${this.roomCode}/students/${this.studentName}/draftCode`).once('value');
+const drafts=draftSnap.val();
+if(drafts&&drafts[0]&&this.cmStudent){this.cmStudent.setValue(drafts[0]);this._toast('💾 Đã khôi phục code từ lần trước!','info')}}catch(e){console.warn('Restore draft:',e)}
 // Hide leaderboard in contest mode — show message instead
 const lbBody=document.getElementById('stu-leaderboard-body');
 if(lbBody)lbBody.innerHTML='<div style="text-align:center;padding:32px;color:var(--text-muted)"><div style="font-size:2rem;margin-bottom:8px">🔒</div><p style="font-size:.85rem">Bảng xếp hạng sẽ được công bố<br>sau khi GV chấm bài.</p></div>';
 // Track submission count per problem
-this._contestSubmissions={};this._contestRoomInfo=info}
+this._contestSubmissions={};this._contestRoomInfo=info;
+// 🔒 ANTI-CHEAT: Enable for contest mode only
+this._startAntiCheat();
+// 💾 AUTO-SAVE: Save code to Firebase every 30s during contest
+if(this._contestAutoSave)clearInterval(this._contestAutoSave);
+this._contestAutoSave=setInterval(()=>{if(this.cmStudent&&this.roomCode&&this.studentName){
+const code=this.cmStudent.getValue();
+if(code.trim()&&code.trim()!=='# Viết code tại đây'){
+this.fb.db.ref(`rooms/${this.roomCode}/students/${this.studentName}/draftCode/${this.currentProbIdx}`).set(code.substring(0,15000)).catch(()=>{});
+const indicator=document.getElementById('auto-save-indicator');
+if(indicator){indicator.textContent='💾 Đã lưu '+new Date().toLocaleTimeString('vi',{hour:'2-digit',minute:'2-digit'});indicator.classList.add('saved');setTimeout(()=>indicator.classList.remove('saved'),2000)}}}},30000)}
 
 _initStudentEditor(){if(!this.cmStudent){const cfg={mode:'python',lineNumbers:true,indentUnit:4,tabSize:4,matchBrackets:true,autoCloseBrackets:true,styleActiveLine:true,extraKeys:{'Tab':cm=>cm.execCommand('indentMore'),'Shift-Tab':cm=>cm.execCommand('indentLess')}};this.cmStudent=CodeMirror(document.getElementById('stu-editor-wrap'),{...cfg,value:'# Viết code tại đây\n'})}else{this.cmStudent.setValue('# Viết code tại đây\n')}setTimeout(()=>this.cmStudent.refresh(),100);
-// F04: Auto-save code to localStorage every 30s
+// F04: Auto-save code to localStorage every 30s (exercises only)
 if(this._autoSaveInterval)clearInterval(this._autoSaveInterval);
 this._autoSaveInterval=setInterval(()=>{if(this.cmStudent&&this._currentExercise){const code=this.cmStudent.getValue();if(code.trim()&&code.trim()!=='# Viết code tại đây'){localStorage.setItem('themis_draft_'+this._currentExercise.id,code)}}},30000);
-this.cmStudent.on('change',()=>{if(this._currentExercise){const code=this.cmStudent.getValue();if(code.trim()&&code.trim()!=='# Viết code tại đây'){localStorage.setItem('themis_draft_'+this._currentExercise.id,code)}}})}
+this.cmStudent.on('change',()=>{if(this._currentExercise){const code=this.cmStudent.getValue();if(code.trim()&&code.trim()!=='# Viết code tại đây'){localStorage.setItem('themis_draft_'+this._currentExercise.id,code)}}
+// Also auto-save to Firebase for contests on every change (debounced)
+if(this.roomCode&&!this._currentExercise&&this.studentName){
+if(this._contestSaveDebounce)clearTimeout(this._contestSaveDebounce);
+this._contestSaveDebounce=setTimeout(()=>{const code=this.cmStudent.getValue();
+if(code.trim()&&code.trim()!=='# Viết code tại đây'){
+this.fb.db.ref(`rooms/${this.roomCode}/students/${this.studentName}/draftCode/${this.currentProbIdx}`).set(code.substring(0,15000)).catch(()=>{})}},5000)}})}
 
 _renderProblemTabs(){const c=document.getElementById('stu-problem-tabs');c.innerHTML='';this.problems.forEach((p,i)=>{const btn=document.createElement('button');btn.className='oj-ptab-btn'+(i===0?' active':'');btn.textContent=`Bài ${i+1}`;btn.onclick=()=>{c.querySelectorAll('.oj-ptab-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');this._showProblem(i)};c.appendChild(btn)})}
 
@@ -1220,6 +1340,8 @@ con+=`<div style="margin:2px 0;padding:3px 6px;background:rgba(255,255,255,.03);
 con+=`Test ${testNum} — <span class="verdict ${f.verdict}" style="font-weight:700">${f.verdict}</span>`;
 if(f.verdict==='RE')con+=` <span style="color:#f43f5e">Lỗi runtime</span>`;if(f.verdict==='WA')con+=` <span style="color:var(--error)">Sai kết quả</span>`;if(f.verdict==='TLE')con+=` <span style="color:#f59e0b">Quá thời gian (${f.time}ms)</span>`;
 con+=`</div>`});con+=`</div>`}
+// 💡 Add smart error hints
+con=this._renderSmartHints(result,con);
 consoleOut.innerHTML=con;this._showStudentResults(result,p);
 const exRef=this._currentExercise;const probIdx=this.currentProbIdx;
 const trimmedResult={score:result.score,details:result.details,code:(result.code||'').substring(0,10000)};
