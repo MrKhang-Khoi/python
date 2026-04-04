@@ -350,11 +350,34 @@ document.getElementById('btn-room-deselect-all').onclick=()=>{cl.querySelectorAl
 cl.querySelectorAll('.room-ex-chk').forEach(c=>c.onchange=()=>this._updateRoomExCount());
 document.getElementById('modal-create-room').classList.remove('hidden');document.getElementById('room-title').focus()}
 
-_updateRoomExCount(){const n=document.querySelectorAll('#room-exercise-checklist .room-ex-chk:checked').length;document.getElementById('room-ex-selected-count').textContent=`${n} bài đã chọn`}
+_updateRoomExCount(){
+const checked=[...document.querySelectorAll('#room-exercise-checklist .room-ex-chk:checked')];
+const n=checked.length;
+document.getElementById('room-ex-selected-count').textContent=`${n} bài đã chọn`;
+const scoreConfig=document.getElementById('room-score-config');
+const scoreList=document.getElementById('room-score-list');
+if(n>0){
+scoreConfig.classList.remove('hidden');
+const exs=this._teacherExercises||{};
+let h='';checked.forEach((c,i)=>{const ex=exs[c.value];
+h+=`<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:6px">
+<span style="font-weight:600;font-size:.84rem;min-width:50px;color:var(--accent-light)">Bài ${i+1}</span>
+<span style="flex:1;font-size:.82rem;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${this._esc(ex?.title||'?')}</span>
+<input type="number" class="room-prob-score" data-idx="${i}" value="${n<=4?Math.floor(20/n):5}" min="1" max="100" style="width:60px;padding:4px 6px;text-align:center;font-weight:700;font-size:.85rem">
+<span style="font-size:.78rem;color:var(--text-muted)">điểm</span>
+</div>`});
+scoreList.innerHTML=h;
+scoreList.querySelectorAll('.room-prob-score').forEach(inp=>inp.oninput=()=>this._updateRoomTotalScore());
+this._updateRoomTotalScore();
+}else{scoreConfig.classList.add('hidden');scoreList.innerHTML=''}}
 
 async _confirmCreateRoom(){const title=document.getElementById('room-title').value.trim();const time=document.getElementById('room-time').value.trim();if(!title||!time){this._toast('Nhập đầy đủ thông tin','error');return}
 const selectedIds=[...document.querySelectorAll('#room-exercise-checklist .room-ex-chk:checked')].map(c=>c.value);
 if(!selectedIds.length){this._toast('Chọn ít nhất 1 bài tập','error');return}
+// Collect per-problem max scores
+const scoreInputs=document.querySelectorAll('.room-prob-score');
+const maxScores=[];scoreInputs.forEach(inp=>maxScores.push(parseInt(inp.value)||5));
+const totalMaxScore=maxScores.reduce((s,v)=>s+v,0);
 document.getElementById('modal-create-room').classList.add('hidden');
 try{this.roomCode=await this.fb.createRoom(title,'Giáo viên',time);
 // Persist to localStorage (BUG-E fix)
@@ -365,21 +388,26 @@ const exs=this._teacherExercises||{};
 const problemNames=[];
 for(let i=0;i<selectedIds.length;i++){const ex=exs[selectedIds[i]];if(!ex)continue;
 problemNames.push(ex.title);
-const data={title:ex.title,description:ex.description||'',fileIO:ex.fileIO||false,uppercase:ex.uppercase||false,taskName:ex.taskName||ex.title,timePerTest:5,subtasks:ex.subtasks||[{name:'Subtask 1',score:100}],sampleIO:ex.sampleIO||null,testCases:(ex.testCases||[]).map(tc=>({input:tc.input,output:tc.output,subtaskId:tc.subtaskId||0}))};
+const data={title:ex.title,description:ex.description||'',fileIO:ex.fileIO||false,uppercase:ex.uppercase||false,taskName:ex.taskName||ex.title,timePerTest:5,subtasks:ex.subtasks||[{name:'Subtask 1',score:100}],sampleIO:ex.sampleIO||null,maxScore:maxScores[i]||5,testCases:(ex.testCases||[]).map(tc=>({input:tc.input,output:tc.output,subtaskId:tc.subtaskId||0}))};
 await this.fb.publishProblem(this.roomCode,i,data)}
 this.publishedCount=selectedIds.length;
-// Save problem names list to Firebase room info (BUG-B fix)
+// Save problem names and total max score to Firebase room info
 await this.fb.db.ref(`rooms/${this.roomCode}/info/problemNames`).set(problemNames.join(', '));
-// Log to Google Sheet (BUG-A fix)
-this.drive.logData('Rooms',[this.roomCode,title,time,'waiting',new Date().toISOString(),'',selectedIds.length,0,problemNames.join(', ')]).catch(()=>{});
+await this.fb.db.ref(`rooms/${this.roomCode}/info/totalMaxScore`).set(totalMaxScore);
+// Log to Google Sheet
+this.drive.logData('Rooms',[this.roomCode,title,time,'waiting',new Date().toISOString(),'',selectedIds.length,0,problemNames.join(', '),totalMaxScore]).catch(()=>{});
 // Render contest problem list
 const listEl=document.getElementById('t-contest-problem-list');
-let h='';selectedIds.forEach((id,i)=>{const ex=exs[id];h+=`<div style="padding:8px 12px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:6px;margin-bottom:4px;font-size:.85rem"><strong>Bài ${i+1}:</strong> ${this._esc(ex?.title||'?')} <span style="color:var(--text-muted)">• ${(ex?.testCases||[]).length} test</span></div>`});
+let h='';selectedIds.forEach((id,i)=>{const ex=exs[id];h+=`<div style="padding:8px 12px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:6px;margin-bottom:4px;font-size:.85rem"><strong>Bài ${i+1}:</strong> ${this._esc(ex?.title||'?')} <span style="color:var(--accent-light);font-weight:700">${maxScores[i]||5}đ</span> <span style="color:var(--text-muted)">• ${(ex?.testCases||[]).length} test</span></div>`});
 listEl.innerHTML=h;document.getElementById('t-contest-problems').classList.remove('hidden');
 this.fb.listenStudents(this.roomCode,s=>{this._activeRoomStudentCount=s?Object.keys(s).length:0;document.getElementById('t-student-count').textContent=this._activeRoomStudentCount});
 this.fb.listenLeaderboard(this.roomCode,lb=>{this._activeRoomLeaderboard=lb;this._renderLeaderboard(lb,'t-leaderboard-body')});
-this._toast(`🏆 Phòng ${this.roomCode} đã tạo với ${selectedIds.length} bài!`,'success')
+this._toast(`🏆 Phòng ${this.roomCode} đã tạo với ${selectedIds.length} bài (tổng ${totalMaxScore}đ)!`,'success')
 }catch(e){this._toast('Lỗi: '+e.message,'error')}}
+
+_updateRoomTotalScore(){const inputs=document.querySelectorAll('.room-prob-score');let total=0;inputs.forEach(inp=>total+=parseInt(inp.value)||0);const el=document.getElementById('room-total-score');if(el)el.textContent=`Tổng: ${total} điểm`;el.style.color=total===20?'var(--success)':total>20?'var(--warning)':'var(--accent-light)'}
+
+_toggleProbDetail(idx){const el=document.getElementById(`room-prob-detail-${idx}`);if(el)el.classList.toggle('hidden')}
 
 // Account management (root level — no roomCode needed)
 async _addSingleStudent(){const name=document.getElementById('new-stu-name').value.trim();const pass=document.getElementById('new-stu-pass').value.trim();if(!name||!pass){this._toast('Nhập tên và mật khẩu','error');return}try{await this.fb.createAccount(name,pass);this.drive.logData('Accounts',[name,pass,new Date().toISOString(),'','active']).catch(()=>{});document.getElementById('new-stu-name').value='';document.getElementById('new-stu-pass').value='';this._toast(`Đã tạo: ${name}`,'success')}catch(e){this._toast('Lỗi: '+e.message,'error')}}
@@ -643,8 +671,24 @@ const probArr=Array.isArray(probs)?probs:Object.values(probs);
 const pCount=info.problemCount||probArr.length||1;this.publishedCount=pCount;
 // Show problem list
 const listEl=document.getElementById('t-contest-problem-list');
-let ph='';probArr.forEach((p,i)=>{ph+=`<div style="padding:8px 12px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:6px;margin-bottom:4px;font-size:.85rem"><strong>Bài ${i+1}:</strong> ${this._esc(p?.title||'?')} <span style="color:var(--text-muted)">• ${(p?.testCases||[]).length} test</span></div>`});
+let ph='';probArr.forEach((p,i)=>{const ms=p?.maxScore||Math.floor(100/probArr.length);
+ph+=`<div class="room-prob-card" style="padding:10px 12px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:6px;margin-bottom:4px;font-size:.85rem;cursor:pointer;transition:all .2s" onclick="window._uic._toggleProbDetail(${i})">
+<div style="display:flex;justify-content:space-between;align-items:center">
+<span><strong>Bài ${i+1}:</strong> ${this._esc(p?.title||'?')}</span>
+<span style="display:flex;align-items:center;gap:8px">
+<span style="color:var(--accent-light);font-weight:700">${ms}đ</span>
+<span style="color:var(--text-muted);font-size:.78rem">• ${(p?.testCases||[]).length} test</span>
+<span style="color:var(--text-muted);font-size:.75rem">▼</span>
+</span></div>
+<div id="room-prob-detail-${i}" class="hidden" style="margin-top:8px;padding:8px;background:rgba(0,0,0,.15);border-radius:6px;font-size:.82rem;color:var(--text-secondary);cursor:text" onclick="event.stopPropagation()">
+<div style="font-weight:600;margin-bottom:4px;color:var(--text-primary)">${this._esc(p?.title||'Bài '+(i+1))}</div>
+<div style="white-space:pre-wrap;line-height:1.6">${this._esc(p?.description||'Không có mô tả')}</div>
+${p?.sampleIO&&p.sampleIO.length?p.sampleIO.map((s,si)=>`<div class="sample-io-display" style="margin-top:8px"><div class="sample-io-display-header">Ví dụ ${si+1}</div><div class="sample-io-display-grid"><div class="sample-box"><div class="sample-box-title">INPUT</div><pre>${this._esc(s.input||'')}</pre></div><div class="sample-box"><div class="sample-box-title">OUTPUT</div><pre>${this._esc(s.output||'')}</pre></div></div></div>`).join(''):''}
+</div></div>`});
 listEl.innerHTML=ph;document.getElementById('t-contest-problems').classList.remove('hidden');
+
+// Compute totalMaxScore
+const totalMaxScore=probArr.reduce((s,p)=>s+(p?.maxScore||Math.floor(100/probArr.length)),0);
 
 // Count students
 const stuSnap=await this.fb.db.ref(`rooms/${code}/students`).once('value');
@@ -662,7 +706,7 @@ let h=`<button class="btn btn-ghost btn-sm" style="margin-bottom:12px" onclick="
 h+=`<div style="padding:16px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:8px;margin-bottom:16px">`;
 h+=`<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">`;
 h+=`<div><h3 style="font-size:1.1rem;font-weight:700;margin:0">${this._esc(info.title)}</h3>`;
-h+=`<span style="color:var(--text-muted);font-size:.82rem">#${code} • ${info.timeLimit||0} phút • ${pCount} bài</span></div>`;
+h+=`<span style="color:var(--text-muted);font-size:.82rem">#${code} • ${info.timeLimit||0} phút • ${pCount} bài • Tổng ${totalMaxScore}đ</span></div>`;
 h+=`<span style="font-size:.82rem;font-weight:600;color:${statusColor}">${statusLabel}</span>`;
 h+=`</div>`;
 h+=`<div style="display:flex;gap:16px;margin-top:10px;font-size:.82rem;color:var(--text-muted)">`;
@@ -934,7 +978,7 @@ const titleEl=document.getElementById('stu-ended-title');
 titleEl.textContent=info.title||'Cuộc thi đã kết thúc!';
 const infoEl=document.getElementById('stu-ended-info');
 const d=new Date(info.createdAt||Date.now());
-infoEl.innerHTML=`<span>⏱ ${info.timeLimit||0} phút</span><span>📅 ${d.toLocaleDateString('vi')}</span><span>📝 ${info.problemCount||0} bài</span>`;
+infoEl.innerHTML=`<span>⏱ ${info.timeLimit||0} phút</span><span>📅 ${d.toLocaleDateString('vi')}</span><span>📝 ${info.problemCount||0} bài</span>${info.totalMaxScore?`<span>🎯 ${info.totalMaxScore}đ</span>`:''}`;
 // Load submitted code for review
 try{
 const codeSnap=await this.fb.db.ref(`rooms/${roomCode}/students/${this.studentName}/finalCode`).once('value');
@@ -968,8 +1012,9 @@ const showProb=(pi)=>{
 const p=probs[pi];
 const grade=myGrades[pi];
 const score=grade?grade.score:null;
+const ms=p.maxScore||(grade?.maxScore)||100;
 let scoreHtml='';
-if(score!==null){const cls=score>=100?'perfect':score>0?'partial':'zero';scoreHtml=`<div class="contest-prob-score ${cls}">🎯 Điểm: ${score}/100</div>`}
+if(score!==null){const cls=score>=ms?'perfect':score>0?'partial':'zero';scoreHtml=`<div class="contest-prob-score ${cls}">🎯 Điểm: ${score}/${ms}</div>`}
 let sampleHtml='';
 if(p.sampleIO&&p.sampleIO.length){
 sampleHtml='<div style="margin-top:12px">';
@@ -986,7 +1031,8 @@ ${sampleHtml}</div>`};
 probKeys.forEach((pi,i)=>{
 const btn=document.createElement('button');btn.className='contest-prob-tab'+(i===0?' active':'');
 const p=probs[pi];const grade=myGrades[pi];
-const scoreIcon=grade?(grade.score>=100?'✅':grade.score>0?'🟡':'❌'):'⬜';
+const ms=p.maxScore||(grade?.maxScore)||100;
+const scoreIcon=grade?(grade.score>=ms?'✅':grade.score>0?'🟡':'❌'):'⬜';
 btn.textContent=`${scoreIcon} Bài ${parseInt(pi)+1}`;
 btn.onclick=()=>{tabsEl.querySelectorAll('.contest-prob-tab').forEach(b=>b.classList.remove('active'));btn.classList.add('active');showProb(pi)};
 tabsEl.appendChild(btn)});
@@ -1241,10 +1287,13 @@ if(document.getElementById('grade-bar'))document.getElementById('grade-bar').sty
 if(!code){allResults[name][pi]={score:0,details:[],note:'Chưa nộp'};continue}
 try{
 const result=await this.grader.grade(code,p.testCases||[],p.subtasks||[],p.fileIO,p.taskName,p.uppercase,p.timePerTest||5);
-allResults[name][pi]={score:result.score,details:result.details,code};
-await this.fb.db.ref(`rooms/${rc}/gradeResults/${name}/${pi}`).set({score:result.score,details:result.details,gradedAt:Date.now()});
-}catch(e){allResults[name][pi]={score:0,details:[],error:e.message,code};
-await this.fb.db.ref(`rooms/${rc}/gradeResults/${name}/${pi}`).set({score:0,details:[],error:e.message,gradedAt:Date.now()});}}}
+// Scale score by maxScore: raw score is 0-100, scale to 0-maxScore
+const maxScore=p.maxScore||100;
+const scaledScore=Math.round(result.score*maxScore/100*100)/100;
+allResults[name][pi]={score:scaledScore,rawScore:result.score,maxScore,details:result.details,code};
+await this.fb.db.ref(`rooms/${rc}/gradeResults/${name}/${pi}`).set({score:scaledScore,rawScore:result.score,maxScore,details:result.details,gradedAt:Date.now()});
+}catch(e){const maxScore=p.maxScore||100;allResults[name][pi]={score:0,rawScore:0,maxScore,details:[],error:e.message,code};
+await this.fb.db.ref(`rooms/${rc}/gradeResults/${name}/${pi}`).set({score:0,rawScore:0,maxScore,details:[],error:e.message,gradedAt:Date.now()});}}}
 await this.fb.db.ref(`rooms/${rc}/info/gradeStatus`).set('graded');
 if(progressEl)progressEl.classList.add('hidden');
 if(gradeBtn){gradeBtn.disabled=false;gradeBtn.textContent='✅ Đã chấm xong'}
@@ -1262,16 +1311,17 @@ async _aiAnalyzeRoom(code){const oldRc=this.roomCode;this.roomCode=code;await th
 _renderGradeResults(results,problems,stuNames,containerId){
 const container=document.getElementById(containerId||'grade-results');if(!container)return;container.classList.remove('hidden');
 const rc=this._viewingRoomCode||this.roomCode||'';
-let h='<h3 style="font-size:.95rem;font-weight:700;margin-bottom:12px">📊 Kết Quả Chấm</h3>';
+const totalMaxScore=problems.reduce((s,p)=>s+(p?.maxScore||100),0);
+let h='<h3 style="font-size:.95rem;font-weight:700;margin-bottom:12px">📊 Kết Quả Chấm <span style="font-weight:400;color:var(--text-muted);font-size:.82rem">(Tổng tối đa: '+totalMaxScore+'đ)</span></h3>';
 h+='<table class="lb-table"><thead><tr><th>#</th><th>Họ tên</th>';
-problems.forEach((_,i)=>h+=`<th>Bài ${i+1}</th>`);
+problems.forEach((p,i)=>{const ms=p?.maxScore||100;h+=`<th>Bài ${i+1}<br><span style="font-size:.68rem;font-weight:400;color:var(--text-muted)">${ms}đ</span></th>`});
 h+='<th>Tổng</th><th>Chi tiết</th></tr></thead><tbody>';
 const rows=stuNames.map(name=>{let total=0;const scores=[];
 problems.forEach((_,pi)=>{const r=results[name]?.[pi];const s=r?.score||0;total+=s;scores.push(s)});
 return{name,total,scores}}).sort((a,b)=>b.total-a.total);
 rows.forEach((r,idx)=>{
 h+=`<tr><td>${idx+1}</td><td style="font-weight:600">${this._esc(r.name)}</td>`;
-r.scores.forEach(s=>{const cls=s>=100?'full':s>0?'partial':'zero';h+=`<td><span class="lb-prob-score ${cls}">${s}</span></td>`});
+r.scores.forEach((s,si)=>{const ms=problems[si]?.maxScore||100;const cls=s>=ms?'full':s>0?'partial':'zero';h+=`<td><span class="lb-prob-score ${cls}">${s}</span></td>`});
 h+=`<td class="lb-score">${r.total}</td>`;
 h+=`<td><button class="btn btn-sm btn-ghost" onclick="window._uic._viewStudentSubmissions('${this._esc(r.name)}')">👁️</button></td>`;
 h+='</tr>'});
@@ -1314,12 +1364,16 @@ const stu=snap.val();if(!stu)return;
 const gradeSnap=await this.fb.db.ref(`rooms/${rc}/gradeResults/${name}`).once('value');
 const grades=gradeSnap.val()||{};
 const probCount=this.publishedCount||this._gradeProblems?.length||1;
+const probs=this._gradeProblems||[];
 let h=`<div class="modal-overlay" id="modal-student-detail" style="display:flex"><div class="modal-content" style="max-width:800px;max-height:85vh;overflow-y:auto">`;
 h+=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><h3>👤 ${this._esc(name)}</h3><button class="btn btn-ghost btn-sm" onclick="document.getElementById('modal-student-detail').remove()">✕ Đóng</button></div>`;
 for(let pi=0;pi<probCount;pi++){
 const g=grades[pi]||{};const code=(stu.finalCode&&stu.finalCode[pi])||'(Chưa nộp)';
+const prob=probs[pi]||{};
+const ms=g.maxScore||prob.maxScore||100;
 h+=`<div style="margin-bottom:16px;padding:12px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:8px">`;
-h+=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><strong>Bài ${pi+1}</strong><span class="lb-prob-score ${g.score>=100?'full':g.score>0?'partial':'zero'}">${g.score||0} điểm</span></div>`;
+h+=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><strong>Bài ${pi+1}${prob.title?': '+this._esc(prob.title):''}</strong><span class="lb-prob-score ${(g.score||0)>=ms?'full':(g.score||0)>0?'partial':'zero'}">${g.score||0}/${ms}đ</span></div>`;
+if(prob.description){h+=`<details style="margin-bottom:8px;font-size:.78rem;color:var(--text-muted)"><summary style="cursor:pointer">📝 Xem đề bài</summary><div style="padding:6px 8px;margin-top:4px;background:rgba(0,0,0,.15);border-radius:4px;white-space:pre-wrap;color:var(--text-secondary)">${this._esc(prob.description)}</div></details>`}
 h+=`<pre style="background:rgba(0,0,0,.3);padding:10px;border-radius:4px;font-size:.75rem;max-height:200px;overflow:auto;margin-bottom:8px;white-space:pre-wrap">${this._esc(code)}</pre>`;
 if(g.aiAnalysis){h+=`<div style="padding:8px 12px;background:rgba(99,102,241,.06);border:1px solid rgba(99,102,241,.15);border-radius:6px;font-size:.78rem;margin-bottom:8px"><strong>🤖 AI:</strong> ${this._esc(g.aiAnalysis).replace(/\n/g,'<br>')}</div>`}
 // Submission history
@@ -1355,6 +1409,9 @@ if(!ok)return;
 try{
 const gradeSnap=await this.fb.db.ref(`rooms/${rc}/gradeResults`).once('value');
 const grades=gradeSnap.val()||{};
+const probSnap=await this.fb.db.ref(`rooms/${rc}/problems`).once('value');
+const probs=probSnap.val()||{};
+const probArr=Array.isArray(probs)?probs:Object.values(probs);
 const lb={};
 for(const name of Object.keys(grades)){
 let total=0;const problems={};
@@ -1362,7 +1419,9 @@ for(const pi of Object.keys(grades[name])){
 const s=grades[name][pi].score||0;total+=s;problems[pi]=s;}
 lb[name]={name,totalScore:total,problems,lastSubmit:Date.now()}}
 await this.fb.db.ref(`rooms/${rc}/leaderboard`).set(lb);
-await this.fb.db.ref(`rooms/${rc}/info`).update({gradeStatus:'published',published:true,publishedAt:Date.now()});
+// Calculate totalMaxScore from problems
+const totalMaxScore=probArr.reduce((s,p)=>s+(p?.maxScore||100),0);
+await this.fb.db.ref(`rooms/${rc}/info`).update({gradeStatus:'published',published:true,publishedAt:Date.now(),totalMaxScore});
 const names=Object.keys(lb);
 for(const name of names){
 this.drive.logData('ContestResults',[rc,name,lb[name].totalScore,...Object.values(lb[name].problems),new Date().toISOString()]).catch(()=>{});}

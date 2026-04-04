@@ -791,3 +791,8 @@ textarea.ai-textarea{resize:vertical}
 .contest-prob-score.perfect{background:rgba(16,185,129,.12);color:#34d399}
 .contest-prob-score.partial{background:rgba(245,158,11,.1);color:#fbbf24}
 .contest-prob-score.zero{background:rgba(239,68,68,.08);color:#f87171}
+
+/* Room problem card & score config */
+.room-prob-card:hover{background:rgba(99,102,241,.04) !important;border-color:rgba(99,102,241,.2) !important}
+.room-prob-score{background:var(--bg-card);border:1px solid rgba(99,102,241,.25);border-radius:6px;color:var(--accent-light);transition:all .2s}
+.room-prob-score:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(99,102,241,.15);outline:none}
