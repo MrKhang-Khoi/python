@@ -609,3 +609,81 @@ textarea.ai-textarea{resize:vertical}
 /* RESPONSIVE */
 @media(max-width:860px){html{font-size:14px}.grid-2col{grid-template-columns:1fr}.header-content,.ai-key-row,.room-bar-inner{flex-direction:column;align-items:flex-start}.splash-buttons{grid-template-columns:1fr}.sample-io{grid-template-columns:1fr}.oj-split-pane{flex-direction:column;height:auto}.oj-pane-left{width:100%!important;min-width:0;max-height:45vh;border-right:none;border-bottom:1px solid var(--border)}.oj-divider{display:none}.oj-pane-right{min-height:50vh}.t-tabbar-inner{overflow-x:auto;-webkit-overflow-scrolling:touch}.search-input{min-width:160px;width:100%}.oj-page-header{flex-direction:column;gap:8px}}
 @media(max-width:500px){.container{padding:0 14px}h1{font-size:1.2rem}.orb{display:none}.var-row{flex-direction:column}.var-constraints-inline{width:100%}.stress-config{flex-direction:column}.oj-ex-row{grid-template-columns:40px 1fr auto}}
+
+/* ===== TIER 1 FEATURES ===== */
+
+/* Stats: 'Chưa làm' highlight */
+.oj-stat-notdone{color:#f59e0b !important;text-shadow:0 0 12px rgba(245,158,11,.35)}
+
+/* Status Filter Dropdown */
+.stu-status-select{background:var(--bg-input);border:1px solid var(--border);color:var(--text-primary);font-size:.82rem;font-family:inherit;padding:8px 12px;border-radius:var(--radius-sm);cursor:pointer;outline:none;transition:all .2s;min-width:140px;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6' fill='%236b7280'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center}
+.stu-status-select:focus{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-glow)}
+.stu-status-select option{background:var(--bg-primary);color:var(--text-primary)}
+
+/* Status Badges in table */
+.stu-status-badge{display:inline-flex;align-items:center;gap:3px;font-size:.7rem;font-weight:600;padding:3px 8px;border-radius:20px;white-space:nowrap;letter-spacing:.02em}
+.stu-status-badge.done{background:rgba(16,185,129,.12);color:#34d399;border:1px solid rgba(16,185,129,.2)}
+.stu-status-badge.partial{background:rgba(245,158,11,.1);color:#fbbf24;border:1px solid rgba(245,158,11,.2)}
+.stu-status-badge.notdone{background:rgba(239,68,68,.08);color:#f87171;border:1px solid rgba(239,68,68,.15)}
+
+/* Exercise rows: highlight undone */
+.stu-ex-table tbody tr.stu-ex-new{border-left:3px solid #f59e0b;background:rgba(245,158,11,.03)}
+.stu-ex-table tbody tr.stu-ex-new:hover{background:rgba(245,158,11,.08)}
+.stu-ex-table tbody tr.stu-ex-new .stu-ex-name{color:#fbbf24}
+.stu-ex-table tbody tr.stu-ex-partial{border-left:3px solid #6366f1}
+.stu-ex-table tbody tr.stu-ex-partial:hover{background:rgba(99,102,241,.06)}
+.stu-ex-table tbody tr.stu-ex-done{border-left:3px solid var(--success)}
+.stu-ex-table tbody tr.stu-ex-done:hover{background:rgba(16,185,129,.04)}
+.stu-ex-score.none{color:var(--text-muted);font-weight:400}
+
+/* Pagination */
+.stu-pagination{display:flex;align-items:center;justify-content:center;gap:12px;padding:14px 0;margin-top:4px}
+.stu-page-btn{background:rgba(255,255,255,.04);border:1px solid var(--border);color:var(--text-primary);font-size:.82rem;font-weight:600;padding:7px 18px;border-radius:var(--radius-sm);cursor:pointer;font-family:inherit;transition:all .2s}
+.stu-page-btn:hover:not(:disabled){background:var(--accent);color:#fff;border-color:var(--accent);transform:translateY(-1px)}
+.stu-page-btn:disabled{opacity:.3;cursor:not-allowed}
+.stu-page-info{font-size:.8rem;color:var(--text-muted);font-weight:500}
+
+/* F02: Student Progress Bar */
+.oj-progress-wrap{position:relative;width:100%;height:22px;background:rgba(255,255,255,.06);border-radius:11px;overflow:hidden;grid-column:1/-1;margin-top:4px}
+.oj-progress-fill{position:absolute;left:0;top:0;height:100%;background:linear-gradient(90deg,var(--accent),var(--violet));border-radius:11px;transition:width .6s cubic-bezier(.4,0,.2,1);min-width:2px}
+.oj-progress-text{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:600;color:var(--text-primary);text-shadow:0 1px 3px rgba(0,0,0,.5);letter-spacing:.3px}
+
+/* F03: Copy I/O Buttons */
+.btn-copy-io{display:inline-flex;align-items:center;justify-content:center;background:none;border:1px solid rgba(255,255,255,.12);color:var(--text-muted);cursor:pointer;font-size:.7rem;padding:1px 5px;border-radius:4px;margin-left:6px;vertical-align:middle;transition:all .2s;line-height:1.2}
+.btn-copy-io:hover{background:var(--accent);color:#fff;border-color:var(--accent);transform:scale(1.1)}
+.btn-copy-io:active{transform:scale(.95)}
+
+/* F07: Enhanced Responsive */
+@media(max-width:768px){
+  .oj-navbar{padding:6px 10px;gap:6px}
+  .oj-nav-title{display:none}
+  .oj-nav-tab{font-size:.78rem;padding:4px 8px}
+  .oj-stats-bar{grid-template-columns:repeat(2,1fr);gap:6px;padding:8px}
+  .oj-progress-wrap{grid-column:1/-1}
+  .oj-page-title{font-size:1.1rem}
+  .oj-editor-header{flex-wrap:wrap;gap:6px}
+  .oj-btn-test,.oj-btn-run{font-size:.78rem;padding:5px 10px}
+  .oj-console{max-height:200px}
+  .oj-custom-input-area{padding:8px}
+  .sample-io-display-grid{grid-template-columns:1fr}
+  .sample-box{min-width:0}
+  .oj-ex-row{grid-template-columns:36px 1fr auto;gap:8px;padding:10px}
+  .splash-card{margin:10px;padding:24px 16px}
+  .modal-content{margin:10px;max-width:calc(100vw - 20px);max-height:calc(100vh - 20px)}
+  .acct-table{font-size:.82rem}
+  .acct-table th,.acct-table td{padding:6px 8px}
+  .room-bar-inner{padding:6px 12px}
+  .t-tabbar-inner{gap:2px;padding:0 6px}
+  .t-tab{font-size:.78rem;padding:8px 10px}
+}
+@media(max-width:400px){
+  .oj-nav-left{flex-wrap:wrap;gap:4px}
+  .oj-nav-right{gap:4px}
+  .oj-nav-btn{font-size:.72rem;padding:4px 8px}
+  .oj-stat-item{padding:6px 4px}
+  .oj-stat-value{font-size:1.2rem}
+  .oj-stat-label{font-size:.6rem}
+  .splash-buttons{gap:8px}
+  .splash-btn{padding:16px}
+  .splash-btn-icon{font-size:1.6rem}
+}

@@ -4,6 +4,7 @@ const FIREBASE_CONFIG={apiKey:"AIzaSyABZz6HoxC80-bU8vci2Ss0-j7ip3X3oZ8",authDoma
 const APPS_SCRIPT_URL='https://script.google.com/macros/s/AKfycbwfamhMGAV-_peCv2_fH6kRgPYGoJ2uKGZbK0spXAHhb3MIJ0uPpG-DZiaIm8RI7vSl/exec';
 const PRESETS={'single-int':{name:'Một số nguyên',lines:[{variables:[{name:'N',type:'integer'}]}]},'multi-int-1line':{name:'Nhiều số/dòng',lines:[{variables:[{name:'A',type:'integer'},{name:'B',type:'integer'}]}]},'array-1d':{name:'Mảng 1D',lines:[{variables:[{name:'N',type:'integer'}]},{variables:[{name:'A',type:'array',lengthRef:'N'}]}]},'array-param':{name:'Mảng+tham số',lines:[{variables:[{name:'N',type:'integer'},{name:'K',type:'integer'}]},{variables:[{name:'A',type:'array',lengthRef:'N'}]}]},'string-only':{name:'Chuỗi',lines:[{variables:[{name:'S',type:'string'}]}]},'queries':{name:'Truy vấn',lines:[{variables:[{name:'N',type:'integer'},{name:'Q',type:'integer'}]},{variables:[{name:'A',type:'array',lengthRef:'N'}]},{variables:[{name:'L',type:'integer'},{name:'R',type:'integer'}],repeatRef:'Q'}]},'graph':{name:'Đồ thị',lines:[{variables:[{name:'N',type:'integer'},{name:'M',type:'integer'}]},{variables:[{name:'U',type:'integer'},{name:'V',type:'integer'}],repeatRef:'M'}]},'matrix':{name:'Ma trận',lines:[{variables:[{name:'N',type:'integer'},{name:'M',type:'integer'}]},{variables:[{name:'row',type:'array',lengthRef:'M'}],repeatRef:'N'}]}};
 const DLIM=[{min:1,max:100,lenMin:1,lenMax:10},{min:1,max:1000000,lenMin:1,lenMax:100000}];
+async function _hashSHA256(msg){const buf=new TextEncoder().encode(msg);const h=await crypto.subtle.digest('SHA-256',buf);return Array.from(new Uint8Array(h)).map(b=>b.toString(16).padStart(2,'0')).join('')}
 
 class DataGenerator{constructor(c){this.inputLines=c.inputLines;this.subtasks=c.subtasks;this.totalTests=c.totalTests;this.maxOverride=c.maxOverride||null}
 generateAllInputs(){const r=[];let rem=this.totalTests;for(let i=0;i<this.subtasks.length;i++){const st=this.subtasks[i];const cnt=i===this.subtasks.length-1?rem:Math.round(this.totalTests*st.percent/100);rem-=cnt;for(let t=0;t<cnt;t++)r.push({input:this._gen(st.id,t,cnt),subtaskId:st.id,subtaskName:st.name})}return r}
@@ -68,10 +69,10 @@ listenLeaderboard(roomCode,cb){const ref=this._ref(`rooms/${roomCode}/leaderboar
 listenStudents(roomCode,cb){const ref=this._ref(`rooms/${roomCode}/students`);ref.on('value',s=>cb(s.val()));this._listeners.push(()=>ref.off())}
 cleanup(){this._listeners.forEach(fn=>fn());this._listeners=[]}
 // Account management — stored at ROOT /accounts/ (permanent)
-async createAccount(username,password){await this._ref(`accounts/${username}`).set({password,createdAt:Date.now()})}
-async createAccountsBulk(list){for(const item of list){await this._ref(`accounts/${item.name}`).set({password:item.pass,createdAt:Date.now()})}}
+async createAccount(username,password){const h=await _hashSHA256(password);await this._ref(`accounts/${username}`).set({passwordHash:h,createdAt:Date.now()})}
+async createAccountsBulk(list){for(const item of list){const h=await _hashSHA256(item.pass);await this._ref(`accounts/${item.name}`).set({passwordHash:h,createdAt:Date.now()})}}
 async deleteAccount(username){await this._ref(`accounts/${username}`).remove()}
-async verifyStudent(username,password){const snap=await this._ref(`accounts/${username}`).once('value');if(!snap.exists())throw new Error('Tài khoản không tồn tại!');const acct=snap.val();if(acct.password!==password)throw new Error('Sai mật khẩu!');return true}
+async verifyStudent(username,password){const snap=await this._ref(`accounts/${username}`).once('value');if(!snap.exists())throw new Error('Tài khoản không tồn tại!');const acct=snap.val();const inputHash=await _hashSHA256(password);if(acct.passwordHash){if(acct.passwordHash!==inputHash)throw new Error('Sai mật khẩu!');return true}if(acct.password){if(acct.password!==password)throw new Error('Sai mật khẩu!');await this._ref(`accounts/${username}`).update({passwordHash:inputHash,password:null});return true}throw new Error('Tài khoản lỗi!')}
 listenAccounts(cb){const ref=this._ref('accounts');ref.on('value',s=>cb(s.val()||{}));this._listeners.push(()=>ref.off())}
 // Exercise management
 async publishExercise(data){const id=Date.now().toString(36);await this._ref(`exercises/${id}`).set({...data,createdAt:Date.now()});return id}
@@ -256,26 +257,15 @@ async _addSingleStudent(){const name=document.getElementById('new-stu-name').val
 async _addBulkStudents(){const text=document.getElementById('bulk-students').value.trim();if(!text){this._toast('Nhập danh sách','error');return}const lines=text.split('\n').filter(l=>l.trim());const list=[];for(const line of lines){const parts=line.split(',').map(s=>s.trim());if(parts.length>=2)list.push({name:parts[0],pass:parts[1]});else this._toast(`Bỏ qua: ${line}`,'error')}if(!list.length)return;try{await this.fb.createAccountsBulk(list);document.getElementById('bulk-students').value='';document.getElementById('bulk-add-form').classList.add('hidden');this._toast(`Đã tạo ${list.length} tài khoản!`,'success')}catch(e){this._toast('Lỗi: '+e.message,'error')}}
 
 _renderAccountList(accts){const c=document.getElementById('account-list');const keys=Object.keys(accts);if(!keys.length){c.innerHTML='<p style="color:var(--text-muted);text-align:center;padding:16px">Chưa có tài khoản. Nhấn "+ Thêm HS" để tạo.</p>';return}
-let h='<table class="acct-table"><thead><tr><th>#</th><th>Tên đăng nhập</th><th>Mật khẩu</th><th>Xóa</th></tr></thead><tbody>';
-keys.forEach((k,i)=>{h+=`<tr><td>${i+1}</td><td style="font-weight:600">${this._esc(k)}</td><td><span class="acct-pass" data-user="${this._esc(k)}" data-hidden="true">••••••</span></td><td><button class="btn-danger-sm" onclick="window._uic._deleteAccount('${this._esc(k)}')">✕</button></td></tr>`});
+let h='<p style="color:var(--text-muted);font-size:.75rem;margin-bottom:8px">🔒 Mật khẩu mới được mã hóa SHA-256. Tra cứu mật khẩu gốc trong Google Sheet.</p>';
+h+='<table class="acct-table"><thead><tr><th>#</th><th>Tên đăng nhập</th><th>Bảo mật</th><th>Xóa</th></tr></thead><tbody>';
+keys.forEach((k,i)=>{const acct=accts[k];const isHashed=!!acct.passwordHash;const pwCell=isHashed?'<span style="color:var(--success);font-size:.8rem">🔒 SHA-256</span>':'<span class="acct-pass" data-user="'+this._esc(k)+'" data-hidden="true">••••••</span>';h+=`<tr><td>${i+1}</td><td style="font-weight:600">${this._esc(k)}</td><td>${pwCell}</td><td><button class="btn-danger-sm" onclick="window._uic._deleteAccount('${this._esc(k)}')">✕</button></td></tr>`});
 h+='</tbody></table>';c.innerHTML=h;
 c.querySelectorAll('.acct-pass').forEach(span=>{const uname=span.dataset.user;span.style.cursor='pointer';span.onclick=()=>{if(span.dataset.hidden==='true'){span.textContent=accts[uname]?.password||'?';span.dataset.hidden='false';span.style.color='var(--accent)'}else{span.textContent='••••••';span.dataset.hidden='true';span.style.color=''}}})}
 
 async _deleteAccount(name){const ok=await this._confirmDialog('🗑️ Xóa tài khoản',`Bạn chắc chắn muốn xóa tài khoản <strong>${this._esc(name)}</strong>? Dữ liệu bài làm của học sinh này sẽ bị mất.`,'Xóa','btn-danger');if(!ok)return;try{await this.fb.deleteAccount(name);this._toast(`Đã xóa: ${name}`,'success')}catch(e){this._toast('Lỗi: '+e.message,'error')}}
 
-async _renderTeacherExerciseList(exs){const c=document.getElementById('t-exercise-list');if(!exs||!Object.keys(exs).length){c.innerHTML='<p style="color:var(--text-muted);text-align:center;padding:40px">Chưa có bài tập nào. Chuyển sang tab "Soạn Đề" để tạo.</p>';return}
-const res=this._teacherExResults||{};
-let h='<table class="ex-mgmt-table"><thead><tr><th>#</th><th>Tên bài</th><th>Chủ đề</th><th>Tests</th><th>Ngày tạo</th><th>HS đã làm</th><th>Thao tác</th></tr></thead><tbody>';
-Object.keys(exs).forEach((k,i)=>{const ex=exs[k];const d=new Date(ex.createdAt);const tc=ex.testCases?ex.testCases.length:0;
-const exRes=res[k]||{};const doneCount=Object.keys(exRes).length;
-const totalAccts=this._cachedAccounts?Object.keys(this._cachedAccounts).length:0;
-const pct=totalAccts>0?Math.round(doneCount/totalAccts*100):0;
-const barColor=pct>=80?'var(--success)':pct>=40?'var(--warning,#f59e0b)':'var(--error)';
-h+=`<tr onclick="window._uic._openViewExercise('${k}')">`;
-h+=`<td>${i+1}</td><td style="font-weight:600">${this._esc(ex.title)}</td><td><span class="oj-ex-topic">${this._esc(ex.topic||'Chung')}</span></td><td>${tc}</td><td>${d.toLocaleDateString('vi')}</td>`;
-h+=`<td><div style="display:flex;align-items:center;gap:8px"><div style="flex:1;height:6px;background:rgba(255,255,255,.08);border-radius:3px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${barColor};border-radius:3px;transition:width .3s"></div></div><span style="font-size:.78rem;color:var(--text-muted);white-space:nowrap">${doneCount}/${totalAccts}</span></div></td>`;
-h+=`<td><div class="ex-mgmt-actions"><button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();window._uic._openViewExercise('${k}')">✏️</button><button class="btn-danger-sm" onclick="event.stopPropagation();window._uic._deleteExercise('${k}')">✕</button></div></td></tr>`});
-h+='</tbody></table>';c.innerHTML=h}
+// [BUG-01 FIXED] Dead code removed — using version with search filter at L404+
 
 async _deleteExercise(id){const ex=(this._teacherExercises||{})[id];const name=ex?ex.title:'bài tập';const ok=await this._confirmDialog('🗑️ Xóa bài tập',`Bạn chắc chắn muốn xóa <strong>${this._esc(name)}</strong>? Tất cả kết quả làm bài của HS sẽ bị mất.`,'Xóa','btn-danger');if(!ok)return;try{await this.fb.deleteExercise(id);this._toast('Đã xóa bài tập!','success')}catch(e){this._toast('Lỗi: '+e.message,'error')}}
 
@@ -481,7 +471,8 @@ this._initDivider();
 // Auto-load exercises on dashboard show
 this._registerStudentListeners();
 // Search bindings
-const stuExSearch=$('stu-exercise-search');if(stuExSearch)stuExSearch.oninput=()=>this._renderExerciseList(this._cachedExercises||{});
+const stuExSearch=$('stu-exercise-search');if(stuExSearch)stuExSearch.oninput=()=>{this._exPage=1;this._renderExerciseList(this._cachedExercises||{})};
+const stuStatusFilter=$('stu-status-filter');if(stuStatusFilter)stuStatusFilter.onchange=()=>{this._exPage=1;this._renderExerciseList(this._cachedExercises||{})};
 const stuThSearch=$('stu-theory-search');if(stuThSearch)stuThSearch.oninput=()=>this._renderTheoryList(this._stuTheories||{},'stu-theory-list',false)}
 
 // Register Firebase listeners for exercises, results, theories
@@ -495,9 +486,9 @@ const thRef2=this.fb.db.ref('theories');thRef2.on('value',s=>{this._stuTheories=
 _loadExerciseStatuses(exs){this._renderExerciseList(exs);this._renderStudentRanking();this._renderStudentStats()}
 
 _renderStudentStats(){const el=document.getElementById('stu-stats-bar');if(!el)return;const exs=this._cachedExercises||{};const res=this._exerciseResults||{};const total=Object.keys(exs).length;if(!total||!this.studentName){el.innerHTML='';return}
-let done=0,totalScore=0;Object.keys(exs).forEach(k=>{const r=res[k]&&res[k][this.studentName];if(r){done++;totalScore+=r.score||0}});
-const avg=done>0?Math.round(totalScore/done):0;
-el.innerHTML=`<div class="oj-stat-item"><span class="oj-stat-value">${total}</span><span class="oj-stat-label">Tổng bài</span></div><div class="oj-stat-item"><span class="oj-stat-value">${done}</span><span class="oj-stat-label">Đã làm</span></div><div class="oj-stat-item"><span class="oj-stat-value" style="color:${avg>=80?'var(--success)':avg>=50?'var(--warning)':'var(--text-muted)'}">${avg}</span><span class="oj-stat-label">Điểm TB</span></div>`}
+let done=0,totalScore=0,perfect=0;Object.keys(exs).forEach(k=>{const r=res[k]&&res[k][this.studentName];if(r){done++;totalScore+=r.score||0;if(r.score>=100)perfect++}});
+const notDone=total-done;const avg=done>0?Math.round(totalScore/done):0;const pct=total>0?Math.round(done/total*100):0;
+el.innerHTML=`<div class="oj-stat-item"><span class="oj-stat-value">${total}</span><span class="oj-stat-label">Tổng bài</span></div><div class="oj-stat-item"><span class="oj-stat-value">${done}</span><span class="oj-stat-label">Đã làm</span></div><div class="oj-stat-item"><span class="oj-stat-value oj-stat-notdone">${notDone}</span><span class="oj-stat-label">Chưa làm</span></div><div class="oj-stat-item"><span class="oj-stat-value" style="color:var(--success)">${perfect}</span><span class="oj-stat-label">100 điểm</span></div><div class="oj-stat-item"><span class="oj-stat-value" style="color:${avg>=80?'var(--success)':avg>=50?'var(--warning)':'var(--text-muted)'}">${avg}</span><span class="oj-stat-label">Điểm TB</span></div><div class="oj-progress-wrap"><div class="oj-progress-fill" style="width:${pct}%"></div><span class="oj-progress-text">${pct}% hoàn thành (${done}/${total})</span></div>`}
 
 _renderStudentRanking(){const el=document.getElementById('stu-ranking');if(!el)return;const exs=this._cachedExercises||{};const res=this._exerciseResults||{};const exKeys=Object.keys(exs);
 if(!exKeys.length){el.innerHTML='<p style="color:var(--text-muted);text-align:center;padding:20px">Chưa có bài tập</p>';return}
@@ -531,46 +522,59 @@ async _stuLogin(){const name=document.getElementById('stu-name').value.trim();co
 this._registerStudentListeners();
 this._toast(`Xin chào ${name}!`,'success')}catch(e){errEl.textContent='❌ '+e.message}}
 
-_stuLogout(){this.studentName=null;this._currentExercise=null;this._cachedExercises=null;this._exerciseResults={};this.roomCode=null;this.problems=[];this.currentProbIdx=0;if(this.timerInterval){clearInterval(this.timerInterval);this.timerInterval=null}this.fb.cleanup();['stu-dashboard','stu-waiting','stu-contest','stu-ended'].forEach(id=>document.getElementById(id).classList.add('hidden'));document.getElementById('stu-login').classList.remove('hidden');document.getElementById('stu-name').value='';document.getElementById('stu-password').value='';document.getElementById('stu-login-error').textContent='';if(this.cmStudent){this.cmStudent.setValue('# Viết code tại đây\n')}}
+_stuLogout(){this.studentName=null;this._currentExercise=null;this._cachedExercises=null;this._exerciseResults={};this.roomCode=null;this.problems=[];this.currentProbIdx=0;if(this.timerInterval){clearInterval(this.timerInterval);this.timerInterval=null}if(this._autoSaveInterval){clearInterval(this._autoSaveInterval);this._autoSaveInterval=null}this.fb.cleanup();['stu-dashboard','stu-waiting','stu-contest','stu-ended'].forEach(id=>document.getElementById(id).classList.add('hidden'));document.getElementById('stu-login').classList.remove('hidden');document.getElementById('stu-name').value='';document.getElementById('stu-password').value='';document.getElementById('stu-login-error').textContent='';if(this.cmStudent){this.cmStudent.setValue('# Viết code tại đây\n')}}
 
 _renderExerciseList(exs){const c=document.getElementById('exercise-list');const allKeys=Object.keys(exs);if(!allKeys.length){c.innerHTML='<p style="color:var(--text-muted);text-align:center;padding:40px">📭 Chưa có bài tập nào. Giáo viên chưa đăng.</p>';c.className='';return}
 const filter=(document.getElementById('stu-exercise-search')||{}).value||'';
-const keys=allKeys.filter(k=>{const ex=exs[k];return(!filter||(ex.title||'').toLowerCase().includes(filter.toLowerCase())||(ex.topic||'').toLowerCase().includes(filter.toLowerCase()))});
-// Update result count
+const statusFilter=(document.getElementById('stu-status-filter')||{}).value||'all';
+const keys=allKeys.filter(k=>{const ex=exs[k];const textMatch=!filter||(ex.title||'').toLowerCase().includes(filter.toLowerCase())||(ex.topic||'').toLowerCase().includes(filter.toLowerCase());
+const myRes=this.studentName&&this._exerciseResults[k]&&this._exerciseResults[k][this.studentName];
+const isDone=!!myRes;const isPerfect=myRes&&myRes.score>=100;
+let statusMatch=true;if(statusFilter==='done')statusMatch=isDone;else if(statusFilter==='notdone')statusMatch=!isDone;else if(statusFilter==='perfect')statusMatch=isPerfect;else if(statusFilter==='partial')statusMatch=isDone&&!isPerfect;
+return textMatch&&statusMatch});
 const countEl=document.getElementById('stu-exercise-count');
-if(countEl){countEl.textContent=filter?`${keys.length}/${allKeys.length} bài`:`${allKeys.length} bài tập`}
-if(!keys.length){c.innerHTML=`<p style="color:var(--text-muted);text-align:center;padding:20px">Không tìm thấy "${this._esc(filter)}"</p>`;c.className='';return}
+const notDoneAll=allKeys.filter(k=>!(this._exerciseResults[k]&&this._exerciseResults[k][this.studentName])).length;
+if(countEl){const txt=filter||statusFilter!=='all'?`${keys.length}/${allKeys.length} bài`:`${allKeys.length} bài tập`;countEl.textContent=txt}
+const badgeEl=document.getElementById('stu-notif-badge');if(badgeEl){if(notDoneAll>0){badgeEl.textContent=notDoneAll;badgeEl.classList.remove('hidden')}else{badgeEl.classList.add('hidden')}}
+if(!keys.length){c.innerHTML=`<p style="color:var(--text-muted);text-align:center;padding:20px">${filter?'Không tìm thấy "'+this._esc(filter)+'"':'Không có bài tập phù hợp bộ lọc'}</p>`;c.className='';return}
 c.className='oj-exercise-list-v2';
-// Count not-done for badge
-const notDoneCount=allKeys.filter(k=>!(this._exerciseResults[k]&&this._exerciseResults[k][this.studentName])).length;
-const badgeEl=document.getElementById('stu-notif-badge');if(badgeEl){if(notDoneCount>0){badgeEl.textContent=notDoneCount;badgeEl.classList.remove('hidden')}else{badgeEl.classList.add('hidden')}}
-let h='<table class="stu-ex-table"><thead><tr><th style="width:46px">STT</th><th>Bài tập</th><th style="width:100px">Chủ đề</th><th style="width:80px">Điểm</th><th style="width:90px">Số test</th><th style="width:85px">Ngày tạo</th></tr></thead><tbody>';
-keys.forEach((k,idx)=>{const ex=exs[k];const d=new Date(ex.createdAt);const tc=ex.testCases?ex.testCases.length:0;const topic=ex.topic||'Chung';
+// Pagination
+const PAGE_SIZE=20;if(!this._exPage)this._exPage=1;const totalPages=Math.ceil(keys.length/PAGE_SIZE);if(this._exPage>totalPages)this._exPage=totalPages;const startIdx=(this._exPage-1)*PAGE_SIZE;const pageKeys=keys.slice(startIdx,startIdx+PAGE_SIZE);
+let h='<table class="stu-ex-table"><thead><tr><th style="width:40px">STT</th><th>Bài tập</th><th style="width:100px">Chủ đề</th><th style="width:88px">Trạng thái</th><th style="width:70px">Điểm</th><th style="width:80px">Số test</th><th style="width:80px">Ngày tạo</th></tr></thead><tbody>';
+pageKeys.forEach((k,idx)=>{const ex=exs[k];const d=new Date(ex.createdAt);const tc=ex.testCases?ex.testCases.length:0;const topic=ex.topic||'Chung';
 const myResult=this.studentName&&this._exerciseResults[k]&&this._exerciseResults[k][this.studentName];
 const isDone=!!myResult;const score=myResult?myResult.score:null;
 const scoreClass=score>=100?'perfect':score>=50?'partial':'fail';
-const statusHtml=isDone?`<span class="stu-ex-score ${scoreClass}">${score}</span>`:`<span class="stu-ex-badge-new">MỚI</span>`;
-h+=`<tr class="${isDone?'stu-ex-done':'stu-ex-new'}" onclick="window._uic._openExercise('${k}')">`;
-h+=`<td class="stu-ex-idx">${idx+1}</td>`;
+const scoreHtml=isDone?`<span class="stu-ex-score ${scoreClass}">${score}</span>`:`<span class="stu-ex-score none">—</span>`;
+const statusHtml=isDone?(score>=100?'<span class="stu-status-badge done">✅ Hoàn thành</span>':'<span class="stu-status-badge partial">🔶 Chưa đạt</span>'):'<span class="stu-status-badge notdone">❌ Chưa làm</span>';
+h+=`<tr class="${isDone?(score>=100?'stu-ex-done':'stu-ex-partial'):'stu-ex-new'}" onclick="window._uic._openExercise('${k}')">`;
+h+=`<td class="stu-ex-idx">${startIdx+idx+1}</td>`;
 h+=`<td><div class="stu-ex-name">${this._esc(ex.title)}</div><div class="stu-ex-desc-line">${this._esc(ex.description||'').substring(0,70)}${(ex.description||'').length>70?'…':''}</div></td>`;
 h+=`<td><span class="stu-ex-topic-pill">${this._esc(topic)}</span></td>`;
-h+=`<td class="stu-ex-score-cell">${statusHtml}</td>`;
+h+=`<td class="stu-ex-status-cell">${statusHtml}</td>`;
+h+=`<td class="stu-ex-score-cell">${scoreHtml}</td>`;
 h+=`<td class="stu-ex-tests-cell">${tc} test</td>`;
 h+=`<td class="stu-ex-date-cell">${d.toLocaleDateString('vi')}</td>`;
 h+=`</tr>`});
-h+='</tbody></table>';c.innerHTML=h}
+h+='</tbody></table>';
+// Pagination controls
+if(totalPages>1){h+=`<div class="stu-pagination"><button class="stu-page-btn" ${this._exPage<=1?'disabled':''} onclick="window._uic._exPage=${this._exPage-1};window._uic._renderExerciseList(window._uic._cachedExercises)">‹ Trước</button><span class="stu-page-info">Trang ${this._exPage} / ${totalPages} (${keys.length} bài)</span><button class="stu-page-btn" ${this._exPage>=totalPages?'disabled':''} onclick="window._uic._exPage=${this._exPage+1};window._uic._renderExerciseList(window._uic._cachedExercises)">Sau ›</button></div>`}
+c.innerHTML=h}
 
-async _openExercise(exId){const snap=await this.fb.db.ref(`exercises/${exId}`).once('value');const ex=snap.val();if(!ex)return;this._currentExercise={id:exId,...ex};this.problems=[ex];this.currentProbIdx=0;document.getElementById('stu-dashboard').classList.add('hidden');document.getElementById('stu-contest').classList.remove('hidden');document.getElementById('stu-contest-title').textContent=ex.title;document.getElementById('stu-player-name').textContent=this.studentName;
+async _openExercise(exId){const snap=await this.fb.db.ref(`exercises/${exId}`).once('value');const ex=snap.val();if(!ex)return;this._currentExercise={id:exId,...ex};this.roomCode=null;this.problems=[ex];this.currentProbIdx=0;document.getElementById('stu-dashboard').classList.add('hidden');document.getElementById('stu-contest').classList.remove('hidden');document.getElementById('stu-contest-title').textContent=ex.title;document.getElementById('stu-player-name').textContent=this.studentName;
 document.getElementById('stu-timer').textContent='∞';document.getElementById('stu-timer').classList.remove('critical');
 if(this.timerInterval){clearInterval(this.timerInterval);this.timerInterval=null}
 this._renderProblemTabs();this._showProblem(0);this._initStudentEditor();
-// Restore saved code from previous submission
+// F04: Restore draft from localStorage first, then Firebase
+const savedDraft=localStorage.getItem('themis_draft_'+exId);
 const prev=await this.fb.getExerciseResults(exId,this.studentName);
-if(prev){
-if(prev.code&&this.cmStudent){this.cmStudent.setValue(prev.code);this._toast(`📝 Đã khôi phục code trước (${prev.score}/100)`,'info')}else{this._toast(`Điểm trước: ${prev.score}/100`,'info')}
-// Also show previous results
-this._showStudentResults({score:prev.score,details:prev.details},ex)}
-this.fb.listenLeaderboard(this.roomCode||'_ex_'+exId,lb=>this._renderLeaderboard(lb,'stu-leaderboard-body',this.studentName))}
+if(savedDraft&&this.cmStudent){this.cmStudent.setValue(savedDraft);this._toast('📝 Đã khôi phục bản nháp tự lưu','info')}
+else if(prev&&prev.code&&this.cmStudent){this.cmStudent.setValue(prev.code);this._toast(`📝 Đã khôi phục code (${prev.score}/100)`,'info')}
+else if(prev){this._toast(`Điểm trước: ${prev.score}/100`,'info')}
+if(prev){this._showStudentResults({score:prev.score,details:prev.details},ex)}
+// BUG-05 FIX: Build leaderboard from exercise results instead of non-existent room leaderboard
+const exRes=this._exerciseResults||{};const exResultsForThis=exRes[exId]||{};const pseudoLb={};Object.keys(exResultsForThis).forEach(name=>{const r=exResultsForThis[name];pseudoLb[name]={name,totalScore:r.score||0,problems:{0:r.score||0},lastSubmit:r.submittedAt||0}});this._renderLeaderboard(pseudoLb,'stu-leaderboard-body',this.studentName);
+this.fb.listenAllExerciseResults(res=>{const lr=res[exId]||{};const lb={};Object.keys(lr).forEach(n=>{const r=lr[n];lb[n]={name:n,totalScore:r.score||0,problems:{0:r.score||0},lastSubmit:r.submittedAt||0}});this._renderLeaderboard(lb,'stu-leaderboard-body',this.studentName)})}
 
 async _joinRoom(){const code=document.getElementById('stu-room-code').value.trim();const errEl=document.getElementById('stu-join-error');errEl.textContent='';if(!code){errEl.textContent='⚠️ Nhập mã phòng thi';return}try{this.roomCode=code;this._currentExercise=null;const info=await this.fb.joinRoom(code,this.studentName);document.getElementById('stu-dashboard').classList.add('hidden');document.getElementById('stu-waiting-info').textContent=`Phòng: ${code} — ${info.title}`;if(info.status==='active'){this._stuStartContest(info)}else if(info.status==='ended'){document.getElementById('stu-ended').classList.remove('hidden')}else{document.getElementById('stu-waiting').classList.remove('hidden')}this.fb.listenRoomInfo(code,ri=>{if(!ri)return;if(ri.status==='active'){document.getElementById('stu-waiting').classList.add('hidden');this._stuStartContest(ri)}else if(ri.status==='ended'){if(this.timerInterval)clearInterval(this.timerInterval);document.getElementById('stu-contest').classList.add('hidden');document.getElementById('stu-ended').classList.remove('hidden');document.getElementById('stu-final-score').textContent='Cuộc thi kết thúc!'}});this._toast(`Đã vào phòng ${code}!`,'success')}catch(e){errEl.textContent='❌ '+e.message}}
 
@@ -579,14 +583,18 @@ const end=info.startTime+info.timeLimit*60000;if(this.timerInterval)clearInterva
 this.problems=await this.fb.getProblems(this.roomCode);if(!this.problems||!this.problems.length){document.getElementById('stu-problem-desc').textContent='Chưa có đề bài';return}this._renderProblemTabs();this._showProblem(0);this._initStudentEditor();
 this.fb.listenLeaderboard(this.roomCode,lb=>this._renderLeaderboard(lb,'stu-leaderboard-body',this.studentName))}
 
-_initStudentEditor(){if(!this.cmStudent){const cfg={mode:'python',lineNumbers:true,indentUnit:4,tabSize:4,matchBrackets:true,autoCloseBrackets:true,styleActiveLine:true,extraKeys:{'Tab':cm=>cm.execCommand('indentMore'),'Shift-Tab':cm=>cm.execCommand('indentLess')}};this.cmStudent=CodeMirror(document.getElementById('stu-editor-wrap'),{...cfg,value:'# Viết code tại đây\n'})}else{this.cmStudent.setValue('# Viết code tại đây\n')}setTimeout(()=>this.cmStudent.refresh(),100)}
+_initStudentEditor(){if(!this.cmStudent){const cfg={mode:'python',lineNumbers:true,indentUnit:4,tabSize:4,matchBrackets:true,autoCloseBrackets:true,styleActiveLine:true,extraKeys:{'Tab':cm=>cm.execCommand('indentMore'),'Shift-Tab':cm=>cm.execCommand('indentLess')}};this.cmStudent=CodeMirror(document.getElementById('stu-editor-wrap'),{...cfg,value:'# Viết code tại đây\n'})}else{this.cmStudent.setValue('# Viết code tại đây\n')}setTimeout(()=>this.cmStudent.refresh(),100);
+// F04: Auto-save code to localStorage every 30s
+if(this._autoSaveInterval)clearInterval(this._autoSaveInterval);
+this._autoSaveInterval=setInterval(()=>{if(this.cmStudent&&this._currentExercise){const code=this.cmStudent.getValue();if(code.trim()&&code.trim()!=='# Viết code tại đây'){localStorage.setItem('themis_draft_'+this._currentExercise.id,code)}}},30000);
+this.cmStudent.on('change',()=>{if(this._currentExercise){const code=this.cmStudent.getValue();if(code.trim()&&code.trim()!=='# Viết code tại đây'){localStorage.setItem('themis_draft_'+this._currentExercise.id,code)}}})}
 
 _renderProblemTabs(){const c=document.getElementById('stu-problem-tabs');c.innerHTML='';this.problems.forEach((p,i)=>{const btn=document.createElement('button');btn.className='oj-ptab-btn'+(i===0?' active':'');btn.textContent=`Bài ${i+1}`;btn.onclick=()=>{c.querySelectorAll('.oj-ptab-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');this._showProblem(i)};c.appendChild(btn)})}
 
 _showProblem(idx){this.currentProbIdx=idx;const p=this.problems[idx];if(!p)return;document.getElementById('stu-problem-title').textContent=`Bài ${idx+1}: ${p.title}`;document.getElementById('stu-problem-meta').innerHTML=`${p.fileIO?'📁 File I/O: <strong>'+p.taskName+'.INP/.OUT</strong>':'⌨️ stdin/stdout'} &nbsp;•&nbsp; ${p.subtasks?.length||1} subtask &nbsp;•&nbsp; ${p.testCases?.length||0} test`;document.getElementById('stu-problem-desc').textContent=p.description||'Không có mô tả';
 const sio=document.getElementById('stu-sample-io');
 const samples=p.sampleIO&&p.sampleIO.length?p.sampleIO:(p.testCases&&p.testCases.length?[{input:p.testCases[0].input,output:p.testCases[0].output}]:[]);
-if(samples.length>0){let h='';samples.forEach((s,i)=>{const label=samples.length>1?` ${i+1}`:'';const explainHtml=s.explanation?`<div class="sample-io-display-explain">💡 Giải thích: ${this._esc(s.explanation)}</div>`:'';h+=`<div class="sample-io-display"><div class="sample-io-display-header">📝 Ví dụ${label}</div><div class="sample-io-display-grid"><div class="sample-box"><div class="sample-box-title">INPUT</div><pre>${this._esc(s.input)}</pre></div><div class="sample-box"><div class="sample-box-title">OUTPUT</div><pre>${this._esc(s.output)}</pre></div></div>${explainHtml}</div>`});sio.innerHTML=h}else{sio.innerHTML=''}
+if(samples.length>0){let h='';samples.forEach((s,i)=>{const label=samples.length>1?` ${i+1}`:'';const explainHtml=s.explanation?`<div class="sample-io-display-explain">💡 Giải thích: ${this._esc(s.explanation)}</div>`:'';const inpEnc=encodeURIComponent(s.input);const outEnc=encodeURIComponent(s.output);h+=`<div class="sample-io-display"><div class="sample-io-display-header">📝 Ví dụ${label}</div><div class="sample-io-display-grid"><div class="sample-box"><div class="sample-box-title">INPUT <button class="btn-copy-io" onclick="window._uic._copyText(decodeURIComponent('${inpEnc}'))" title="Copy input">📋</button></div><pre>${this._esc(s.input)}</pre></div><div class="sample-box"><div class="sample-box-title">OUTPUT <button class="btn-copy-io" onclick="window._uic._copyText(decodeURIComponent('${outEnc}'))" title="Copy output">📋</button></div><pre>${this._esc(s.output)}</pre></div></div>${explainHtml}</div>`});sio.innerHTML=h}else{sio.innerHTML=''}
 document.getElementById('stu-results-card').classList.add('hidden');document.getElementById('no-results-msg').style.display='block';
 // Switch to desc tab
 document.querySelectorAll('.oj-ptab').forEach(b=>b.classList.remove('active'));document.querySelector('.oj-ptab[data-ptab="desc"]').classList.add('active');document.querySelectorAll('.oj-ptab-content').forEach(p=>p.classList.remove('active'));document.getElementById('ptab-desc').classList.add('active')}
@@ -672,7 +680,9 @@ consoleOut.innerHTML=html;statusEl.textContent='❌ Có lỗi'
 async _stuSubmit(){if(!this.cmStudent)return;
 // Check if contest time has expired (race condition guard)
 if(document.getElementById('btn-stu-submit').disabled){this._toast('⏰ Hết thời gian!','error');return}
-const code=this.cmStudent.getValue().trim();if(!code){this._toast('Viết code trước','error');return}const p=this.problems[this.currentProbIdx];if(!p){this._toast('Không có đề','error');return}const statusEl=document.getElementById('stu-submit-status');const consoleOut=document.getElementById('oj-console-output');statusEl.innerHTML='⏳ Đang chấm...';consoleOut.innerHTML='<span style="color:var(--text-muted)">🔄 Đang khởi tạo Pyodide...</span>';document.getElementById('btn-stu-submit').disabled=true;
+const code=this.cmStudent.getValue().trim();if(!code){this._toast('Viết code trước','error');return}
+// F05: Confirm before submit
+const isContest=!!this.roomCode;if(!isContest){const ok=await this._confirmDialog('📝 Xác nhận nộp bài','Code sẽ được chấm điểm. Bạn có thể nộp lại nhiều lần.','Nộp bài','btn-accent');if(!ok)return}const p=this.problems[this.currentProbIdx];if(!p){this._toast('Không có đề','error');return}const statusEl=document.getElementById('stu-submit-status');const consoleOut=document.getElementById('oj-console-output');statusEl.innerHTML='⏳ Đang chấm...';consoleOut.innerHTML='<span style="color:var(--text-muted)">🔄 Đang khởi tạo Pyodide...</span>';document.getElementById('btn-stu-submit').disabled=true;
 try{const result=await this.grader.grade(code,p.testCases,p.subtasks||[],p.fileIO,p.taskName,p.uppercase,p.timePerTest||5,(c,t)=>{statusEl.textContent=`Test ${c}/${t}`;consoleOut.innerHTML=`<span style="color:var(--accent)">⚡ Đang chấm test ${c}/${t}...</span>`});
 // Build detailed console output
 const ac=result.details.filter(d=>d.verdict==='AC').length;
@@ -704,6 +714,7 @@ this._showStudentResults(result,p);
 const exRef=this._currentExercise;const roomRef=this.roomCode;const probIdx=this.currentProbIdx;
 const trimmedResult={score:result.score,details:result.details,code:(result.code||'').substring(0,10000)};
 if(exRef){try{await this.fb.submitExerciseResult(exRef.id,this.studentName,trimmedResult);
+localStorage.removeItem('themis_draft_'+exRef.id);
 this.drive.logData('Submissions',[exRef.id+'_'+this.studentName+'_'+Date.now(),this.studentName,exRef.id,exRef.title,result.score,new Date().toISOString(),result.score>=100?'PERFECT':result.score>0?'PARTIAL':'ZERO']).catch(()=>{});
 statusEl.textContent='✅ Đã nộp!';this._toast(`📚 ${exRef.title}: ${result.score} điểm`,'success')}catch(e){statusEl.textContent='⚠️ Lỗi lưu!';this._toast('⚠️ Lỗi lưu kết quả: '+e.message+'. Thử nộp lại!','error');console.error('Save exercise result failed:',e)}}
 else if(roomRef){try{await this.fb.submitResult(roomRef,this.studentName,probIdx,trimmedResult);
@@ -767,6 +778,7 @@ ov.querySelector('.confirm-ok').onclick=()=>{ov.remove();resolve(true)};
 ov.querySelector('.confirm-cancel').onclick=()=>{ov.remove();resolve(false)};
 ov.onclick=e=>{if(e.target===ov){ov.remove();resolve(false)}}})}
 
+_copyText(text){navigator.clipboard.writeText(text).then(()=>this._toast('📋 Đã copy!','success')).catch(()=>{const t=document.createElement('textarea');t.value=text;t.style.position='fixed';t.style.opacity='0';document.body.appendChild(t);t.select();document.execCommand('copy');document.body.removeChild(t);this._toast('📋 Đã copy!','success')})}
 _toast(m,t='info'){const c=document.getElementById('toast-container');const el=document.createElement('div');el.className='toast '+t;el.textContent=m;c.appendChild(el);setTimeout(()=>el.remove(),4500)}
 _esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}}
 
