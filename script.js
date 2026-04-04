@@ -689,7 +689,7 @@ await this.fb.db.ref(`theories/${id}`).remove();this._toast('Đã xóa!','succes
 _renderTheoryList(theories,containerId,isTeacher){const c=document.getElementById(containerId);if(!c)return;const keys=Object.keys(theories||{});
 if(!keys.length){c.innerHTML='<p style="color:var(--text-muted);text-align:center;padding:40px">Chưa có bài lý thuyết nào.</p>';return}
 const filter=(document.getElementById(isTeacher?'t-theory-search':'stu-theory-search')||{}).value||'';
-const filtered=keys.filter(k=>{const t=theories[k];return(!filter||t.title.toLowerCase().includes(filter.toLowerCase())||t.topic.toLowerCase().includes(filter.toLowerCase()))});
+const filtered=keys.filter(k=>{const t=theories[k];return(!filter||(t.title||'').toLowerCase().includes(filter.toLowerCase())||(t.topic||'').toLowerCase().includes(filter.toLowerCase()))});
 if(!filtered.length){c.innerHTML=`<p style="color:var(--text-muted);text-align:center;padding:20px">Không tìm thấy "${this._esc(filter)}"</p>`;return}
 let h='';filtered.forEach(k=>{const t=theories[k];const d=new Date(t.createdAt);
 let fileHtml='';if(t.file){const icon=t.file.name.endsWith('.pdf')?'📕':'📘';const hasDrive=!!t.file.fileId;const isPdf=t.file.name.toLowerCase().endsWith('.pdf');
@@ -1066,7 +1066,7 @@ timeLimit:info.timeLimit||0,problemCount:info.problemCount||0,
 createdAt:info.createdAt||0,publishedAt:info.publishedAt||0})}}
 contests.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
 this._renderStudentContestHistory(contests)});
-this.fb._listeners.push(()=>roomRef.off());
+this.fb._studentDashListeners.push(()=>roomRef.off());
 }catch(e){console.error('Load contest history:',e);el.innerHTML='<p style="color:var(--text-muted);text-align:center;padding:20px">Lỗi tải lịch sử</p>'}}
 
 _renderStudentContestHistory(contests){
@@ -1099,8 +1099,9 @@ h+='</div>';el.innerHTML=h}
 
 async _viewContestResult(code){
 // Navigate to contest ended screen to view results
+// BUG-5 FIX: Use _viewingContestCode instead of overwriting this.roomCode
 try{
-this.roomCode=code;
+this._viewingContestCode=code;
 const infoSnap=await this.fb.db.ref(`rooms/${code}/info`).once('value');
 const info=infoSnap.val();
 if(!info){this._toast('Không tìm thấy kỳ thi','error');return}
@@ -1139,9 +1140,11 @@ if(badge){if(notDone.length>0){badge.textContent=notDone.length;badge.classList.
 if(this._prevExCount>0&&exKeys.length>this._prevExCount){const newCount=exKeys.length-this._prevExCount;this._toast(`📢 Có ${newCount} bài tập mới! Kiểm tra ngay.`,'info')}
 this._prevExCount=exKeys.length}
 
-_stuLogout(){this.studentName=null;this._currentExercise=null;this._cachedExercises=null;this._exerciseResults={};this.roomCode=null;this.problems=[];this.currentProbIdx=0;if(this.timerInterval){clearInterval(this.timerInterval);this.timerInterval=null}if(this._autoSaveInterval){clearInterval(this._autoSaveInterval);this._autoSaveInterval=null}if(this._contestAutoSave){clearInterval(this._contestAutoSave);this._contestAutoSave=null}this._stopAntiCheat();this.fb.cleanupExercise();this.fb.cleanupStudentDash();this.fb.cleanup();['stu-dashboard','stu-waiting','stu-contest','stu-ended'].forEach(id=>document.getElementById(id).classList.add('hidden'));document.getElementById('stu-login').classList.remove('hidden');document.getElementById('stu-name').value='';document.getElementById('stu-password').value='';document.getElementById('stu-login-error').textContent='';if(this.cmStudent){this.cmStudent.setValue('# Viết code tại đây\n')}}
+// BUG-1 FIX: Single canonical _stuLogout with full cleanup (anti-cheat, intervals, listeners)
+_stuLogout(){this.studentName=null;this._currentExercise=null;this._cachedExercises=null;this._exerciseResults={};this.roomCode=null;this._viewingContestCode=null;this.problems=[];this.currentProbIdx=0;if(this.timerInterval){clearInterval(this.timerInterval);this.timerInterval=null}if(this._autoSaveInterval){clearInterval(this._autoSaveInterval);this._autoSaveInterval=null}if(this._contestAutoSave){clearInterval(this._contestAutoSave);this._contestAutoSave=null}this._stopAntiCheat();this.fb.cleanupExercise();this.fb.cleanupStudentDash();this.fb.cleanup();['stu-dashboard','stu-waiting','stu-contest','stu-ended'].forEach(id=>document.getElementById(id).classList.add('hidden'));document.getElementById('stu-login').classList.remove('hidden');document.getElementById('stu-name').value='';document.getElementById('stu-password').value='';document.getElementById('stu-login-error').textContent='';if(this.cmStudent){this._suppressAutoSave=true;this.cmStudent.setValue('# Viết code tại đây\n');this._suppressAutoSave=false}}
 
 // ===== 🔒 ANTI-CHEAT SYSTEM (contest mode only) =====
+// BUG-3 FIX: Save paste handler ref for proper cleanup
 _startAntiCheat(){this._tabSwitchCount=0;this._antiCheatActive=true;
 // 1. Detect tab switches
 this._visibilityHandler=()=>{if(document.hidden&&this._antiCheatActive){this._tabSwitchCount++;
@@ -1151,8 +1154,12 @@ if(this.roomCode&&this.studentName){this.fb.db.ref(`rooms/${this.roomCode}/stude
 const warn=this._tabSwitchCount>=3?'🚨 CẢNH BÁO NGHIÊM TRỌNG: Bạn đã rời khỏi tab thi '+this._tabSwitchCount+' lần! GV sẽ nhận được báo cáo.':'⚠️ Phát hiện chuyển tab ('+this._tabSwitchCount+' lần). GV có thể theo dõi hành vi này.';
 this._toast(warn,this._tabSwitchCount>=3?'error':'info')}};
 document.addEventListener('visibilitychange',this._visibilityHandler);
-// 2. Block paste in code editor (contest only)
-if(this.cmStudent){this._pasteHandler=(cm,e)=>{if(this._antiCheatActive){e.preventDefault();this._toast('📋 Paste bị tắt trong kỳ thi. Hãy tự gõ code!','error')}};this.cmStudent.on('beforeChange',(cm,change)=>{if(this._antiCheatActive&&change.origin==='paste'){change.cancel();this._toast('📋 Paste bị tắt trong kỳ thi','error')}})}
+// 2. Block paste in code editor (contest only) — save ref for cleanup
+if(this.cmStudent){
+  // Remove old handler if exists (prevent stacking)
+  if(this._cmPasteHandler)this.cmStudent.off('beforeChange',this._cmPasteHandler);
+  this._cmPasteHandler=(cm,change)=>{if(this._antiCheatActive&&change.origin==='paste'){change.cancel();this._toast('📋 Paste bị tắt trong kỳ thi','error')}};
+  this.cmStudent.on('beforeChange',this._cmPasteHandler)}
 // 3. Warn on navigation attempts
 this._beforeUnloadHandler=e=>{if(this._antiCheatActive){e.preventDefault();e.returnValue='Bạn đang trong kỳ thi! Rời khỏi sẽ mất code chưa lưu.'}};
 window.addEventListener('beforeunload',this._beforeUnloadHandler);
@@ -1162,6 +1169,8 @@ const indicator=document.getElementById('anti-cheat-badge');if(indicator)indicat
 _stopAntiCheat(){this._antiCheatActive=false;
 if(this._visibilityHandler){document.removeEventListener('visibilitychange',this._visibilityHandler);this._visibilityHandler=null}
 if(this._beforeUnloadHandler){window.removeEventListener('beforeunload',this._beforeUnloadHandler);this._beforeUnloadHandler=null}
+// BUG-3 FIX: Remove paste handler from CodeMirror
+if(this._cmPasteHandler&&this.cmStudent){this.cmStudent.off('beforeChange',this._cmPasteHandler);this._cmPasteHandler=null}
 const indicator=document.getElementById('anti-cheat-badge');if(indicator)indicator.classList.add('hidden')}
 
 // ===== 🔑 CHANGE PASSWORD =====
@@ -1230,7 +1239,7 @@ async _stuLogin(){const name=document.getElementById('stu-name').value.trim();co
 this._registerStudentListeners();
 this._toast(`Xin chào ${name}!`,'success')}catch(e){errEl.textContent='❌ '+e.message}}
 
-_stuLogout(){this.studentName=null;this._currentExercise=null;this._cachedExercises=null;this._exerciseResults={};this.roomCode=null;this.problems=[];this.currentProbIdx=0;if(this.timerInterval){clearInterval(this.timerInterval);this.timerInterval=null}if(this._autoSaveInterval){clearInterval(this._autoSaveInterval);this._autoSaveInterval=null}this.fb.cleanupExercise();this.fb.cleanupStudentDash();this.fb.cleanup();['stu-dashboard','stu-waiting','stu-contest','stu-ended'].forEach(id=>document.getElementById(id).classList.add('hidden'));document.getElementById('stu-login').classList.remove('hidden');document.getElementById('stu-name').value='';document.getElementById('stu-password').value='';document.getElementById('stu-login-error').textContent='';if(this.cmStudent){this.cmStudent.setValue('# Viết code tại đây\n')}}
+// BUG-1 FIX: Removed duplicate _stuLogout — see canonical version at L1142
 
 _renderExerciseList(exs){const c=document.getElementById('exercise-list');const allKeys=Object.keys(exs);if(!allKeys.length){c.innerHTML='<p style="color:var(--text-muted);text-align:center;padding:40px">📭 Chưa có bài tập nào. Giáo viên chưa đăng.</p>';c.className='';return}
 const filter=(document.getElementById('stu-exercise-search')||{}).value||'';
@@ -1391,11 +1400,15 @@ const allProblems=await this.fb.getProblems(this.roomCode);
 if(!allProblems||!allProblems.length){document.getElementById('stu-problem-desc').textContent='Chưa có đề bài';return}
 // Strip testCases for security: only keep sampleIO, description, title, fileIO, etc.
 this.problems=allProblems.map(p=>({title:p.title,description:p.description,fileIO:p.fileIO,taskName:p.taskName,uppercase:p.uppercase,subtasks:p.subtasks,sampleIO:p.sampleIO,timePerTest:p.timePerTest,_testCount:p.testCases?p.testCases.length:0}));
-this._renderProblemTabs();this._showProblem(0);this._initStudentEditor();
+this._renderProblemTabs();this._showProblem(0);
+// BUG-4 FIX: Suppress auto-save during editor init to prevent race condition
+this._suppressAutoSave=true;
+this._initStudentEditor();
 // Restore auto-saved code from Firebase if available
 try{const draftSnap=await this.fb.db.ref(`rooms/${this.roomCode}/students/${this.studentName}/draftCode`).once('value');
 const drafts=draftSnap.val();
 if(drafts&&drafts[0]&&this.cmStudent){this.cmStudent.setValue(drafts[0]);this._toast('💾 Đã khôi phục code từ lần trước!','info')}}catch(e){console.warn('Restore draft:',e)}
+this._suppressAutoSave=false;
 // Hide leaderboard in contest mode — show message instead
 const lbBody=document.getElementById('stu-leaderboard-body');
 if(lbBody)lbBody.innerHTML='<div style="text-align:center;padding:32px;color:var(--text-muted)"><div style="font-size:2rem;margin-bottom:8px">🔒</div><p style="font-size:.85rem">Bảng xếp hạng sẽ được công bố<br>sau khi GV chấm bài.</p></div>';
@@ -1420,17 +1433,21 @@ Object.keys(drafts).forEach(pi=>{const draft=drafts[pi];
 const indicator=document.getElementById('auto-save-indicator');
 if(indicator){indicator.textContent='💾 Đã lưu '+new Date().toLocaleTimeString('vi',{hour:'2-digit',minute:'2-digit'});indicator.classList.add('saved');setTimeout(()=>indicator.classList.remove('saved'),2000)}}},30000)}
 
-_initStudentEditor(){if(!this.cmStudent){const cfg={mode:'python',lineNumbers:true,indentUnit:4,tabSize:4,matchBrackets:true,autoCloseBrackets:true,styleActiveLine:true,extraKeys:{'Tab':cm=>cm.execCommand('indentMore'),'Shift-Tab':cm=>cm.execCommand('indentLess')}};this.cmStudent=CodeMirror(document.getElementById('stu-editor-wrap'),{...cfg,value:'# Viết code tại đây\n'})}else{this.cmStudent.setValue('# Viết code tại đây\n')}setTimeout(()=>this.cmStudent.refresh(),100);
-// F04: Auto-save code to localStorage every 30s (exercises only)
-if(this._autoSaveInterval)clearInterval(this._autoSaveInterval);
-this._autoSaveInterval=setInterval(()=>{if(this.cmStudent&&this._currentExercise){const code=this.cmStudent.getValue();if(code.trim()&&code.trim()!=='# Viết code tại đây'){localStorage.setItem('themis_draft_'+this._currentExercise.id,code)}}},30000);
-this.cmStudent.on('change',()=>{if(this._currentExercise){const code=this.cmStudent.getValue();if(code.trim()&&code.trim()!=='# Viết code tại đây'){localStorage.setItem('themis_draft_'+this._currentExercise.id,code)}}
+// BUG-6 FIX: Only bind change listener once, use _suppressAutoSave flag (BUG-4)
+_initStudentEditor(){if(!this.cmStudent){const cfg={mode:'python',lineNumbers:true,indentUnit:4,tabSize:4,matchBrackets:true,autoCloseBrackets:true,styleActiveLine:true,extraKeys:{'Tab':cm=>cm.execCommand('indentMore'),'Shift-Tab':cm=>cm.execCommand('indentLess')}};this.cmStudent=CodeMirror(document.getElementById('stu-editor-wrap'),{...cfg,value:'# Viết code tại đây\n'});
+// Bind change listener ONCE at creation time
+this.cmStudent.on('change',()=>{if(this._suppressAutoSave)return;
+if(this._currentExercise){const code=this.cmStudent.getValue();if(code.trim()&&code.trim()!=='# Viết code tại đây'){localStorage.setItem('themis_draft_'+this._currentExercise.id,code)}}
 // Also auto-save to Firebase for contests on every change (debounced)
 if(this.roomCode&&!this._currentExercise&&this.studentName){
 if(this._contestSaveDebounce)clearTimeout(this._contestSaveDebounce);
 this._contestSaveDebounce=setTimeout(()=>{const code=this.cmStudent.getValue();
 if(code.trim()&&code.trim()!=='# Viết code tại đây'){
-this.fb.db.ref(`rooms/${this.roomCode}/students/${this.studentName}/draftCode/${this.currentProbIdx}`).set(code.substring(0,15000)).catch(()=>{})}},5000)}})}
+this.fb.db.ref(`rooms/${this.roomCode}/students/${this.studentName}/draftCode/${this.currentProbIdx}`).set(code.substring(0,15000)).catch(()=>{})}},5000)}})
+}else{this._suppressAutoSave=true;this.cmStudent.setValue('# Viết code tại đây\n');this._suppressAutoSave=false}setTimeout(()=>this.cmStudent.refresh(),100);
+// F04: Auto-save code to localStorage every 30s (exercises only)
+if(this._autoSaveInterval)clearInterval(this._autoSaveInterval);
+this._autoSaveInterval=setInterval(()=>{if(this._suppressAutoSave)return;if(this.cmStudent&&this._currentExercise){const code=this.cmStudent.getValue();if(code.trim()&&code.trim()!=='# Viết code tại đây'){localStorage.setItem('themis_draft_'+this._currentExercise.id,code)}}},30000)}
 
 _renderProblemTabs(){const c=document.getElementById('stu-problem-tabs');c.innerHTML='';this.problems.forEach((p,i)=>{const btn=document.createElement('button');btn.className='oj-ptab-btn'+(i===0?' active':'');btn.textContent=`Bài ${i+1}`;btn.onclick=()=>{c.querySelectorAll('.oj-ptab-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');this._showProblem(i)};c.appendChild(btn)})}
 
