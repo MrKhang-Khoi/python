@@ -628,24 +628,75 @@ h+='</div>';container.innerHTML=h}
 
 // View past room leaderboard
 async _viewRoomHistory(code){try{
+this._viewingRoomCode=code;
 const infoSnap=await this.fb.db.ref(`rooms/${code}/info`).once('value');const info=infoSnap.val();if(!info)return;
 const lbSnap=await this.fb.db.ref(`rooms/${code}/leaderboard`).once('value');const lb=lbSnap.val();
 const probSnap=await this.fb.db.ref(`rooms/${code}/problems`).once('value');const probs=probSnap.val()||[];
-const pCount=info.problemCount||1;this.publishedCount=pCount;
+const probArr=Array.isArray(probs)?probs:Object.values(probs);
+const pCount=info.problemCount||probArr.length||1;this.publishedCount=pCount;
 // Show problem list
 const listEl=document.getElementById('t-contest-problem-list');
-let h='';(Array.isArray(probs)?probs:Object.values(probs)).forEach((p,i)=>{h+=`<div style="padding:8px 12px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:6px;margin-bottom:4px;font-size:.85rem"><strong>Bài ${i+1}:</strong> ${this._esc(p?.title||'?')} <span style="color:var(--text-muted)">• ${(p?.testCases||[]).length} test</span></div>`});
-listEl.innerHTML=h;document.getElementById('t-contest-problems').classList.remove('hidden');
-// Show leaderboard with back button
+let ph='';probArr.forEach((p,i)=>{ph+=`<div style="padding:8px 12px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:6px;margin-bottom:4px;font-size:.85rem"><strong>Bài ${i+1}:</strong> ${this._esc(p?.title||'?')} <span style="color:var(--text-muted)">• ${(p?.testCases||[]).length} test</span></div>`});
+listEl.innerHTML=ph;document.getElementById('t-contest-problems').classList.remove('hidden');
+
+// Count students
+const stuSnap=await this.fb.db.ref(`rooms/${code}/students`).once('value');
+const students=stuSnap.val()||{};const stuCount=Object.keys(students).length;
+const submittedCount=Object.keys(students).filter(n=>students[n].finalCode).length;
+
+// Grading status
+const gs=info.gradeStatus||'pending';
+const statusLabel=gs==='published'?'📢 Đã công bố':gs==='graded'?'✅ Đã chấm':'⏳ Chưa chấm';
+const statusColor=gs==='published'?'var(--success)':gs==='graded'?'var(--warning,#f59e0b)':'var(--text-muted)';
+
+// Build full detail view
 const container=document.getElementById('t-leaderboard-body');
-const backBtn=`<button class="btn btn-ghost btn-sm" style="margin-bottom:12px" onclick="window._uic._closeRoomHistory()">← Quay lại danh sách</button>`;
-const header=`<div style="margin-bottom:12px"><strong style="font-size:1rem">${this._esc(info.title)}</strong> <span style="color:var(--text-muted);font-size:.82rem">#${code} • ${info.timeLimit||0} phút • ${pCount} bài</span></div>`;
-container.innerHTML=backBtn+header;
-const lbDiv=document.createElement('div');lbDiv.id='t-history-lb';container.appendChild(lbDiv);
-this._renderLeaderboard(lb,'t-history-lb');
+let h=`<button class="btn btn-ghost btn-sm" style="margin-bottom:12px" onclick="window._uic._closeRoomHistory()">← Quay lại danh sách</button>`;
+h+=`<div style="padding:16px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:8px;margin-bottom:16px">`;
+h+=`<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">`;
+h+=`<div><h3 style="font-size:1.1rem;font-weight:700;margin:0">${this._esc(info.title)}</h3>`;
+h+=`<span style="color:var(--text-muted);font-size:.82rem">#${code} • ${info.timeLimit||0} phút • ${pCount} bài</span></div>`;
+h+=`<span style="font-size:.82rem;font-weight:600;color:${statusColor}">${statusLabel}</span>`;
+h+=`</div>`;
+h+=`<div style="display:flex;gap:16px;margin-top:10px;font-size:.82rem;color:var(--text-muted)">`;
+h+=`<span>👥 ${stuCount} HS tham gia</span>`;
+h+=`<span>📝 ${submittedCount} HS đã nộp</span>`;
+h+=`<span>📅 ${new Date(info.createdAt).toLocaleDateString('vi')}</span>`;
+h+=`</div></div>`;
+
+// Grading controls (show only if ended and not yet published)
+if(info.status==='ended'){
+h+=`<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px">`;
+if(gs!=='published'){
+h+=`<button class="btn btn-accent btn-sm" onclick="window._uic._gradeRoomHistory('${code}')">🔬 Chấm Bài (${submittedCount} HS)</button>`;
+}
+if(gs==='graded'||gs==='published'){
+h+=`<button class="btn btn-ghost btn-sm" onclick="window._uic._publishRoomHistory('${code}')"${gs==='published'?' disabled':''}>${gs==='published'?'✅ Đã công bố':'📢 Công Bố Kết Quả'}</button>`;
+h+=`<button class="btn btn-ghost btn-sm" onclick="window._uic._aiAnalyzeRoom('${code}')">🤖 AI Phân Tích</button>`;
+}
+h+=`</div>`;
+}
+
+// Leaderboard / grade results
+h+=`<div id="t-history-lb"></div>`;
+container.innerHTML=h;
+
+// Load gradeResults if available
+if(gs==='graded'||gs==='published'){
+const gradeSnap=await this.fb.db.ref(`rooms/${code}/gradeResults`).once('value');
+const grades=gradeSnap.val()||{};
+const stuNames=Object.keys(grades);
+if(stuNames.length>0){
+this._gradeResults={};this._gradeProblems=probArr;
+stuNames.forEach(name=>{this._gradeResults[name]={};
+Object.keys(grades[name]).forEach(pi=>{this._gradeResults[name][pi]=grades[name][pi]})});
+this._renderGradeResults(this._gradeResults,probArr,stuNames,'t-history-lb');
+}else if(lb){this._renderLeaderboard(lb,'t-history-lb')}
+}else if(lb){this._renderLeaderboard(lb,'t-history-lb')}
+else{document.getElementById('t-history-lb').innerHTML='<p style="color:var(--text-muted);text-align:center;padding:20px">Chưa có kết quả. Nhấn "Chấm Bài" để bắt đầu chấm.</p>'}
 }catch(e){this._toast('Lỗi đọc dữ liệu: '+e.message,'error')}}
 
-_closeRoomHistory(){document.getElementById('t-contest-problems').classList.add('hidden');this._renderRoomHistory()}
+_closeRoomHistory(){this._viewingRoomCode=null;document.getElementById('t-contest-problems').classList.add('hidden');document.getElementById('grade-results').classList.add('hidden');this._renderRoomHistory()}
 
 _showExerciseModal(){if(!this.themis.testCases.length){this._toast('Sinh test trước','error');return}const cfg=this.collectFormData();const desc=document.getElementById('problem-description').value||document.getElementById('ai-prompt').value||'Không có mô tả';const displayTitle=document.getElementById('problem-title').value.trim()||cfg.taskName;const topic=document.getElementById('problem-topic').value.trim()||'Không phân loại';document.getElementById('ex-title-input').value=displayTitle;document.getElementById('ex-desc-input').value=desc;document.getElementById('ex-test-count').textContent=this.themis.testCases.length;document.getElementById('ex-subtask-count').textContent=cfg.subtasks?cfg.subtasks.length:1;document.getElementById('ex-topic').value=topic;document.getElementById('modal-publish-exercise').classList.remove('hidden')}
 
@@ -688,7 +739,81 @@ _registerStudentListeners(){
 this._exerciseResults={};this._prevExCount=0;
 this.fb.listenExercises(exs=>{this._cachedExercises=exs;this._loadExerciseStatuses(exs);this._checkNewExerciseNotification(exs)});
 this.fb.listenAllExerciseResults(res=>{this._exerciseResults=res;if(this._cachedExercises){this._renderExerciseList(this._cachedExercises);this._renderStudentRanking()}});
-const thRef2=this.fb.db.ref('theories');thRef2.on('value',s=>{this._stuTheories=s.val()||{};this._renderTheoryList(this._stuTheories,'stu-theory-list',false)});this.fb._listeners.push(()=>thRef2.off())}
+const thRef2=this.fb.db.ref('theories');thRef2.on('value',s=>{this._stuTheories=s.val()||{};this._renderTheoryList(this._stuTheories,'stu-theory-list',false)});this.fb._listeners.push(()=>thRef2.off());
+// Load contest history for student
+this._loadStudentContestHistory()}
+
+async _loadStudentContestHistory(){
+const el=document.getElementById('stu-contest-history');if(!el||!this.studentName)return;
+try{
+const snap=await this.fb.db.ref('rooms').once('value');
+const allRooms=snap.val()||{};
+const myContests=[];
+for(const code of Object.keys(allRooms)){
+const room=allRooms[code];
+const info=room.info;
+if(!info)continue;
+// Check if student participated
+const hasRecord=room.students&&room.students[this.studentName];
+if(!hasRecord)continue;
+myContests.push({code,title:info.title||'Không tên',status:info.status||'waiting',
+gradeStatus:info.gradeStatus||'pending',published:!!info.published,
+timeLimit:info.timeLimit||0,problemCount:info.problemCount||0,
+createdAt:info.createdAt||0,publishedAt:info.publishedAt||0})}
+myContests.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+this._renderStudentContestHistory(myContests);
+// Also listen for changes
+const roomRef=this.fb.db.ref('rooms');
+roomRef.on('value',s=>{const rooms=s.val()||{};const contests=[];
+for(const code of Object.keys(rooms)){const room=rooms[code];const info=room.info;if(!info)continue;
+if(room.students&&room.students[this.studentName]){
+contests.push({code,title:info.title||'Không tên',status:info.status||'waiting',
+gradeStatus:info.gradeStatus||'pending',published:!!info.published,
+timeLimit:info.timeLimit||0,problemCount:info.problemCount||0,
+createdAt:info.createdAt||0,publishedAt:info.publishedAt||0})}}
+contests.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+this._renderStudentContestHistory(contests)});
+this.fb._listeners.push(()=>roomRef.off());
+}catch(e){console.error('Load contest history:',e);el.innerHTML='<p style="color:var(--text-muted);text-align:center;padding:20px">Lỗi tải lịch sử</p>'}}
+
+_renderStudentContestHistory(contests){
+const el=document.getElementById('stu-contest-history');if(!el)return;
+if(!contests.length){el.innerHTML='<p style="color:var(--text-muted);text-align:center;padding:20px">Chưa tham gia kỳ thi nào</p>';return}
+let h='<div class="room-history-grid">';
+contests.forEach(c=>{
+const d=new Date(c.createdAt);
+const isActive=c.status==='active';
+const isEnded=c.status==='ended';
+let statusBadge,statusColor;
+if(isActive){statusBadge='🟢 Đang thi';statusColor='var(--success)'}
+else if(isEnded&&c.published){statusBadge='📊 Đã có kết quả';statusColor='var(--accent)'}
+else if(isEnded&&c.gradeStatus==='graded'){statusBadge='✅ Đã chấm (chờ công bố)';statusColor='var(--warning,#f59e0b)'}
+else if(isEnded){statusBadge='⏳ Chờ chấm bài';statusColor='var(--text-muted)'}
+else{statusBadge='⏸️ Chờ bắt đầu';statusColor='var(--text-muted)'}
+const canView=isEnded&&c.published;
+h+=`<div class="room-history-card" style="cursor:${canView||isActive?'pointer':'default'};${canView?'border-color:rgba(99,102,241,.3)':''}" ${canView?`onclick="window._uic._viewContestResult('${c.code}')"`:isActive?`onclick="document.getElementById('stu-room-code').value='${c.code}';window._uic._joinRoom()"`:''}>`;
+h+=`<div class="room-history-header"><span class="room-history-code">#${c.code}</span><span style="font-size:.72rem;font-weight:600;color:${statusColor}">${statusBadge}</span></div>`;
+h+=`<div class="room-history-title">${this._esc(c.title)}</div>`;
+h+=`<div class="room-history-meta">`;
+h+=`<span>⏱ ${c.timeLimit} phút</span>`;
+h+=`<span>📝 ${c.problemCount} bài</span>`;
+h+=`<span>📅 ${d.toLocaleDateString('vi')}</span>`;
+h+=`</div>`;
+if(canView)h+=`<div style="margin-top:6px;font-size:.75rem;color:var(--accent)">👉 Nhấn để xem kết quả chi tiết</div>`;
+if(isActive)h+=`<div style="margin-top:6px;font-size:.75rem;color:var(--success)">👉 Nhấn để vào phòng thi</div>`;
+h+=`</div>`});
+h+='</div>';el.innerHTML=h}
+
+async _viewContestResult(code){
+// Navigate to contest ended screen to view results
+try{
+this.roomCode=code;
+const infoSnap=await this.fb.db.ref(`rooms/${code}/info`).once('value');
+const info=infoSnap.val();
+if(!info){this._toast('Không tìm thấy kỳ thi','error');return}
+document.getElementById('stu-dashboard').classList.add('hidden');
+this._showStudentEndedScreen(code,info);
+}catch(e){this._toast('Lỗi: '+e.message,'error')}}
 
 _loadExerciseStatuses(exs){this._renderExerciseList(exs);this._renderStudentRanking();this._renderStudentStats()}
 
@@ -1024,26 +1149,24 @@ consoleOut.innerHTML=`<div style="padding:16px;text-align:center"><div style="fo
 }catch(e){console.error('Load final code failed:',e)}}
 
 // ===== PHASE 2: GV CHẤM BÀI HÀNG LOẠT =====
-async _gradeAllStudents(){if(!this.roomCode){this._toast('Không có phòng thi','error');return}
+async _gradeAllStudents(targetRoomCode){
+const rc=targetRoomCode||this.roomCode||this._viewingRoomCode;
+if(!rc){this._toast('Không có phòng thi','error');return}
 const ok=await this._confirmDialog('🔬 Chấm bài','Hệ thống sẽ chạy code của TẤT CẢ học sinh với test cases. Quá trình này có thể mất vài phút.','Bắt đầu chấm','btn-accent');
 if(!ok)return;
 const gradeBtn=document.getElementById('btn-grade-all');if(gradeBtn)gradeBtn.disabled=true;
 const progressEl=document.getElementById('grade-progress');if(progressEl)progressEl.classList.remove('hidden');
 const statusEl=document.getElementById('grade-status');
 try{
-// 1. Load all problems WITH test cases
-const probSnap=await this.fb.db.ref(`rooms/${this.roomCode}/problems`).once('value');
+const probSnap=await this.fb.db.ref(`rooms/${rc}/problems`).once('value');
 const problems=probSnap.val()||[];const probArr=Array.isArray(problems)?problems:Object.values(problems);
-// 2. Load all student finalCodes
-const stuSnap=await this.fb.db.ref(`rooms/${this.roomCode}/students`).once('value');
+const stuSnap=await this.fb.db.ref(`rooms/${rc}/students`).once('value');
 const students=stuSnap.val()||{};
 const stuNames=Object.keys(students).filter(n=>students[n].finalCode);
 if(!stuNames.length){this._toast('Không có HS nào đã nộp bài','error');if(gradeBtn)gradeBtn.disabled=false;if(progressEl)progressEl.classList.add('hidden');return}
-// 3. Init engine
 await this.pyEngine.init();
 const totalJobs=stuNames.length*probArr.length;let done=0;
 const allResults={};
-// 4. Grade each student × each problem
 for(const name of stuNames){allResults[name]={};
 const codes=students[name].finalCode||{};
 for(let pi=0;pi<probArr.length;pi++){
@@ -1054,21 +1177,26 @@ if(!code){allResults[name][pi]={score:0,details:[],note:'Chưa nộp'};continue}
 try{
 const result=await this.grader.grade(code,p.testCases||[],p.subtasks||[],p.fileIO,p.taskName,p.uppercase,p.timePerTest||5);
 allResults[name][pi]={score:result.score,details:result.details,code};
-// Save to Firebase
-await this.fb.db.ref(`rooms/${this.roomCode}/gradeResults/${name}/${pi}`).set({score:result.score,details:result.details,gradedAt:Date.now()});
+await this.fb.db.ref(`rooms/${rc}/gradeResults/${name}/${pi}`).set({score:result.score,details:result.details,gradedAt:Date.now()});
 }catch(e){allResults[name][pi]={score:0,details:[],error:e.message,code};
-await this.fb.db.ref(`rooms/${this.roomCode}/gradeResults/${name}/${pi}`).set({score:0,details:[],error:e.message,gradedAt:Date.now()});}}}
-// 5. Update room status
-await this.fb.db.ref(`rooms/${this.roomCode}/info/gradeStatus`).set('graded');
+await this.fb.db.ref(`rooms/${rc}/gradeResults/${name}/${pi}`).set({score:0,details:[],error:e.message,gradedAt:Date.now()});}}}
+await this.fb.db.ref(`rooms/${rc}/info/gradeStatus`).set('graded');
 if(progressEl)progressEl.classList.add('hidden');
 if(gradeBtn){gradeBtn.disabled=false;gradeBtn.textContent='✅ Đã chấm xong'}
 this._gradeResults=allResults;this._gradeProblems=probArr;
 this._renderGradeResults(allResults,probArr,stuNames);
 this._toast('🎉 Chấm xong tất cả!','success');
+if(this._viewingRoomCode===rc)setTimeout(()=>this._viewRoomHistory(rc),500);
 }catch(e){if(progressEl)progressEl.classList.add('hidden');if(gradeBtn)gradeBtn.disabled=false;this._toast('Lỗi chấm: '+e.message,'error')}}
 
-_renderGradeResults(results,problems,stuNames){
-const container=document.getElementById('grade-results');if(!container)return;container.classList.remove('hidden');
+// Room-specific grading wrappers
+async _gradeRoomHistory(code){await this._gradeAllStudents(code)}
+async _publishRoomHistory(code){await this._publishResults(code)}
+async _aiAnalyzeRoom(code){const oldRc=this.roomCode;this.roomCode=code;await this._aiAnalyzeAll();this.roomCode=oldRc;if(this._viewingRoomCode===code)setTimeout(()=>this._viewRoomHistory(code),500)}
+
+_renderGradeResults(results,problems,stuNames,containerId){
+const container=document.getElementById(containerId||'grade-results');if(!container)return;container.classList.remove('hidden');
+const rc=this._viewingRoomCode||this.roomCode||'';
 let h='<h3 style="font-size:.95rem;font-weight:700;margin-bottom:12px">📊 Kết Quả Chấm</h3>';
 h+='<table class="lb-table"><thead><tr><th>#</th><th>Họ tên</th>';
 problems.forEach((_,i)=>h+=`<th>Bài ${i+1}</th>`);
@@ -1083,12 +1211,12 @@ h+=`<td class="lb-score">${r.total}</td>`;
 h+=`<td><button class="btn btn-sm btn-ghost" onclick="window._uic._viewStudentSubmissions('${this._esc(r.name)}')">👁️</button></td>`;
 h+='</tr>'});
 h+='</tbody></table>';
-// AI Analysis button
-h+=`<div style="margin-top:12px;display:flex;gap:8px;align-items:center"><button class="btn btn-accent btn-sm" id="btn-publish-results" onclick="window._uic._publishResults()">📢 Công Bố Kết Quả</button><button class="btn btn-ghost btn-sm" id="btn-ai-analyze-all" onclick="window._uic._aiAnalyzeAll()">🤖 AI Phân Tích (tùy chọn)</button></div>`;
 container.innerHTML=h}
 
 // ===== AI ANALYSIS (optional) =====
 async _aiAnalyzeAll(){if(!this._gradeResults||!this._gradeProblems){this._toast('Chấm bài trước','error');return}
+const rc=this._viewingRoomCode||this.roomCode;
+if(!rc){this._toast('Không có phòng thi','error');return}
 const k=document.getElementById('ai-api-key')?.value?.trim()||this.gemini.getApiKey();
 if(!k){this._toast('Nhập Gemini API Key trong tab AI trước','error');return}
 this.gemini.setApiKey(k);
@@ -1106,7 +1234,7 @@ const p=this._gradeProblems[pi];
 const prompt=`Phân tích code Python của học sinh cho bài "${p.title||'?'}".\nĐề bài: ${p.description||'N/A'}\nĐiểm: ${r.score}/100\n\nCode:\n\`\`\`python\n${r.code}\n\`\`\`\n\nHãy:\n1. Nêu lỗi logic chính (nếu có)\n2. Đánh giá phong cách code\n3. Gợi ý cải thiện ngắn gọn\n\nTrả lời bằng tiếng Việt, tối đa 150 từ.`;
 const resp=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${k}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:0.2,maxOutputTokens:300}})});
 const d=await resp.json();const analysis=d.candidates?.[0]?.content?.parts?.[0]?.text||'Không phân tích được';
-await this.fb.db.ref(`rooms/${this.roomCode}/gradeResults/${name}/${pi}/aiAnalysis`).set(analysis);
+await this.fb.db.ref(`rooms/${rc}/gradeResults/${name}/${pi}/aiAnalysis`).set(analysis);
 if(this._gradeResults[name]?.[pi])this._gradeResults[name][pi].aiAnalysis=analysis;
 }catch(e){console.error('AI analyze failed:',name,pi,e)}
 await new Promise(r=>setTimeout(r,500))}}
@@ -1114,11 +1242,11 @@ if(statusEl)statusEl.textContent='✅ AI phân tích xong!';
 this._toast('🤖 AI đã phân tích xong!','success')}
 
 // ===== VIEW STUDENT SUBMISSIONS =====
-async _viewStudentSubmissions(name){if(!this.roomCode)return;
+async _viewStudentSubmissions(name){const rc=this._viewingRoomCode||this.roomCode;if(!rc)return;
 try{
-const snap=await this.fb.db.ref(`rooms/${this.roomCode}/students/${name}`).once('value');
+const snap=await this.fb.db.ref(`rooms/${rc}/students/${name}`).once('value');
 const stu=snap.val();if(!stu)return;
-const gradeSnap=await this.fb.db.ref(`rooms/${this.roomCode}/gradeResults/${name}`).once('value');
+const gradeSnap=await this.fb.db.ref(`rooms/${rc}/gradeResults/${name}`).once('value');
 const grades=gradeSnap.val()||{};
 const probCount=this.publishedCount||this._gradeProblems?.length||1;
 let h=`<div class="modal-overlay" id="modal-student-detail" style="display:flex"><div class="modal-content" style="max-width:800px;max-height:85vh;overflow-y:auto">`;
@@ -1146,19 +1274,21 @@ document.body.insertAdjacentHTML('beforeend',h);
 }catch(e){this._toast('Lỗi: '+e.message,'error')}}
 
 async _saveTeacherNotes(name,probCount){
+const rc=this._viewingRoomCode||this.roomCode;if(!rc)return;
 for(let pi=0;pi<probCount;pi++){
 const el=document.getElementById(`tnote-${name}-${pi}`);
 if(el&&el.value.trim()){
-await this.fb.db.ref(`rooms/${this.roomCode}/teacherNotes/${name}/${pi}`).set(el.value.trim())}}
+await this.fb.db.ref(`rooms/${rc}/teacherNotes/${name}/${pi}`).set(el.value.trim())}}
 this._toast('💾 Đã lưu nhận xét!','success')}
 
 // ===== PHASE 3: PUBLISH RESULTS =====
-async _publishResults(){if(!this.roomCode){this._toast('Không có phòng thi','error');return}
+async _publishResults(targetRoomCode){
+const rc=targetRoomCode||this.roomCode||this._viewingRoomCode;
+if(!rc){this._toast('Không có phòng thi','error');return}
 const ok=await this._confirmDialog('📢 Công Bố Kết Quả','Học sinh sẽ thấy điểm và nhận xét. Hành động này không thể hoàn tác.','Công bố','btn-accent');
 if(!ok)return;
 try{
-// Build leaderboard from grade results
-const gradeSnap=await this.fb.db.ref(`rooms/${this.roomCode}/gradeResults`).once('value');
+const gradeSnap=await this.fb.db.ref(`rooms/${rc}/gradeResults`).once('value');
 const grades=gradeSnap.val()||{};
 const lb={};
 for(const name of Object.keys(grades)){
@@ -1166,16 +1296,13 @@ let total=0;const problems={};
 for(const pi of Object.keys(grades[name])){
 const s=grades[name][pi].score||0;total+=s;problems[pi]=s;}
 lb[name]={name,totalScore:total,problems,lastSubmit:Date.now()}}
-// Set leaderboard
-await this.fb.db.ref(`rooms/${this.roomCode}/leaderboard`).set(lb);
-await this.fb.db.ref(`rooms/${this.roomCode}/info`).update({gradeStatus:'published',published:true,publishedAt:Date.now()});
-// Log to Google Sheet
+await this.fb.db.ref(`rooms/${rc}/leaderboard`).set(lb);
+await this.fb.db.ref(`rooms/${rc}/info`).update({gradeStatus:'published',published:true,publishedAt:Date.now()});
 const names=Object.keys(lb);
 for(const name of names){
-this.drive.logData('ContestResults',[this.roomCode,name,lb[name].totalScore,...Object.values(lb[name].problems),new Date().toISOString()]).catch(()=>{});}
-this._renderLeaderboard(lb,'t-leaderboard-body');
-const pubBtn=document.getElementById('btn-publish-results');if(pubBtn){pubBtn.textContent='✅ Đã công bố';pubBtn.disabled=true}
+this.drive.logData('ContestResults',[rc,name,lb[name].totalScore,...Object.values(lb[name].problems),new Date().toISOString()]).catch(()=>{});}
 this._toast('📢 Đã công bố kết quả!','success');
+if(this._viewingRoomCode===rc)setTimeout(()=>this._viewRoomHistory(rc),500);
 }catch(e){this._toast('Lỗi: '+e.message,'error')}}
 
 // ===== PHASE 5: DELETE ROOM =====

@@ -392,11 +392,16 @@
                 </div>
                 <!-- TAB: Contest join -->
                 <div id="tab-panel-contest" class="oj-tab-panel hidden">
-                    <div class="oj-page-header"><div><h2 class="oj-page-title">Kỳ Thi Trực Tuyến</h2><p class="oj-page-sub">Nhập mã phòng thi từ giáo viên để tham gia</p></div></div>
+                    <div class="oj-page-header"><div><h2 class="oj-page-title">Kỳ Thi Trực Tuyến</h2><p class="oj-page-sub">Tham gia kỳ thi hoặc xem lại kết quả</p></div></div>
                     <div class="oj-join-card">
                         <div class="form-group"><label>Mã phòng thi</label><input type="text" id="stu-room-code" placeholder="Nhập 6 chữ số" maxlength="6" class="oj-room-input"></div>
                         <button class="btn btn-accent" id="btn-join-room" style="width:100%;justify-content:center;padding:14px;font-size:1rem">🚀 Vào Phòng Thi</button>
                         <p id="stu-join-error" style="color:var(--danger);font-size:.85rem;margin-top:8px;text-align:center"></p>
+                    </div>
+                    <!-- CONTEST HISTORY -->
+                    <div style="margin-top:24px">
+                        <div class="oj-page-header"><div><h2 class="oj-page-title">📜 Lịch Sử Kỳ Thi</h2><p class="oj-page-sub">Các kỳ thi bạn đã tham gia</p></div></div>
+                        <div id="stu-contest-history"><p style="color:var(--text-muted);text-align:center;padding:20px">Đang tải...</p></div>
                     </div>
                 </div>
                 <!-- TAB: Lý Thuyết -->
