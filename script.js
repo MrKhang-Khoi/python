@@ -848,7 +848,6 @@ if(!sorted.length){container.innerHTML='<p style="color:var(--text-muted);text-a
 let h='<h3 style="font-size:.92rem;font-weight:700;margin-bottom:12px;color:var(--text-secondary)">📜 Lịch Sử Phòng Thi</h3><div class="room-history-grid">';
 sorted.forEach(r=>{const d=new Date(r.createdAt);const statusCls=r.status==='ended'?'ended':r.status==='active'?'active':'waiting';
 const studentCount=rooms[r.code]&&rooms[r.code].students?Object.keys(rooms[r.code].students).length:0;
-const lb=rooms[r.code]&&rooms[r.code].leaderboard;const lbCount=lb?Object.keys(lb).length:0;
 const gradeStatus=r.gradeStatus||'pending';
 const gradeBadge=gradeStatus==='published'?'<span style="font-size:.68rem;padding:2px 6px;background:rgba(16,185,129,.15);color:#10b981;border-radius:3px;margin-left:6px">📢 Đã công bố</span>':gradeStatus==='graded'?'<span style="font-size:.68rem;padding:2px 6px;background:rgba(245,158,11,.15);color:#f59e0b;border-radius:3px;margin-left:6px">✅ Đã chấm</span>':'';
 h+=`<div class="room-history-card" onclick="window._uic._viewRoomHistory('${r.code}')">`;
@@ -1589,7 +1588,7 @@ con+=`</div>`});con+=`</div>`}
 // 💡 Add smart error hints
 con=this._renderSmartHints(result,con);
 consoleOut.innerHTML=con;this._showStudentResults(result,p);
-const exRef=this._currentExercise;const probIdx=this.currentProbIdx;
+const exRef=this._currentExercise;
 const trimmedResult={score:result.score,details:result.details,code:(result.code||'').substring(0,10000)};
 if(exRef){try{await this.fb.submitExerciseResult(exRef.id,this.studentName,trimmedResult);
 localStorage.removeItem('themis_draft_'+exRef.id);
@@ -1736,7 +1735,6 @@ async _aiAnalyzeRoom(code){const oldRc=this.roomCode;this.roomCode=code;await th
 
 _renderGradeResults(results,problems,stuNames,containerId){
 const container=document.getElementById(containerId||'grade-results');if(!container)return;container.classList.remove('hidden');
-const rc=this._viewingRoomCode||this.roomCode||'';
 const totalMaxScore=problems.reduce((s,p)=>s+(p?.maxScore||100),0);
 let h='<h3 style="font-size:.95rem;font-weight:700;margin-bottom:12px">📊 Kết Quả Chấm <span style="font-weight:400;color:var(--text-muted);font-size:.82rem">(Tổng tối đa: '+totalMaxScore+'đ)</span></h3>';
 h+='<table class="lb-table"><thead><tr><th>#</th><th>Họ tên</th>';
@@ -2057,7 +2055,6 @@ keys.forEach(id=>{
 const n=notifs[id];
 const isRead=!!readNotifs[id];
 if(!isRead)unreadCount++;
-const d=new Date(n.createdAt||0);
 const typeIcons={deadline:'⏰',reminder:'🔔',announcement:'📋'};
 const ago=this._timeAgo(n.createdAt);
 h+=`<div class="notif-item ${isRead?'':'unread'}" onclick="window._uic._markNotifRead('${id}')">
