@@ -1,0 +1,8 @@
+}
+listenStudents(roomCode,cb){const ref=this._ref(`rooms/${roomCode}/students`);ref.on('value',s=>cb(s.val()));this._listeners.push(()=>ref.off())}
+cleanup(){this._listeners.forEach(fn=>fn());this._listeners=[]}
+cleanupExercise(){this._exerciseListeners.forEach(fn=>fn());this._exerciseListeners=[]}
+cleanupStudentDash(){this._studentDashListeners.forEach(fn=>fn());this._studentDashListeners=[]}
+// Account management — stored at ROOT /accounts/ (permanent)
+async createAccount(username,password){const h=await _hashSHA256(password);await this._ref(`accounts/${username}`).set({passwordHash:h,createdAt:Date.now()})}
+async createAccountsBulk(

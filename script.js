@@ -429,24 +429,228 @@ async _deleteExercise(id){const ex=(this._teacherExercises||{})[id];const name=e
 
 // === Exercise view/edit/save modal ===
 _openViewExercise(id){const exs=this._teacherExercises||{};const ex=exs[id];if(!ex)return;
+// Store current exercise for re-grading
+this._viewingExId=id;
 document.getElementById('view-ex-id').value=id;
 document.getElementById('view-ex-title').value=ex.title||'';
 document.getElementById('view-ex-topic').value=ex.topic||'';
+// Set difficulty selector
+this._setViewDifficulty(ex.difficulty||'medium');
 document.getElementById('view-ex-desc').value=ex.description||'';
-document.getElementById('view-ex-tests').value=ex.testCases?ex.testCases.length:0;
-document.getElementById('view-ex-subtasks').value=ex.subtasks?ex.subtasks.length:1;
+// Show test count readonly
+const tcCount=ex.testCases?ex.testCases.length:0;
+const tcEl=document.getElementById('view-ex-tests-count');if(tcEl)tcEl.textContent=tcCount;
+// F1: Render Sample I/O editor
+this._renderViewSampleIO(ex.sampleIO||[]);
+// F2: Render Subtask editor
+this._renderViewSubtasks(ex.subtasks||[{id:1,name:'Subtask 1',percent:100}],tcCount);
+// F_TC: Render Test Cases viewer (read-only)
+this._renderViewTestCases(ex.testCases||[],ex.subtasks||[]);
+// F3: Render students with code viewer
 const res=this._teacherExResults||{};const exRes=res[id]||{};
-const stuEl=document.getElementById('view-ex-students');
-const stuKeys=Object.keys(exRes);
-if(!stuKeys.length){stuEl.innerHTML='<p style="color:var(--text-muted);font-size:.82rem">Chưa có học sinh nào nộp.</p>'}else{
-let sh='';stuKeys.forEach(name=>{const r=exRes[name];const cls=(r.score||0)>=100?'score-perfect':(r.score||0)>=50?'score-pass':'score-fail';sh+=`<div style="display:flex;justify-content:space-between;padding:4px 8px;border-bottom:1px solid var(--border);font-size:.82rem"><span style="font-weight:600">${this._esc(name)}</span><span class="progress-score ${cls}">${r.score||0}</span></div>`});stuEl.innerHTML=sh}
+this._renderViewStudentsWithCode(id,exRes);
+// Attachments
 const attEl=document.getElementById('view-ex-attachments');attEl.innerHTML='';
 if(ex.attachments){ex.attachments.forEach(att=>{attEl.innerHTML+=`<div class="file-chip"><a href="${att.url}" target="_blank">📎 ${this._esc(att.name)}</a></div>`})}
+// Enable save button and bind regrade
+const saveBtn=document.getElementById('btn-save-view-ex');if(saveBtn)saveBtn.disabled=false;
+const regradeBtn=document.getElementById('btn-regrade-exercise');
+if(regradeBtn){const hasStudents=Object.keys(exRes).length>0;regradeBtn.style.display=hasStudents?'':'none';regradeBtn.onclick=()=>this._reGradeExercise(id)}
+// Add sample IO button binding
+const addSampleBtn=document.getElementById('btn-view-add-sample');if(addSampleBtn)addSampleBtn.onclick=()=>this._addViewSampleIO();
+const addStBtn=document.getElementById('btn-view-add-subtask');if(addStBtn)addStBtn.onclick=()=>this._addViewSubtask();
 document.getElementById('modal-view-exercise').classList.remove('hidden')}
 
 async _saveViewExercise(){const id=document.getElementById('view-ex-id').value;if(!id)return;
-const updates={title:document.getElementById('view-ex-title').value.trim(),topic:document.getElementById('view-ex-topic').value.trim()||'Không phân loại',description:document.getElementById('view-ex-desc').value};
-try{await this.fb.updateExercise(id,updates);document.getElementById('modal-view-exercise').classList.add('hidden');this._toast('Đã cập nhật bài tập!','success')}catch(e){this._toast('Lỗi: '+e.message,'error')}}
+const newSubtasks=this._collectViewSubtasks();
+const stTotal=newSubtasks.reduce((s,st)=>s+st.percent,0);
+if(stTotal!==100){this._toast(`Tổng % subtask = ${stTotal}%, cần = 100%`,'error');return}
+const newSampleIO=this._collectViewSampleIO();
+const updates={title:document.getElementById('view-ex-title').value.trim(),topic:document.getElementById('view-ex-topic').value.trim()||'Không phân loại',description:document.getElementById('view-ex-desc').value,difficulty:document.getElementById('view-ex-difficulty')?.value||'medium',subtasks:newSubtasks,sampleIO:newSampleIO.length?newSampleIO:null};
+try{
+await this.fb.updateExercise(id,updates);
+this._toast('Đã cập nhật bài tập!','success');
+// Ask if re-grade needed after subtask change
+const res=this._teacherExResults||{};const stuKeys=Object.keys(res[id]||{});
+if(stuKeys.length>0){
+const ok=await this._confirmDialog('🔄 Chấm lại?',`Subtasks đã thay đổi. Chấm lại <strong>${stuKeys.length} học sinh</strong> bằng code đã nộp?`,'Chấm lại','btn-accent');
+if(ok){document.getElementById('modal-view-exercise').classList.add('hidden');await this._reGradeExercise(id);return}}
+this._tcViewOpen=false;
+const tcList=document.getElementById('view-ex-tc-list');if(tcList)tcList.style.display='none';
+document.getElementById('modal-view-exercise').classList.add('hidden')
+}catch(e){this._toast('Lỗi: '+e.message,'error')}}
+
+// === View Exercise Modal Helpers ===
+
+// F1: Render editable Sample I/O
+_sampleIOViewCounter=0;
+_renderViewSampleIO(samples){
+this._sampleIOViewCounter=0;
+const el=document.getElementById('view-ex-sample-io-list');el.innerHTML='';
+if(!samples||!samples.length){el.innerHTML='<p style="color:var(--text-muted);font-size:.78rem;text-align:center;padding:10px">Chưa có ví dụ. Nhấn "+ Thêm ví dụ".</p>';return}
+samples.forEach((s,i)=>this._addViewSampleIO(s.input||'',s.output||'',s.explanation||''))}
+
+_addViewSampleIO(inputVal='',outputVal='',explainVal=''){
+this._sampleIOViewCounter++;
+const idx=this._sampleIOViewCounter;
+const list=document.getElementById('view-ex-sample-io-list');
+// Remove placeholder if exists
+const ph=list.querySelector('p');if(ph)ph.remove();
+const card=document.createElement('div');card.className='view-sample-io-card';card.dataset.sampleIdx=idx;
+card.innerHTML=`<div class="view-sample-io-card-header"><span>Ví dụ ${idx}</span><button class="btn-danger-sm btn-rm-view-sample" title="Xóa">✕</button></div><div class="view-sample-io-grid"><div><label>INPUT</label><textarea class="view-sample-input" rows="3" placeholder="3">${this._esc(inputVal)}</textarea></div><div><label>OUTPUT</label><textarea class="view-sample-output" rows="3" placeholder="1\n2\n3">${this._esc(outputVal)}</textarea></div></div><div class="view-sample-io-explain"><label style="font-size:.7rem;font-weight:600;color:var(--text-muted);letter-spacing:.04em">💡 GIẢI THÍCH (tùy chọn)</label><input type="text" class="view-sample-explain" placeholder="Giải thích ngắn..." value="${this._esc(explainVal)}"></div>`;
+card.querySelector('.btn-rm-view-sample').onclick=()=>card.remove();
+list.appendChild(card)}
+
+_collectViewSampleIO(){const cards=document.querySelectorAll('#view-ex-sample-io-list .view-sample-io-card');return[...cards].map(c=>({input:c.querySelector('.view-sample-input').value,output:c.querySelector('.view-sample-output').value,explanation:c.querySelector('.view-sample-explain').value})).filter(s=>s.input.trim()||s.output.trim())}
+
+// F_TC: Render Test Cases viewer
+_renderViewTestCases(testCases,subtasks){
+// Update count badge
+const countEl=document.getElementById('view-ex-tc-count');if(countEl)countEl.textContent=testCases.length;
+const list=document.getElementById('view-ex-tc-list');if(!list)return;
+if(!testCases.length){list.innerHTML='<p style="color:var(--text-muted);font-size:.78rem;text-align:center;padding:12px">Bài này chưa có test cases.</p>';return}
+// Group by subtaskId
+const groups={};
+const stMap={};
+subtasks.forEach(st=>{stMap[st.id]=st.name});
+testCases.forEach((tc,i)=>{
+const sid=tc.subtaskId!==undefined?tc.subtaskId:1;
+if(!groups[sid])groups[sid]=[];
+groups[sid].push({...tc,_globalIdx:i+1})});
+let h='';
+Object.keys(groups).sort((a,b)=>a-b).forEach(sid=>{
+const tests=groups[sid];
+const stName=stMap[sid]||('Subtask '+sid);
+h+=`<div class="view-tc-group">
+<div class="view-tc-group-header" onclick="this.nextElementSibling.classList.toggle('open')">
+<span>${stName}</span><span class="view-tc-group-badge">${tests.length} test</span>
+<span style="font-size:.65rem;color:var(--text-muted);margin-left:auto">▼</span>
+</div>
+<div class="view-tc-cards">
+${tests.map(tc=>`<div class="view-tc-card">
+<div class="view-tc-card-header">
+<span class="tc-num">Test #${tc._globalIdx}</span>
+<span class="view-tc-verdict pending">—</span>
+</div>
+<div class="view-tc-io">
+<div class="view-tc-io-pane"><div class="view-tc-io-label">INPUT</div><pre>${this._esc(tc.input||'(trống)')}</pre></div>
+<div class="view-tc-io-pane"><div class="view-tc-io-label">OUTPUT (đáp án)</div><pre>${this._esc(tc.output||'(trống)')}</pre></div>
+</div>
+</div>`).join('')}
+</div></div>`});
+list.innerHTML=h}
+
+_tcViewOpen=false;
+_toggleViewTestCases(){
+const list=document.getElementById('view-ex-tc-list');
+const btn=document.getElementById('btn-toggle-tc-view');
+if(!list)return;
+this._tcViewOpen=!this._tcViewOpen;
+list.style.display=this._tcViewOpen?'block':'none';
+if(btn)btn.textContent=this._tcViewOpen?'▲ Ẩn bớt':'▼ Xem tất cả';
+// Auto-open first subtask group when expanding
+if(this._tcViewOpen){const first=list.querySelector('.view-tc-cards');if(first&&!first.classList.contains('open'))first.classList.add('open')}}
+
+// F2: Render editable Subtasks
+_viewStCounter=0;
+_renderViewSubtasks(subtasks,totalTests){
+this._viewStCounter=0;
+const el=document.getElementById('view-ex-subtasks-list');el.innerHTML='';
+// Distribute tests among subtasks for display
+const total=totalTests||0;
+subtasks.forEach((st,i)=>{
+const testCount=Math.round(total*(st.percent||0)/100);
+this._addViewSubtask(st.id||i+1,st.name||('Subtask '+(i+1)),st.percent||0,testCount)});
+this._updateViewStTotal()}
+
+_addViewSubtask(id,name,pct,testCount){
+this._viewStCounter++;
+const counter=this._viewStCounter;
+const el=document.getElementById('view-ex-subtasks-list');
+const row=document.createElement('div');row.className='view-st-row';row.dataset.stId=id||counter;
+row.innerHTML=`<span style="font-size:.72rem;color:var(--text-muted);min-width:28px">ST${id||counter}</span><input type="text" class="view-st-name" value="${this._esc(name||('Subtask '+counter))}" placeholder="Tên subtask"><input type="number" class="view-st-pct" value="${pct||0}" min="0" max="100" step="5"><span style="font-size:.72rem;color:var(--text-muted)">%</span><span class="view-st-count">${testCount||0} test</span><button class="btn-danger-sm btn-rm-view-st" title="Xóa">✕</button>`;
+row.querySelector('.view-st-pct').oninput=()=>this._updateViewStTotal();
+row.querySelector('.btn-rm-view-st').onclick=()=>{if(document.querySelectorAll('#view-ex-subtasks-list .view-st-row').length<=1){this._toast('Cần ít nhất 1 subtask','error');return}row.remove();this._updateViewStTotal()};
+el.appendChild(row)}
+
+_updateViewStTotal(){
+const rows=document.querySelectorAll('#view-ex-subtasks-list .view-st-row');
+let sum=0;rows.forEach(r=>sum+=parseInt(r.querySelector('.view-st-pct').value)||0);
+const badge=document.getElementById('view-ex-st-total');
+if(badge){badge.textContent='Tổng: '+sum+'%';badge.className='view-ex-st-badge '+(sum===100?'ok':'error')}
+const saveBtn=document.getElementById('btn-save-view-ex');if(saveBtn)saveBtn.disabled=(sum!==100)}
+
+_collectViewSubtasks(){const rows=document.querySelectorAll('#view-ex-subtasks-list .view-st-row');return[...rows].map((r,i)=>({id:parseInt(r.dataset.stId)||i+1,name:r.querySelector('.view-st-name').value.trim()||('Subtask '+(i+1)),percent:parseInt(r.querySelector('.view-st-pct').value)||0}))}
+
+// F3: Render students with code expander
+_renderViewStudentsWithCode(exId,exRes){
+const el=document.getElementById('view-ex-students');
+const stuKeys=Object.keys(exRes);
+if(!stuKeys.length){el.innerHTML='<p style="color:var(--text-muted);font-size:.82rem;text-align:center;padding:12px">Chưa có học sinh nào nộp.</p>';return}
+let h='';
+stuKeys.forEach(name=>{
+const r=exRes[name];const score=r.score||0;
+const cls=score>=100?'score-perfect':score>=50?'score-pass':'score-fail';
+const sub=r.submittedAt?new Date(r.submittedAt).toLocaleString('vi',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
+h+=`<div class="view-stu-row" id="view-stu-${this._esc(name).replace(/[^a-z0-9]/gi,'_')}">
+<div class="view-stu-row-header">
+<span style="font-weight:600;font-size:.83rem">${this._esc(name)}</span>
+<div style="display:flex;align-items:center;gap:8px">
+${sub?'<span style="font-size:.7rem;color:var(--text-muted)">'+sub+'</span>':''}
+<span class="progress-score ${cls}">${score}</span>
+<button class="btn btn-sm btn-ghost btn-view-stu-code" data-name="${this._esc(name)}" style="font-size:.72rem;padding:3px 8px">👁 Code</button>
+</div></div>
+<div class="view-stu-code-panel" id="view-code-${this._esc(name).replace(/[^a-z0-9]/gi,'_')}">
+<div class="stu-code-toolbar"><span>📄 Code đã nộp</span><button class="btn btn-sm btn-ghost btn-copy-stu-code" data-name="${name}" style="font-size:.68rem">📋 Copy</button></div>
+<pre>${this._esc(r.code||'(Chưa có code)')}</pre>
+</div>
+</div>`});
+el.innerHTML=h;
+// Bind toggle buttons
+el.querySelectorAll('.btn-view-stu-code').forEach(btn=>{
+const name=btn.dataset.name;
+const panelId='view-code-'+name.replace(/[^a-z0-9]/gi,'_');
+btn.onclick=()=>{const panel=document.getElementById(panelId);if(!panel)return;const isOpen=panel.classList.contains('open');panel.classList.toggle('open',!isOpen);btn.textContent=isOpen?'👁 Code':'🔼 Ẩn'}});
+// Bind copy buttons
+el.querySelectorAll('.btn-copy-stu-code').forEach(btn=>{
+btn.onclick=()=>{const r=exRes[btn.dataset.name];if(r&&r.code)this._copyText(r.code)}})}
+
+// F2+: Re-grade exercise for all students
+async _reGradeExercise(exId){
+const ok=await this._confirmDialog('🔄 Chấm lại bài tập','Hệ thống sẽ chấm lại tất cả học sinh đã nộp với subtasks mới. Kết quả cũ sẽ bị ghi đè.','Bắt đầu chấm','btn-accent');
+if(!ok)return;
+try{
+// Load exercise data (has testCases + new subtasks)
+const snap=await this.fb.db.ref(`exercises/${exId}`).once('value');
+const ex=snap.val();if(!ex){this._toast('Không tìm thấy bài tập','error');return}
+if(!ex.testCases||!ex.testCases.length){this._toast('Bài tập không có test cases','error');return}
+// Load all student results for this exercise
+const resSnap=await this.fb.db.ref(`exerciseResults/${exId}`).once('value');
+const allRes=resSnap.val()||{};
+const names=Object.keys(allRes).filter(n=>allRes[n]&&allRes[n].code);
+if(!names.length){this._toast('Không có học sinh nào đã nộp code','error');return}
+await this.pyEngine.init();
+let done=0;
+for(const name of names){
+done++;
+this._toast(`⚡ Chấm lại: ${name} (${done}/${names.length})`,'info');
+const code=allRes[name].code;
+try{
+const result=await this.grader.grade(code,ex.testCases,ex.subtasks||[],ex.fileIO,ex.taskName||'BAITAP',ex.uppercase||false,ex.timePerTest||5);
+const trimmed={score:result.score,details:result.details,code:code.substring(0,10000),submittedAt:allRes[name].submittedAt||Date.now(),regraded:true,regradedAt:Date.now()};
+await this.fb.db.ref(`exerciseResults/${exId}/${name}`).set(trimmed);
+}catch(e){console.error('Re-grade error for',name,e)}}
+this._toast(`✅ Chấm lại xong ${names.length} học sinh!`,'success');
+}catch(e){this._toast('Lỗi chấm lại: '+e.message,'error')}}
+
+// === Difficulty helpers ===
+_setDifficulty(val){
+document.querySelectorAll('#ex-difficulty-group .diff-select-btn').forEach(b=>b.classList.toggle('active',b.dataset.val===val));
+const inp=document.getElementById('ex-difficulty');if(inp)inp.value=val}
+
+_setViewDifficulty(val){
+document.querySelectorAll('#view-ex-difficulty-group .diff-select-btn').forEach(b=>b.classList.toggle('active',b.dataset.val===val));
+const inp=document.getElementById('view-ex-difficulty');if(inp)inp.value=val}
 
 // === File handling ===
 _handleFileSelect(files){this._pendingFiles=[];for(const f of files){if(f.size>5*1024*1024){this._toast(`${f.name} quá 5MB`,'error');continue}if(this._pendingFiles.length>=3)break;this._pendingFiles.push(f)}this._renderPendingFiles()}
@@ -684,8 +888,23 @@ ph+=`<div class="room-prob-card" style="padding:10px 12px;background:rgba(255,25
 <div style="font-weight:600;margin-bottom:4px;color:var(--text-primary)">${this._esc(p?.title||'Bài '+(i+1))}</div>
 <div style="white-space:pre-wrap;line-height:1.6">${this._esc(p?.description||'Không có mô tả')}</div>
 ${p?.sampleIO&&p.sampleIO.length?p.sampleIO.map((s,si)=>`<div class="sample-io-display" style="margin-top:8px"><div class="sample-io-display-header">Ví dụ ${si+1}</div><div class="sample-io-display-grid"><div class="sample-box"><div class="sample-box-title">INPUT</div><pre>${this._esc(s.input||'')}</pre></div><div class="sample-box"><div class="sample-box-title">OUTPUT</div><pre>${this._esc(s.output||'')}</pre></div></div></div>`).join(''):''}
+<div class="contest-prob-st-editor" id="contest-st-editor-${i}" style="display:none">
+<label>⚙️ Subtasks (Tổng phải = 100%)</label>
+<div id="contest-st-list-${i}"></div>
+<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
+<span id="contest-st-total-${i}" style="font-size:.75rem;font-weight:700;color:#f87171">Tổng: 0%</span>
+<div style="display:flex;gap:6px">
+<button class="btn btn-ghost btn-sm" onclick="window._uic._addContestSubtask(${i})" style="font-size:.72rem">＋ Subtask</button>
+<button class="btn btn-accent btn-sm" onclick="window._uic._saveContestSubtasks('${code}',${i})" style="font-size:.72rem">💾 Lưu & Chấm lại</button>
+</div></div></div>
+<div style="margin-top:8px;display:flex;justify-content:flex-end">
+<button class="btn btn-ghost btn-sm" style="font-size:.72rem" onclick="event.stopPropagation();window._uic._toggleContestStEditor(${i},${JSON.stringify(p?.subtasks||[]).replace(/"/g,'&quot;')},''+code)">⚙️ Sửa Subtask</button>
+</div>
 </div></div>`});
-listEl.innerHTML=ph;document.getElementById('t-contest-problems').classList.remove('hidden');
+listEl.innerHTML=ph;
+// Bind subtask editors after DOM is set
+probArr.forEach((p,i)=>this._initContestStEditor(i,p?.subtasks||[],(p?.testCases||[]).length));
+document.getElementById('t-contest-problems').classList.remove('hidden');
 
 // Compute totalMaxScore
 const totalMaxScore=probArr.reduce((s,p)=>s+(p?.maxScore||Math.floor(100/probArr.length)),0);
@@ -764,7 +983,8 @@ _closeRoomHistory(){this._viewingRoomCode=null;document.getElementById('t-contes
 
 _showExerciseModal(){if(!this.themis.testCases.length){this._toast('Sinh test trước','error');return}const cfg=this.collectFormData();const desc=document.getElementById('problem-description').value||document.getElementById('ai-prompt').value||'Không có mô tả';const displayTitle=document.getElementById('problem-title').value.trim()||cfg.taskName;const topic=document.getElementById('problem-topic').value.trim()||'Không phân loại';document.getElementById('ex-title-input').value=displayTitle;document.getElementById('ex-desc-input').value=desc;document.getElementById('ex-test-count').textContent=this.themis.testCases.length;document.getElementById('ex-subtask-count').textContent=cfg.subtasks?cfg.subtasks.length:1;document.getElementById('ex-topic').value=topic;document.getElementById('modal-publish-exercise').classList.remove('hidden')}
 
-async _confirmPublishExercise(){const topic=document.getElementById('ex-topic').value.trim()||document.getElementById('problem-topic').value.trim()||'Không phân loại';const cfg=this.collectFormData();const desc=document.getElementById('ex-desc-input').value;const displayTitle=document.getElementById('ex-title-input').value.trim()||cfg.taskName;const sampleIO=this._getSampleIOs();const data={title:displayTitle,description:desc,topic:topic,fileIO:cfg.fileIO,uppercase:cfg.uppercase,taskName:cfg.taskName,timePerTest:5,subtasks:cfg.subtasks,sampleIO:sampleIO.length?sampleIO:null,testCases:this.themis.testCases.map(tc=>({input:tc.input,output:tc.output,subtaskId:tc.subtaskId}))};document.getElementById('modal-publish-exercise').classList.add('hidden');try{const exId=await this.fb.publishExercise(data);this.drive.logData('Exercises',[exId,displayTitle,topic,desc.substring(0,200),this.themis.testCases.length,cfg.subtasks?.length||1,new Date().toISOString(),cfg.fileIO?'Yes':'No',cfg.taskName]).catch(()=>{});this._toast(`📚 Đã đăng bài tập: ${displayTitle} (${topic})`,'success')}catch(e){this._toast('Lỗi: '+e.message,'error')}}
+async _confirmPublishExercise(){const topic=document.getElementById('ex-topic').value.trim()||document.getElementById('problem-topic').value.trim()||'Không phân loại';const cfg=this.collectFormData();const desc=document.getElementById('ex-desc-input').value;const displayTitle=document.getElementById('ex-title-input').value.trim()||cfg.taskName;const sampleIO=this._getSampleIOs();const difficulty=document.getElementById('ex-difficulty')?.value||'medium';
+const data={title:displayTitle,description:desc,topic,difficulty,fileIO:cfg.fileIO,uppercase:cfg.uppercase,taskName:cfg.taskName,timePerTest:5,subtasks:cfg.subtasks,sampleIO:sampleIO.length?sampleIO:null,testCases:this.themis.testCases.map(tc=>({input:tc.input,output:tc.output,subtaskId:tc.subtaskId}))};document.getElementById('modal-publish-exercise').classList.add('hidden');try{const exId=await this.fb.publishExercise(data);this.drive.logData('Exercises',[exId,displayTitle,topic,desc.substring(0,200),this.themis.testCases.length,cfg.subtasks?.length||1,new Date().toISOString(),cfg.fileIO?'Yes':'No',cfg.taskName]).catch(()=>{});this._toast(`📚 Đã đăng bài tập: ${displayTitle} (${topic})`,'success')}catch(e){this._toast('Lỗi: '+e.message,'error')}}
 
 async _exportCSV(){if(!this.roomCode)return;const csv=await this.fb.exportCSV(this.roomCode);if(!csv){this._toast('Chưa có dữ liệu','error');return}const b=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download=`BangDiem_${this.roomCode}.csv`;document.body.appendChild(a);a.click();document.body.removeChild(a);this._toast('Đã xuất CSV!','success')}
 
@@ -1182,14 +1402,22 @@ if(lbBody)lbBody.innerHTML='<div style="text-align:center;padding:32px;color:var
 this._contestSubmissions={};this._contestRoomInfo=info;
 // 🔒 ANTI-CHEAT: Enable for contest mode only
 this._startAntiCheat();
-// 💾 AUTO-SAVE: Save code to Firebase every 30s during contest
+// 💾 AUTO-SAVE: Save ALL problems' code to Firebase every 30s during contest
+// BUG-M04 FIX: Sync ALL cached drafts, not just the currently-visible problem
 if(this._contestAutoSave)clearInterval(this._contestAutoSave);
 this._contestAutoSave=setInterval(()=>{if(this.cmStudent&&this.roomCode&&this.studentName){
-const code=this.cmStudent.getValue();
-if(code.trim()&&code.trim()!=='# Viết code tại đây'){
-this.fb.db.ref(`rooms/${this.roomCode}/students/${this.studentName}/draftCode/${this.currentProbIdx}`).set(code.substring(0,15000)).catch(()=>{});
+// Sync current editor content into draft cache before flushing
+const curCode=this.cmStudent.getValue();
+if(curCode.trim()&&curCode.trim()!=='# Viết code tại đây'){
+  if(!this._contestDrafts)this._contestDrafts={};
+  this._contestDrafts[this.currentProbIdx]=curCode.substring(0,15000)}
+// Flush all cached drafts to Firebase
+const drafts=this._contestDrafts||{};
+Object.keys(drafts).forEach(pi=>{const draft=drafts[pi];
+  if(draft&&draft.trim()&&draft.trim()!=='# Viết code tại đây'){
+    this.fb.db.ref(`rooms/${this.roomCode}/students/${this.studentName}/draftCode/${pi}`).set(draft).catch(()=>{})}});
 const indicator=document.getElementById('auto-save-indicator');
-if(indicator){indicator.textContent='💾 Đã lưu '+new Date().toLocaleTimeString('vi',{hour:'2-digit',minute:'2-digit'});indicator.classList.add('saved');setTimeout(()=>indicator.classList.remove('saved'),2000)}}}},30000)}
+if(indicator){indicator.textContent='💾 Đã lưu '+new Date().toLocaleTimeString('vi',{hour:'2-digit',minute:'2-digit'});indicator.classList.add('saved');setTimeout(()=>indicator.classList.remove('saved'),2000)}}},30000)}
 
 _initStudentEditor(){if(!this.cmStudent){const cfg={mode:'python',lineNumbers:true,indentUnit:4,tabSize:4,matchBrackets:true,autoCloseBrackets:true,styleActiveLine:true,extraKeys:{'Tab':cm=>cm.execCommand('indentMore'),'Shift-Tab':cm=>cm.execCommand('indentLess')}};this.cmStudent=CodeMirror(document.getElementById('stu-editor-wrap'),{...cfg,value:'# Viết code tại đây\n'})}else{this.cmStudent.setValue('# Viết code tại đây\n')}setTimeout(()=>this.cmStudent.refresh(),100);
 // F04: Auto-save code to localStorage every 30s (exercises only)
@@ -1424,6 +1652,64 @@ this._renderGradeResults(allResults,probArr,stuNames);
 this._toast('🎉 Chấm xong tất cả!','success');
 if(this._viewingRoomCode===rc)setTimeout(()=>this._viewRoomHistory(rc),500);
 }catch(e){if(progressEl)progressEl.classList.add('hidden');if(gradeBtn)gradeBtn.disabled=false;this._toast('Lỗi chấm: '+e.message,'error')}}
+
+// === Contest Problem Subtask Editing ===
+
+_contestStCounters={};
+
+_initContestStEditor(pi, subtasks, totalTests){
+// Populate the hidden subtask editor for problem pi
+this._contestStCounters[pi]=0;
+const list=document.getElementById(`contest-st-list-${pi}`);if(!list)return;
+list.innerHTML='';
+(subtasks.length?subtasks:[{id:1,name:'Subtask 1',percent:100}]).forEach(st=>{
+const testCount=Math.round(totalTests*(st.percent||0)/100);
+this._addContestSubtaskRow(pi,st.id||1,st.name,st.percent||0,testCount)});
+this._updateContestStTotal(pi)}
+
+_toggleContestStEditor(pi, subtasksJson, roomCode){
+const ed=document.getElementById(`contest-st-editor-${pi}`);if(!ed)return;
+const isHidden=ed.style.display==='none'||!ed.style.display;
+ed.style.display=isHidden?'block':'none'}
+
+_addContestSubtask(pi){
+if(!this._contestStCounters)this._contestStCounters={};
+this._addContestSubtaskRow(pi,Date.now(),'Subtask mới',0,0);
+this._updateContestStTotal(pi)}
+
+_addContestSubtaskRow(pi,id,name,pct,testCount){
+if(!this._contestStCounters)this._contestStCounters={};
+this._contestStCounters[pi]=(this._contestStCounters[pi]||0)+1;
+const cnt=this._contestStCounters[pi];
+const list=document.getElementById(`contest-st-list-${pi}`);if(!list)return;
+const row=document.createElement('div');row.className='view-st-row';row.dataset.stId=id;
+row.innerHTML=`<span style="font-size:.7rem;color:var(--text-muted);min-width:28px">ST${cnt}</span><input type="text" class="view-st-name" value="${this._esc(name||('Subtask '+cnt))}"><input type="number" class="view-st-pct" value="${pct||0}" min="0" max="100" step="5"><span style="font-size:.72rem;color:var(--text-muted)">%</span><span class="view-st-count" style="min-width:44px">${testCount} test</span><button class="btn-danger-sm" title="Xóa">✕</button>`;
+row.querySelector('.view-st-pct').oninput=()=>this._updateContestStTotal(pi);
+row.querySelector('.btn-danger-sm').onclick=()=>{if(list.querySelectorAll('.view-st-row').length<=1){this._toast('Cần ít nhất 1 subtask','error');return}row.remove();this._updateContestStTotal(pi)};
+list.appendChild(row)}
+
+_updateContestStTotal(pi){
+const rows=document.querySelectorAll(`#contest-st-list-${pi} .view-st-row`);
+let sum=0;rows.forEach(r=>sum+=parseInt(r.querySelector('.view-st-pct').value)||0);
+const badge=document.getElementById(`contest-st-total-${pi}`);
+if(badge){badge.textContent='Tổng: '+sum+'%';badge.style.color=sum===100?'#10b981':'#f87171'}}
+
+async _saveContestSubtasks(roomCode, pi){
+const rows=document.querySelectorAll(`#contest-st-list-${pi} .view-st-row`);
+const newSt=[...rows].map((r,i)=>({id:parseInt(r.dataset.stId)||i+1,name:r.querySelector('.view-st-name').value.trim()||('Subtask '+(i+1)),percent:parseInt(r.querySelector('.view-st-pct').value)||0}));
+const total=newSt.reduce((s,st)=>s+st.percent,0);
+if(total!==100){this._toast('Tổng % subtask phải = 100%','error');return}
+const ok=await this._confirmDialog('💾 Lưu & Chấm lại',`Sửa subtask bài ${pi+1} và chấm lại TẤT CẢ học sinh?`,'Lưu & Chấm lại','btn-accent');
+if(!ok)return;
+try{
+// Save new subtasks to room problems
+await this.fb.db.ref(`rooms/${roomCode}/problems/${pi}/subtasks`).set(newSt);
+this._toast('✅ Đã lưu subtask. Bắt đầu chấm lại...','success');
+// Hide editor
+const ed=document.getElementById(`contest-st-editor-${pi}`);if(ed)ed.style.display='none';
+// Re-grade all students (uses updated subtasks from Firebase)
+await this._gradeAllStudents(roomCode);
+}catch(e){this._toast('Lỗi: '+e.message,'error')}}
 
 // Room-specific grading wrappers
 async _gradeRoomHistory(code){await this._gradeAllStudents(code)}
@@ -1698,9 +1984,9 @@ h+=`<div class="notif-sent-card">
 <div class="notif-sent-header">
 <div class="notif-sent-title">${this._esc(n.title)}</div>
 <div class="notif-sent-actions">
-<button class="btn btn-ghost btn-sm" onclick="window._uic._editNotification('${id}',${JSON.stringify(n).replace(/'/g,"\\'")})">✏️</button>
-<button class="btn btn-ghost btn-sm" onclick="window._uic._resendNotification('${id}')">🔄</button>
-<button class="btn-danger-sm" onclick="window._uic._deleteNotification('${id}')">✕</button>
+<button class="btn btn-ghost btn-sm" data-action="edit" data-id="${id}">✏️</button>
+<button class="btn btn-ghost btn-sm" data-action="resend" data-id="${id}">🔄</button>
+<button class="btn-danger-sm" data-action="delete" data-id="${id}">✕</button>
 </div></div>
 <div class="notif-sent-body">${this._esc(n.message)}</div>
 <div class="notif-sent-meta">
@@ -1708,7 +1994,16 @@ h+=`<div class="notif-sent-card">
 <span>📨 ${recipientText}</span>
 <span>📅 ${d.toLocaleString('vi')}</span>
 </div></div>`});
-el.innerHTML=h}
+this._notifDataCache=notifs;
+el.innerHTML=h;
+// BUG-M02 FIX: Safe event delegation — no inline onclick with user-controlled data
+el.querySelectorAll('[data-action]').forEach(btn=>{
+  const action=btn.dataset.action;const nid=btn.dataset.id;if(!nid)return;
+  btn.onclick=()=>{
+    if(action==='edit'){const nd=this._notifDataCache&&this._notifDataCache[nid];if(nd)this._editNotification(nid,nd)}
+    else if(action==='resend')this._resendNotification(nid);
+    else if(action==='delete')this._deleteNotification(nid)}})}
+
 
 _initTeacherNotifListener(){
 const ref=this.fb.db.ref('notifications');

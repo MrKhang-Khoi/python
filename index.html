@@ -602,6 +602,14 @@
         <div class="modal-content">
             <h3>📚 Đăng Bài Tập Luyện</h3>
             <div class="form-group"><label>Chủ đề</label><input type="text" id="ex-topic" placeholder="VD: Số nguyên tố, Mảng, Đệ quy..."></div>
+            <div class="form-group"><label>⚡ Độ khó</label>
+            <div class="diff-selector" id="ex-difficulty-group">
+                <button type="button" class="diff-select-btn" data-val="easy" onclick="window._uic._setDifficulty('easy')">🟢 Dễ</button>
+                <button type="button" class="diff-select-btn active" data-val="medium" onclick="window._uic._setDifficulty('medium')">🟡 Trung bình</button>
+                <button type="button" class="diff-select-btn" data-val="hard" onclick="window._uic._setDifficulty('hard')">🔴 Khó</button>
+            </div>
+            <input type="hidden" id="ex-difficulty" value="medium">
+            </div>
             <div class="form-group"><label>Tên bài</label><input type="text" id="ex-title-input" placeholder="" readonly></div>
             <div class="form-group"><label>Mô tả</label><textarea id="ex-desc-input" rows="3" class="ai-textarea" readonly></textarea></div>
             <!-- File Attachment -->
@@ -623,16 +631,52 @@
     </div>
     <!-- Modal: Xem/Sửa Bài Tập -->
     <div id="modal-view-exercise" class="modal-overlay hidden">
-        <div class="modal-content" style="max-width:700px">
+        <div class="modal-content" style="max-width:760px;max-height:90vh;overflow-y:auto">
             <h3 id="modal-ex-view-title">📚 Chi tiết bài tập</h3>
             <input type="hidden" id="view-ex-id">
             <div class="form-group"><label>Tên bài</label><input type="text" id="view-ex-title"></div>
             <div class="form-group"><label>Chủ đề</label><input type="text" id="view-ex-topic"></div>
-            <div class="form-group"><label>Mô tả đề bài</label><textarea id="view-ex-desc" rows="4" class="ai-textarea"></textarea></div>
-            <div style="display:flex;gap:16px;margin-bottom:12px">
-                <div class="form-group" style="flex:1;margin-bottom:0"><label>Số test</label><input type="text" id="view-ex-tests" readonly style="opacity:.6"></div>
-                <div class="form-group" style="flex:1;margin-bottom:0"><label>Subtasks</label><input type="text" id="view-ex-subtasks" readonly style="opacity:.6"></div>
+            <div class="form-group"><label>⚡ Độ khó</label>
+            <div class="diff-selector" id="view-ex-difficulty-group">
+                <button type="button" class="diff-select-btn" data-val="easy" onclick="window._uic._setViewDifficulty('easy')">🟢 Dễ</button>
+                <button type="button" class="diff-select-btn" data-val="medium" onclick="window._uic._setViewDifficulty('medium')">🟡 Trung bình</button>
+                <button type="button" class="diff-select-btn" data-val="hard" onclick="window._uic._setViewDifficulty('hard')">🔴 Khó</button>
             </div>
+            <input type="hidden" id="view-ex-difficulty" value="medium">
+            </div>
+            <div class="form-group"><label>Mô tả đề bài</label><textarea id="view-ex-desc" rows="4" class="ai-textarea"></textarea></div>
+
+            <!-- F1: Sample I/O Editor -->
+            <div class="form-group view-ex-section">
+                <div class="view-ex-section-header">
+                    <label>📝 Ví dụ Input/Output</label>
+                    <button class="btn btn-ghost btn-sm" id="btn-view-add-sample">＋ Thêm ví dụ</button>
+                </div>
+                <div id="view-ex-sample-io-list"></div>
+            </div>
+
+            <!-- F2: Subtask Editor -->
+            <div class="form-group view-ex-section">
+                <div class="view-ex-section-header">
+                    <label>⚙️ Subtasks</label>
+                    <div style="display:flex;align-items:center;gap:8px">
+                        <span id="view-ex-st-total" class="view-ex-st-badge error">Tổng: 0%</span>
+                        <span style="color:var(--text-muted);font-size:.75rem"><strong id="view-ex-tests-count">0</strong> test</span>
+                        <button class="btn btn-ghost btn-sm" id="btn-view-add-subtask">＋ Thêm subtask</button>
+                    </div>
+                </div>
+                <div id="view-ex-subtasks-list"></div>
+            </div>
+
+            <!-- F_TC: Test Cases viewer -->
+            <div class="form-group view-ex-section" id="view-ex-tc-section">
+                <div class="view-ex-section-header">
+                    <label>🧪 Test Cases (<span id="view-ex-tc-count">0</span> test)</label>
+                    <button class="btn btn-ghost btn-sm" id="btn-toggle-tc-view" onclick="window._uic._toggleViewTestCases()">▼ Xem tất cả</button>
+                </div>
+                <div id="view-ex-tc-list" style="display:none"></div>
+            </div>
+
             <!-- Attachments in view modal -->
             <div class="form-group">
                 <label>📎 File đính kèm</label>
@@ -642,10 +686,19 @@
                     <button class="btn btn-ghost btn-sm" type="button" id="btn-view-choose-files">📁 Thêm file</button>
                 </div>
             </div>
-            <div style="margin:12px 0"><label style="font-size:.82rem;color:var(--text-muted)">📊 Học sinh đã nộp</label><div id="view-ex-students" style="margin-top:6px;max-height:180px;overflow-y:auto"></div></div>
+
+            <!-- F3: Student submissions with code viewer -->
+            <div class="view-ex-section" style="margin:12px 0">
+                <div class="view-ex-section-header">
+                    <label>📊 Học sinh đã nộp</label>
+                    <button class="btn btn-ghost btn-sm" id="btn-regrade-exercise" style="display:none">🔄 Chấm lại tất cả</button>
+                </div>
+                <div id="view-ex-students" style="margin-top:6px;max-height:320px;overflow-y:auto"></div>
+            </div>
+
             <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
                 <button class="btn btn-ghost btn-sm" id="btn-close-view-ex">Đóng</button>
-                <button class="btn btn-accent" id="btn-save-view-ex">💾 Lưu thay đổi</button>
+                <button class="btn btn-accent" id="btn-save-view-ex" disabled>💾 Lưu thay đổi</button>
             </div>
         </div>
     </div>
