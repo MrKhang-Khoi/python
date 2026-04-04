@@ -813,7 +813,16 @@ const ps=s.problems&&s.problems[j]||0;
 this.drive.logData('ContestResults',[this.roomCode,s.name,`Bài ${j+1}`,ps,new Date().toISOString()]).catch(()=>{})}}
 }catch(e){console.error('Log contest results failed:',e)}
 localStorage.removeItem('themis_activeRoom');
-this._toast('Đã kết thúc cuộc thi!','info')}
+this._toast('Đã kết thúc cuộc thi!','info');
+// Auto-transition to detail view for grading
+const endedCode=this.roomCode;
+this.roomCode=null;
+document.getElementById('teacher-room-bar').classList.add('hidden');
+// Cleanup active room listeners
+this.fb.cleanup();
+// Reload all rooms data then open the ended room's detail view
+try{const roomsSnap=await this.fb.db.ref('rooms').once('value');this._allRooms=roomsSnap.val()||{};
+this._viewRoomHistory(endedCode)}catch(e){console.error('Auto-open history:',e);this._renderRoomHistory()}}
 
 // Restore active room from localStorage after F5 (BUG-E fix)
 async _restoreActiveRoom(){const saved=localStorage.getItem('themis_activeRoom');if(!saved)return;
