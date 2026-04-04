@@ -369,7 +369,7 @@ const SHEET_SCHEMAS = {
   'Accounts': ['Username', 'Password', 'CreatedAt', 'LastLogin', 'Status'],
   'Exercises': ['ExerciseID', 'Title', 'Topic', 'Description', 'TestCount', 'SubtaskCount', 'CreatedAt', 'FileIO', 'TaskName'],
   'Theories': ['TheoryID', 'Title', 'Topic', 'Content', 'FileID', 'FileName', 'FileSize', 'CreatedAt'],
-  'Rooms': ['RoomCode', 'Title', 'TimeLimit', 'Status', 'CreatedAt', 'StartTime', 'ProblemCount', 'StudentCount'],
+  'Rooms': ['RoomCode', 'Title', 'TimeLimit', 'Status', 'CreatedAt', 'StartTime', 'ProblemCount', 'StudentCount', 'Problems'],
   'Submissions': ['SubmissionID', 'Student', 'ExerciseID', 'ExerciseTitle', 'Score', 'SubmittedAt', 'Verdict'],
   'ContestResults': ['RoomCode', 'Student', 'ProblemIdx', 'Score', 'SubmittedAt'],
 };

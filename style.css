@@ -643,6 +643,22 @@ textarea.ai-textarea{resize:vertical}
 .stu-page-btn:disabled{opacity:.3;cursor:not-allowed}
 .stu-page-info{font-size:.8rem;color:var(--text-muted);font-weight:500}
 
+/* Room History */
+.room-history-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+.room-history-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-md);padding:16px;cursor:pointer;transition:all .2s}
+.room-history-card:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:0 4px 20px rgba(99,102,241,.15)}
+.room-history-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.room-history-code{font-family:var(--font-mono);font-size:.82rem;font-weight:700;color:var(--accent-light)}
+.room-history-title{font-size:.95rem;font-weight:700;color:var(--text-primary);margin-bottom:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.room-history-meta{display:flex;flex-wrap:wrap;gap:8px;font-size:.72rem;color:var(--text-muted)}
+.room-history-meta span{display:inline-flex;align-items:center;gap:3px}
+.room-history-problems{margin-top:8px;font-size:.72rem;color:var(--text-secondary);font-style:italic;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.room-status-badge{display:inline-flex;align-items:center;font-size:.68rem;font-weight:700;padding:2px 8px;border-radius:12px;text-transform:uppercase;letter-spacing:.04em}
+.room-status-badge.waiting{background:rgba(99,102,241,.12);color:var(--accent-light)}
+.room-status-badge.active{background:rgba(16,185,129,.12);color:#34d399;animation:pulse-active 2s infinite}
+.room-status-badge.ended{background:rgba(255,255,255,.06);color:var(--text-muted)}
+@keyframes pulse-active{0%,100%{opacity:1}50%{opacity:.6}}
+
 /* F02: Student Progress Bar */
 .oj-progress-wrap{position:relative;width:100%;height:22px;background:rgba(255,255,255,.06);border-radius:11px;overflow:hidden;grid-column:1/-1;margin-top:4px}
 .oj-progress-fill{position:absolute;left:0;top:0;height:100%;background:linear-gradient(90deg,var(--accent),var(--violet));border-radius:11px;transition:width .6s cubic-bezier(.4,0,.2,1);min-width:2px}

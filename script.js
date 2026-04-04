@@ -129,7 +129,11 @@ this.fb.listenAccounts(accts=>{this._cachedAccounts=accts;this._renderAccountLis
 this.fb.listenExercises(exs=>{this._teacherExercises=exs;this._renderTeacherExerciseList(exs);this._renderProgress()});
 this.fb.listenAllExerciseResults(res=>{this._teacherExResults=res;this._renderTeacherExerciseList(this._teacherExercises||{});this._renderProgress()});
 // Theory listener
-const thRef=this.fb.db.ref('theories');thRef.on('value',s=>{this._cachedTheories=s.val()||{};this._renderTheoryList(this._cachedTheories,'t-theory-list',true)});this.fb._listeners.push(()=>thRef.off())}
+const thRef=this.fb.db.ref('theories');thRef.on('value',s=>{this._cachedTheories=s.val()||{};this._renderTheoryList(this._cachedTheories,'t-theory-list',true)});this.fb._listeners.push(()=>thRef.off());
+// Room history listener
+const roomRef=this.fb.db.ref('rooms');roomRef.on('value',s=>{this._allRooms=s.val()||{};this._renderRoomHistory()});this.fb._listeners.push(()=>roomRef.off());
+// Restore active room from localStorage (BUG-E fix)
+this._restoreActiveRoom()}
 
 _bindTeacherTabs(){const self=this;document.querySelectorAll('.t-tab[data-ttab]').forEach(btn=>{btn.onclick=()=>{document.querySelectorAll('.t-tab').forEach(b=>b.classList.remove('active'));btn.classList.add('active');document.querySelectorAll('.t-tab-panel').forEach(p=>p.classList.add('hidden'));const panel=document.getElementById('t-tab-'+btn.dataset.ttab);if(panel)panel.classList.remove('hidden');if(btn.dataset.ttab==='compose')setTimeout(()=>{self.cmMain&&self.cmMain.refresh();self.cmBrute&&self.cmBrute.refresh();self.cmAiPreview&&self.cmAiPreview.refresh()},50)}})}
 
@@ -235,19 +239,27 @@ const selectedIds=[...document.querySelectorAll('#room-exercise-checklist .room-
 if(!selectedIds.length){this._toast('Chọn ít nhất 1 bài tập','error');return}
 document.getElementById('modal-create-room').classList.add('hidden');
 try{this.roomCode=await this.fb.createRoom(title,'Giáo viên',time);
+// Persist to localStorage (BUG-E fix)
+localStorage.setItem('themis_activeRoom',this.roomCode);
 document.getElementById('teacher-room-bar').classList.remove('hidden');document.getElementById('t-room-code').textContent=this.roomCode;this._setRoomStatus('waiting');
 // Publish selected exercises as contest problems
 const exs=this._teacherExercises||{};
+const problemNames=[];
 for(let i=0;i<selectedIds.length;i++){const ex=exs[selectedIds[i]];if(!ex)continue;
+problemNames.push(ex.title);
 const data={title:ex.title,description:ex.description||'',fileIO:ex.fileIO||false,uppercase:ex.uppercase||false,taskName:ex.taskName||ex.title,timePerTest:5,subtasks:ex.subtasks||[{name:'Subtask 1',score:100}],sampleIO:ex.sampleIO||null,testCases:(ex.testCases||[]).map(tc=>({input:tc.input,output:tc.output,subtaskId:tc.subtaskId||0}))};
 await this.fb.publishProblem(this.roomCode,i,data)}
 this.publishedCount=selectedIds.length;
+// Save problem names list to Firebase room info (BUG-B fix)
+await this.fb.db.ref(`rooms/${this.roomCode}/info/problemNames`).set(problemNames.join(', '));
+// Log to Google Sheet (BUG-A fix)
+this.drive.logData('Rooms',[this.roomCode,title,time,'waiting',new Date().toISOString(),'',selectedIds.length,0,problemNames.join(', ')]).catch(()=>{});
 // Render contest problem list
 const listEl=document.getElementById('t-contest-problem-list');
 let h='';selectedIds.forEach((id,i)=>{const ex=exs[id];h+=`<div style="padding:8px 12px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:6px;margin-bottom:4px;font-size:.85rem"><strong>Bài ${i+1}:</strong> ${this._esc(ex?.title||'?')} <span style="color:var(--text-muted)">• ${(ex?.testCases||[]).length} test</span></div>`});
 listEl.innerHTML=h;document.getElementById('t-contest-problems').classList.remove('hidden');
-this.fb.listenStudents(this.roomCode,s=>{document.getElementById('t-student-count').textContent=s?Object.keys(s).length:0});
-this.fb.listenLeaderboard(this.roomCode,lb=>this._renderLeaderboard(lb,'t-leaderboard-body'));
+this.fb.listenStudents(this.roomCode,s=>{this._activeRoomStudentCount=s?Object.keys(s).length:0;document.getElementById('t-student-count').textContent=this._activeRoomStudentCount});
+this.fb.listenLeaderboard(this.roomCode,lb=>{this._activeRoomLeaderboard=lb;this._renderLeaderboard(lb,'t-leaderboard-body')});
 this._toast(`🏆 Phòng ${this.roomCode} đã tạo với ${selectedIds.length} bài!`,'success')
 }catch(e){this._toast('Lỗi: '+e.message,'error')}}
 
@@ -428,6 +440,8 @@ const ok=await this._confirmDialog('▶️ Bắt đầu cuộc thi','Học sinh 
 if(!ok)return;
 this._contestEnded=false;
 await this.fb.startContest(this.roomCode);this._setRoomStatus('active');this._toast('Cuộc thi bắt đầu!','success');
+// Update Google Sheet with start time (BUG-D fix)
+this.drive.logData('Rooms',[this.roomCode+'_START','','','active','',new Date().toISOString(),'','','']).catch(()=>{});
 this.fb.listenRoomInfo(this.roomCode,info=>{if(this._contestEnded)return;if(info&&info.startTime&&info.timeLimit){const end=info.startTime+info.timeLimit*60000;if(this.timerInterval)clearInterval(this.timerInterval);const upd=()=>{if(this._contestEnded)return;const rem=Math.max(0,end-Date.now());const m=Math.floor(rem/60000),s=Math.floor(rem%60000/1000);document.getElementById('t-room-timer').textContent=`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;if(rem<=0){clearInterval(this.timerInterval);this._setRoomStatus('ended')}};this.timerInterval=setInterval(upd,1000);upd()}})}
 
 async _endContest(){if(!this.roomCode)return;
@@ -437,8 +451,88 @@ this._contestEnded=true;
 await this.fb.endContest(this.roomCode);this._setRoomStatus('ended');
 if(this.timerInterval){clearInterval(this.timerInterval);this.timerInterval=null}
 document.getElementById('t-room-timer').textContent='00:00';
+// Log final leaderboard to Google Sheet (BUG-C fix)
+try{const lb=this._activeRoomLeaderboard||{};
+const studentCount=this._activeRoomStudentCount||0;
+// Update Rooms sheet with final status
+this.drive.logData('Rooms',[this.roomCode+'_END','','','ended','','',this.publishedCount,studentCount,'']).catch(()=>{});
+// Log each student's result to ContestResults
+const sorted=Object.values(lb).sort((a,b)=>b.totalScore-a.totalScore||(a.lastSubmit-b.lastSubmit));
+for(const s of sorted){
+for(let j=0;j<(this.publishedCount||1);j++){
+const ps=s.problems&&s.problems[j]||0;
+this.drive.logData('ContestResults',[this.roomCode,s.name,`Bài ${j+1}`,ps,new Date().toISOString()]).catch(()=>{})}}
+}catch(e){console.error('Log contest results failed:',e)}
+localStorage.removeItem('themis_activeRoom');
 this._toast('Đã kết thúc cuộc thi!','info')}
 
+// Restore active room from localStorage after F5 (BUG-E fix)
+async _restoreActiveRoom(){const saved=localStorage.getItem('themis_activeRoom');if(!saved)return;
+try{const snap=await this.fb.db.ref(`rooms/${saved}/info`).once('value');const info=snap.val();if(!info){localStorage.removeItem('themis_activeRoom');return}
+this.roomCode=saved;this.publishedCount=info.problemCount||0;
+document.getElementById('teacher-room-bar').classList.remove('hidden');document.getElementById('t-room-code').textContent=saved;this._setRoomStatus(info.status||'waiting');
+// Re-listen students & leaderboard
+this.fb.listenStudents(saved,s=>{this._activeRoomStudentCount=s?Object.keys(s).length:0;document.getElementById('t-student-count').textContent=this._activeRoomStudentCount});
+this.fb.listenLeaderboard(saved,lb=>{this._activeRoomLeaderboard=lb;this._renderLeaderboard(lb,'t-leaderboard-body')});
+// Render problem list
+const probSnap=await this.fb.db.ref(`rooms/${saved}/problems`).once('value');const probs=probSnap.val()||[];
+const listEl=document.getElementById('t-contest-problem-list');
+let h='';(Array.isArray(probs)?probs:Object.values(probs)).forEach((p,i)=>{h+=`<div style="padding:8px 12px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:6px;margin-bottom:4px;font-size:.85rem"><strong>Bài ${i+1}:</strong> ${this._esc(p?.title||'?')} <span style="color:var(--text-muted)">• ${(p?.testCases||[]).length} test</span></div>`});
+listEl.innerHTML=h;document.getElementById('t-contest-problems').classList.remove('hidden');
+// Resume timer if active
+if(info.status==='active'&&info.startTime&&info.timeLimit){this._contestEnded=false;
+const end=info.startTime+info.timeLimit*60000;
+if(end>Date.now()){if(this.timerInterval)clearInterval(this.timerInterval);
+const upd=()=>{if(this._contestEnded)return;const rem=Math.max(0,end-Date.now());const m=Math.floor(rem/60000),s=Math.floor(rem%60000/1000);document.getElementById('t-room-timer').textContent=`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;if(rem<=0){clearInterval(this.timerInterval);this._setRoomStatus('ended')}};
+this.timerInterval=setInterval(upd,1000);upd()}}
+this._toast(`🔄 Đã khôi phục phòng thi ${saved}`,'info');
+}catch(e){localStorage.removeItem('themis_activeRoom');console.error('Restore room failed:',e)}}
+
+// Render room history (BUG-F fix)
+_renderRoomHistory(){const container=document.getElementById('t-leaderboard-body');if(!container)return;
+if(this.roomCode)return; // Active room is being shown, don't overwrite
+const rooms=this._allRooms||{};const keys=Object.keys(rooms);
+if(!keys.length){container.innerHTML='<p style="color:var(--text-muted);text-align:center;padding:40px">Tạo phòng thi và thêm đề bài để bắt đầu.</p>';return}
+// Sort by createdAt descending
+const sorted=keys.map(k=>({code:k,...(rooms[k].info||{})})).filter(r=>r.createdAt).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+if(!sorted.length){container.innerHTML='<p style="color:var(--text-muted);text-align:center;padding:40px">Tạo phòng thi và thêm đề bài để bắt đầu.</p>';return}
+let h='<h3 style="font-size:.92rem;font-weight:700;margin-bottom:12px;color:var(--text-secondary)">📜 Lịch Sử Phòng Thi</h3><div class="room-history-grid">';
+sorted.forEach(r=>{const d=new Date(r.createdAt);const statusCls=r.status==='ended'?'ended':r.status==='active'?'active':'waiting';
+const studentCount=rooms[r.code]&&rooms[r.code].students?Object.keys(rooms[r.code].students).length:0;
+const lb=rooms[r.code]&&rooms[r.code].leaderboard;const lbCount=lb?Object.keys(lb).length:0;
+h+=`<div class="room-history-card" onclick="window._uic._viewRoomHistory('${r.code}')">`;
+h+=`<div class="room-history-header"><span class="room-history-code">#${r.code}</span><span class="room-status-badge ${statusCls}">${statusCls==='ended'?'Kết thúc':statusCls==='active'?'Đang thi':'Chờ'}</span></div>`;
+h+=`<div class="room-history-title">${this._esc(r.title||'Không tên')}</div>`;
+h+=`<div class="room-history-meta">`;
+h+=`<span>⏱ ${r.timeLimit||0} phút</span>`;
+h+=`<span>📝 ${r.problemCount||0} bài</span>`;
+h+=`<span>👥 ${studentCount} HS</span>`;
+h+=`<span>📅 ${d.toLocaleDateString('vi')}</span>`;
+h+=`</div>`;
+if(r.problemNames)h+=`<div class="room-history-problems">${this._esc(r.problemNames)}</div>`;
+h+=`</div>`});
+h+='</div>';container.innerHTML=h}
+
+// View past room leaderboard
+async _viewRoomHistory(code){try{
+const infoSnap=await this.fb.db.ref(`rooms/${code}/info`).once('value');const info=infoSnap.val();if(!info)return;
+const lbSnap=await this.fb.db.ref(`rooms/${code}/leaderboard`).once('value');const lb=lbSnap.val();
+const probSnap=await this.fb.db.ref(`rooms/${code}/problems`).once('value');const probs=probSnap.val()||[];
+const pCount=info.problemCount||1;this.publishedCount=pCount;
+// Show problem list
+const listEl=document.getElementById('t-contest-problem-list');
+let h='';(Array.isArray(probs)?probs:Object.values(probs)).forEach((p,i)=>{h+=`<div style="padding:8px 12px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:6px;margin-bottom:4px;font-size:.85rem"><strong>Bài ${i+1}:</strong> ${this._esc(p?.title||'?')} <span style="color:var(--text-muted)">• ${(p?.testCases||[]).length} test</span></div>`});
+listEl.innerHTML=h;document.getElementById('t-contest-problems').classList.remove('hidden');
+// Show leaderboard with back button
+const container=document.getElementById('t-leaderboard-body');
+const backBtn=`<button class="btn btn-ghost btn-sm" style="margin-bottom:12px" onclick="window._uic._closeRoomHistory()">← Quay lại danh sách</button>`;
+const header=`<div style="margin-bottom:12px"><strong style="font-size:1rem">${this._esc(info.title)}</strong> <span style="color:var(--text-muted);font-size:.82rem">#${code} • ${info.timeLimit||0} phút • ${pCount} bài</span></div>`;
+container.innerHTML=backBtn+header;
+const lbDiv=document.createElement('div');lbDiv.id='t-history-lb';container.appendChild(lbDiv);
+this._renderLeaderboard(lb,'t-history-lb');
+}catch(e){this._toast('Lỗi đọc dữ liệu: '+e.message,'error')}}
+
+_closeRoomHistory(){document.getElementById('t-contest-problems').classList.add('hidden');this._renderRoomHistory()}
 
 _showExerciseModal(){if(!this.themis.testCases.length){this._toast('Sinh test trước','error');return}const cfg=this.collectFormData();const desc=document.getElementById('problem-description').value||document.getElementById('ai-prompt').value||'Không có mô tả';const displayTitle=document.getElementById('problem-title').value.trim()||cfg.taskName;const topic=document.getElementById('problem-topic').value.trim()||'Không phân loại';document.getElementById('ex-title-input').value=displayTitle;document.getElementById('ex-desc-input').value=desc;document.getElementById('ex-test-count').textContent=this.themis.testCases.length;document.getElementById('ex-subtask-count').textContent=cfg.subtasks?cfg.subtasks.length:1;document.getElementById('ex-topic').value=topic;document.getElementById('modal-publish-exercise').classList.remove('hidden')}
 
