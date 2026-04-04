@@ -21,7 +21,20 @@ async runStdio(code,stdin){const b64=btoa(unescape(encodeURIComponent(stdin)));t
 async runFileIO(code,stdin,inp,outp){const b64=btoa(unescape(encodeURIComponent(stdin)));this.py.runPython(`import sys,io,base64\n_data=base64.b64decode("${b64}").decode("utf-8")\nwith open("${inp}","w") as _f:\n    _f.write(_data)\nsys.stdout=io.StringIO()`);try{await this.py.runPythonAsync(code)}catch(err){this.py.runPython('sys.stdout=sys.__stdout__');throw new Error('Python: '+err.message)}let out;try{out=this.py.runPython(`\ntry:\n    with open("${outp}","r") as _f:\n        _r=_f.read()\nexcept:\n    _r=sys.stdout.getvalue()\n_r`)}catch{out=this.py.runPython('sys.stdout.getvalue()')}this.py.runPython('sys.stdout=sys.__stdout__');return out.trim()}}
 
 class GeminiHelper{constructor(){this.apiKey=localStorage.getItem('gemini_api_key')||''}setApiKey(k){this.apiKey=k;localStorage.setItem('gemini_api_key',k)}getApiKey(){return this.apiKey}
-async generateCode(problem,fileIO=false,brute=false){if(!this.apiKey)throw new Error('Nhập Gemini API Key');const io=fileIO?'đọc file .INP ghi file .OUT':'dùng input()/print()';const mode=brute?'BRUTE FORCE đơn giản chắc đúng':'HIỆU QUẢ tối ưu thuật toán';const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${this.apiKey}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contents:[{parts:[{text:`Chuyên gia CP. Viết Python ${mode}. ${io}. CHỈ code, comment tiếng Việt.\n\nĐỀ: ${problem}`}]}],generationConfig:{temperature:brute?.1:.3}})});if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e.error?.message||'API Error')}const d=await r.json();const t=d.candidates?.[0]?.content?.parts?.[0]?.text||'';const m=t.match(/```python\n([\s\S]*?)```/);return m?m[1].trim():t.trim()}}
+async generateCode(problem,ctx={}){if(!this.apiKey)throw new Error('Nhập Gemini API Key');
+const io=ctx.fileIO?'Đọc dữ liệu từ file .INP, ghi kết quả vào file .OUT':'Dùng input() để đọc và print() để xuất kết quả';
+const mode=ctx.brute?'BRUTE FORCE (đơn giản, chắc chắn đúng, không cần tối ưu, dùng vòng lặp trực tiếp)':'HIỆU QUẢ (tối ưu thuật toán, đảm bảo chạy nhanh với dữ liệu lớn)';
+const model=ctx.model||'gemini-2.0-flash';
+// Build rich prompt with context
+let prompt=`Bạn là chuyên gia lập trình thi đấu (Competitive Programming).\nViết code Python giải bài sau theo phong cách ${mode}.\n\n## ĐỀ BÀI:\n${problem}\n`;
+if(ctx.constraints)prompt+=`\n## RÀNG BUỘC:\n${ctx.constraints}\n`;
+if(ctx.sampleIO&&ctx.sampleIO.length){prompt+='\n## VÍ DỤ:\n';ctx.sampleIO.forEach((s,i)=>{prompt+=`### Ví dụ ${i+1}:\nInput:\n${s.input}\nOutput:\n${s.output}\n`;if(s.explanation)prompt+=`Giải thích: ${s.explanation}\n`})}
+if(ctx.subtasksInfo)prompt+=`\n## SUBTASKS:\n${ctx.subtasksInfo}\n`;
+prompt+=`\n## YÊU CẦU:\n- I/O: ${io}\n- CHỈ trả về code Python, KHÔNG giải thích\n- Comment tiếng Việt cho các bước chính\n- Xử lý edge case: input rỗng, min/max values\n`;
+const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${this.apiKey}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:ctx.brute?0.1:0.3}})});
+if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e.error?.message||'API Error')}
+const d=await r.json();const t=d.candidates?.[0]?.content?.parts?.[0]?.text||'';
+const m=t.match(/```python\n([\s\S]*?)```/);return m?m[1].trim():t.trim()}}
 
 class StressTester{constructor(e){this.engine=e}
 async run(cfg,main,brute,cnt,maxV,cb){await this.engine.init();const g=new DataGenerator({inputLines:cfg.inputLines,subtasks:[{id:cfg.subtasks[0]?.id||1,name:'S',percent:100}],totalTests:cnt,maxOverride:maxV});const ins=g.generateAllInputs();const fio=cfg.fileIO,tn=cfg.taskName||'B',up=cfg.uppercase;const inp=(up?tn.toUpperCase():tn.toLowerCase())+(up?'.INP':'.inp'),outp=(up?tn.toUpperCase():tn.toLowerCase())+(up?'.OUT':'.out');let pass=0,fail=0,errs=0,ff=null;for(let i=0;i<ins.length;i++){cb&&cb(i+1,ins.length);let mo,bo;try{mo=fio?await this.engine.runFileIO(main,ins[i].input,inp,outp):await this.engine.runStdio(main,ins[i].input)}catch(e){errs++;if(!ff)ff={index:i+1,input:ins[i].input,error:'Code chính: '+e.message};continue}try{bo=fio?await this.engine.runFileIO(brute,ins[i].input,inp,outp):await this.engine.runStdio(brute,ins[i].input)}catch(e){errs++;if(!ff)ff={index:i+1,input:ins[i].input,error:'Brute: '+e.message};continue}if(mo.trim()===bo.trim())pass++;else{fail++;if(!ff)ff={index:i+1,input:ins[i].input,mainOutput:mo,bruteOutput:bo}}await new Promise(r=>setTimeout(r,5))}return{passed:pass,failed:fail,errors:errs,total:ins.length,firstFail:ff}}}
@@ -160,9 +173,12 @@ $('btn-dismiss-error').onclick=()=>$('error-area').classList.add('hidden');
 $('ai-api-key').onchange=()=>this.gemini.setApiKey($('ai-api-key').value.trim());
 $('btn-ai-generate').onclick=()=>this._aiGen(false);
 $('btn-ai-brute').onclick=()=>this._aiGen(true);
-$('btn-ai-use').onclick=()=>{this.cmMain.setValue(this.cmAiPreview.getValue());this._switchTab('tab-code');this._toast('Đã copy!','success')};
-$('btn-ai-use-brute').onclick=()=>{this.cmBrute.setValue(this.cmAiPreview.getValue());this._switchTab('tab-stress');this._toast('Đã copy!','success')};
+$('btn-ai-auto').onclick=()=>this._aiAutoGenVerify();
+$('btn-ai-use').onclick=()=>{this.cmMain.setValue(this.cmAiPreview.getValue());this._switchTab('tab-code');this._toast('Đã copy code chính!','success')};
+$('btn-ai-use-brute').onclick=()=>{this.cmBrute.setValue(this.cmAiPreview.getValue());this._switchTab('tab-stress');this._toast('Đã điền vào Brute Force!','success');setTimeout(()=>this.cmBrute.refresh(),50)};
 $('btn-stress-run').onclick=()=>this._runStress();
+// Verify
+const verifyBtn=$('btn-verify-run');if(verifyBtn)verifyBtn.onclick=()=>this._verifyCode();
 // Room
 $('btn-create-room').onclick=()=>this._showCreateRoomModal();
 $('btn-confirm-room').onclick=()=>this._confirmCreateRoom();
@@ -212,11 +228,106 @@ _getSampleIOs(){const cards=document.querySelectorAll('#sample-io-container .sam
 
 _switchTab(id){document.querySelectorAll('#code-tabs .tab-btn').forEach(b=>{b.classList.toggle('active',b.dataset.tab===id)});document.querySelectorAll('#section-code .tab-panel').forEach(p=>{p.classList.toggle('active',p.id===id)});setTimeout(()=>{this.cmMain.refresh();this.cmBrute.refresh();this.cmAiPreview.refresh()},50)}
 
-async _aiGen(brute){const p=document.getElementById('ai-prompt').value.trim();if(!p){this._toast('Nhập đề bài','error');return}const k=document.getElementById('ai-api-key').value.trim();if(!k){this._toast('Nhập API Key','error');return}this.gemini.setApiKey(k);document.getElementById('ai-status').innerHTML='<span class="progress-spinner"></span> Đang sinh...';try{const code=await this.gemini.generateCode(p,document.getElementById('chk-file-io').checked,brute);this.cmAiPreview.setValue(code);document.getElementById('ai-preview').classList.remove('hidden');document.getElementById('ai-status').textContent='✅ Xong!';setTimeout(()=>this.cmAiPreview.refresh(),50)}catch(e){document.getElementById('ai-status').textContent='';this._toast('AI: '+e.message,'error')}}
+// Collect AI context from current form data
+_getAIContext(brute){const ctx={brute,fileIO:document.getElementById('chk-file-io').checked,model:document.getElementById('ai-model-select')?.value||'gemini-2.0-flash'};
+// Constraints from subtasks
+try{const sts=this._getSubtasks();if(sts.length){let c='';sts.forEach(st=>{c+=`- ${st.name}: ${st.percent}% điểm\n`});ctx.subtasksInfo=c;
+// Variable constraints
+const vars=document.querySelectorAll('.var-row');let constraintStr='';vars.forEach(v=>{const name=v.querySelector('.var-name-input')?.value||'';const type=v.querySelector('.var-type-select')?.value||'';const chips=v.querySelectorAll('.constraint-chip');chips.forEach(ch=>{const min=ch.querySelector('.cst-min')?.value||'';const max=ch.querySelector('.cst-max')?.value||'';if(name&&min&&max)constraintStr+=`${name} (${type}): ${min} ≤ ${name} ≤ ${max}\n`})});if(constraintStr)ctx.constraints=constraintStr}}catch(e){}
+// Sample I/O
+try{const samples=this._getSampleIOs();if(samples.length)ctx.sampleIO=samples}catch(e){}
+return ctx}
 
-async _runStress(){const mc=this.cmMain.getValue().trim(),bc=this.cmBrute.getValue().trim();if(!mc||!bc){this._toast('Nhập cả 2 code','error');return}if(!document.getElementById('input-lines-container').children.length){this._toast('Cấu hình input trước','error');return}const cfg=this.collectFormData();const cnt=parseInt(document.getElementById('stress-count').value)||50;const mx=parseInt(document.getElementById('stress-max-val').value)||100;document.getElementById('stress-progress').classList.remove('hidden');document.getElementById('stress-results').classList.add('hidden');try{const r=await this.stress.run(cfg,mc,bc,cnt,mx,(c,t)=>{document.getElementById('stress-progress-text').textContent=`Test ${c}/${t}...`});document.getElementById('stress-progress').classList.add('hidden');this._showStressResult(r)}catch(e){document.getElementById('stress-progress').classList.add('hidden');this._toast('Stress: '+e.message,'error')}}
+async _aiGen(brute){const p=document.getElementById('ai-prompt').value.trim();if(!p){this._toast('Nhập đề bài','error');return}const k=document.getElementById('ai-api-key').value.trim();if(!k){this._toast('Nhập API Key','error');return}this.gemini.setApiKey(k);
+const ctx=this._getAIContext(brute);
+// Show context info
+const infoEl=document.getElementById('ai-context-info');
+let infoHtml=`<small>📊 Context: ${ctx.constraints?'Constraints ✅':'Constraints ❌'} | ${ctx.sampleIO?ctx.sampleIO.length+' sample(s) ✅':'Sample ❌'} | ${ctx.subtasksInfo?'Subtasks ✅':'Subtasks ❌'} | Model: ${ctx.model}</small>`;
+infoEl.innerHTML=infoHtml;infoEl.classList.remove('hidden');
+document.getElementById('ai-status').innerHTML='<span class="progress-spinner"></span> Đang sinh...';
+try{const code=await this.gemini.generateCode(p,ctx);
+this.cmAiPreview.setValue(code);document.getElementById('ai-preview').classList.remove('hidden');
+document.getElementById('ai-status').textContent=brute?'✅ Brute force xong!':'✅ Code chính xong!';
+setTimeout(()=>this.cmAiPreview.refresh(),50);
+// Auto-fill brute if brute mode
+if(brute){this.cmBrute.setValue(code);this._toast('Đã tự động điền vào tab Stress Test!','success')}
+}catch(e){document.getElementById('ai-status').textContent='';this._toast('AI: '+e.message,'error')}}
 
-_showStressResult(r){const el=document.getElementById('stress-results');el.classList.remove('hidden');if(r.failed===0&&r.errors===0){el.className='stress-results pass';el.innerHTML=`<div class="stress-result-header">✅ ${r.passed}/${r.total} ĐÚNG!</div><p style="color:var(--success);font-size:.85rem">Code chính khớp brute force.</p>`}else{el.className='stress-results fail';let h=`<div class="stress-result-header">❌ ${r.failed} sai, ${r.errors} lỗi / ${r.total}</div>`;if(r.firstFail){const f=r.firstFail;h+=`<div class="stress-fail-detail"><div class="stress-fail-label">Input (Test ${f.index}):</div>${this._esc(f.input)}\n\n`;h+=f.error?`<div class="stress-fail-label">Lỗi:</div>${this._esc(f.error)}`:`<div class="stress-fail-label">Code chính:</div>${this._esc(f.mainOutput)}\n<div class="stress-fail-label">Brute:</div>${this._esc(f.bruteOutput)}`;h+='</div>'}el.innerHTML=h}}
+// A3: One-click Auto Gen & Verify
+async _aiAutoGenVerify(){const p=document.getElementById('ai-prompt').value.trim();if(!p){this._toast('Nhập đề bài','error');return}const k=document.getElementById('ai-api-key').value.trim();if(!k){this._toast('Nhập API Key','error');return}this.gemini.setApiKey(k);
+if(!document.getElementById('input-lines-container').children.length){this._toast('Cấu hình input (Step 4) trước!','error');return}
+const statusEl=document.getElementById('ai-status');
+try{
+// Step 1: Sinh code chính
+statusEl.innerHTML='<span class="progress-spinner"></span> 1/3: Sinh code chính...';
+const mainCtx=this._getAIContext(false);
+const mainCode=await this.gemini.generateCode(p,mainCtx);
+this.cmMain.setValue(mainCode);this.cmAiPreview.setValue(mainCode);
+document.getElementById('ai-preview').classList.remove('hidden');
+setTimeout(()=>{this.cmAiPreview.refresh();this.cmMain.refresh()},50);
+// Step 2: Sinh brute
+statusEl.innerHTML='<span class="progress-spinner"></span> 2/3: Sinh brute force...';
+const bruteCtx=this._getAIContext(true);
+const bruteCode=await this.gemini.generateCode(p,bruteCtx);
+this.cmBrute.setValue(bruteCode);setTimeout(()=>this.cmBrute.refresh(),50);
+// Step 3: Chạy stress test
+statusEl.innerHTML='<span class="progress-spinner"></span> 3/3: Chạy stress test...';
+const cfg=this.collectFormData();const cnt=parseInt(document.getElementById('stress-count').value)||50;const mx=parseInt(document.getElementById('stress-max-val').value)||100;
+const r=await this.stress.run(cfg,mainCode,bruteCode,cnt,mx,(c,t)=>{statusEl.innerHTML=`<span class="progress-spinner"></span> 3/3: Stress ${c}/${t}...`});
+this._showStressResult(r);
+if(r.failed===0&&r.errors===0){statusEl.textContent='✅ Auto Gen & Verify hoàn tất — Tất cả đúng!';this._toast('🎉 Auto Gen & Verify: Pass!','success')}
+else{statusEl.textContent=`⚠️ Auto Gen & Verify: ${r.failed} sai, ${r.errors} lỗi`;this._toast('⚠️ Stress test có lỗi — kiểm tra tab Stress Test','error');
+this._switchTab('tab-stress')}
+}catch(e){statusEl.textContent='';this._toast('Auto: '+e.message,'error')}}
+
+async _runStress(){const mc=this.cmMain.getValue().trim(),bc=this.cmBrute.getValue().trim();if(!mc||!bc){this._toast('Nhập cả 2 code (Code Chính + Brute Force)','error');return}if(!document.getElementById('input-lines-container').children.length){this._toast('Cấu hình input (Step 4) trước','error');return}const cfg=this.collectFormData();const cnt=parseInt(document.getElementById('stress-count').value)||50;const mx=parseInt(document.getElementById('stress-max-val').value)||100;document.getElementById('stress-progress').classList.remove('hidden');document.getElementById('stress-results').classList.add('hidden');try{const r=await this.stress.run(cfg,mc,bc,cnt,mx,(c,t)=>{document.getElementById('stress-progress-text').textContent=`Test ${c}/${t}...`});document.getElementById('stress-progress').classList.add('hidden');this._showStressResult(r)}catch(e){document.getElementById('stress-progress').classList.add('hidden');this._toast('Stress: '+e.message,'error')}}
+
+_showStressResult(r){const el=document.getElementById('stress-results');el.classList.remove('hidden');if(r.failed===0&&r.errors===0){el.className='stress-results pass';el.innerHTML=`<div class="stress-result-header">✅ ${r.passed}/${r.total} ĐÚNG!</div><p style="color:var(--success);font-size:.85rem">Code chính khớp brute force trên tất cả test ngẫu nhiên.</p>`}else{el.className='stress-results fail';let h=`<div class="stress-result-header">❌ ${r.failed} sai, ${r.errors} lỗi / ${r.total}</div>`;if(r.firstFail){const f=r.firstFail;h+=`<div class="stress-fail-detail"><div class="stress-fail-label">Input (Test ${f.index}):</div><pre>${this._esc(f.input)}</pre>`;h+=f.error?`<div class="stress-fail-label">Lỗi:</div><pre>${this._esc(f.error)}</pre>`:`<div class="stress-fail-label">Code chính:</div><pre>${this._esc(f.mainOutput)}</pre><div class="stress-fail-label">Brute:</div><pre>${this._esc(f.bruteOutput)}</pre>`;h+='</div>'}el.innerHTML=h}}
+
+// A2: Real Verify — chạy test cases đã sinh với code chính
+async _verifyCode(){const code=this.cmMain.getValue().trim();if(!code){this._toast('Nhập code chính trước','error');return}
+const tests=this.themis.testCases;if(!tests.length){this._toast('Sinh test (Step 5) trước khi verify','error');return}
+const cfg=this.collectFormData();const fio=cfg.fileIO;const tn=cfg.taskName||'B';const up=cfg.uppercase;
+const inp=(up?tn.toUpperCase():tn.toLowerCase())+(up?'.INP':'.inp');
+const outp=(up?tn.toUpperCase():tn.toLowerCase())+(up?'.OUT':'.out');
+document.getElementById('verify-progress').classList.remove('hidden');
+document.getElementById('verify-results').classList.add('hidden');
+document.getElementById('verify-status').textContent='';
+try{await this.pyEngine.init();
+let pass=0,fail=0,errs=0;const details=[];
+for(let i=0;i<tests.length;i++){const tc=tests[i];
+document.getElementById('verify-progress-text').textContent=`Kiểm tra test ${i+1}/${tests.length}...`;
+document.getElementById('verify-bar').style.width=((i+1)/tests.length*100)+'%';
+let actual;try{
+actual=fio?await this.pyEngine.runFileIO(code,tc.input,inp,outp):await this.pyEngine.runStdio(code,tc.input);
+}catch(e){errs++;details.push({idx:i+1,status:'error',input:tc.input,expected:tc.output,actual:'',error:e.message,subtask:tc.subtaskName});continue}
+if(actual.trim()===tc.output.trim()){pass++;details.push({idx:i+1,status:'pass',subtask:tc.subtaskName})}
+else{fail++;details.push({idx:i+1,status:'fail',input:tc.input,expected:tc.output,actual,subtask:tc.subtaskName})}
+await new Promise(r=>setTimeout(r,5))}
+document.getElementById('verify-progress').classList.add('hidden');
+this._showVerifyResults({pass,fail,errs,total:tests.length,details});
+}catch(e){document.getElementById('verify-progress').classList.add('hidden');this._toast('Verify: '+e.message,'error')}}
+
+_showVerifyResults(r){const el=document.getElementById('verify-results');el.classList.remove('hidden');
+const allPass=r.fail===0&&r.errs===0;
+const statusEl=document.getElementById('verify-status');
+statusEl.textContent=allPass?`✅ ${r.pass}/${r.total} Pass`:`⚠️ ${r.fail} sai, ${r.errs} lỗi / ${r.total}`;
+statusEl.style.color=allPass?'var(--success)':'var(--danger,#ef4444)';
+let h=`<div class="verify-summary ${allPass?'pass':'fail'}">`;
+h+=`<div class="verify-summary-header">${allPass?'✅ TẤT CẢ TEST ĐÃ PASS':'❌ CÓ TEST KHÔNG ĐÚNG'}</div>`;
+h+=`<div class="verify-summary-stats"><span class="verify-stat pass">✅ ${r.pass}</span><span class="verify-stat fail">❌ ${r.fail}</span><span class="verify-stat err">⚠️ ${r.errs}</span><span class="verify-stat total">📋 ${r.total}</span></div></div>`;
+// Detailed table
+const failedTests=r.details.filter(d=>d.status!=='pass');
+if(failedTests.length){h+='<div class="verify-detail-list">';
+failedTests.forEach(d=>{h+=`<div class="verify-detail-item ${d.status}">`;
+h+=`<div class="verify-detail-header"><strong>Test ${d.idx}</strong> <span class="verify-badge ${d.status}">${d.status==='fail'?'Sai':'Lỗi'}</span> <span style="color:var(--text-muted);font-size:.72rem">${d.subtask||''}</span></div>`;
+h+=`<div class="verify-detail-body">`;
+h+=`<div><label>Input:</label><pre>${this._esc(d.input||'')}</pre></div>`;
+h+=`<div><label>Expected:</label><pre>${this._esc(d.expected||'')}</pre></div>`;
+h+=d.error?`<div><label>Error:</label><pre class="err">${this._esc(d.error)}</pre></div>`:`<div><label>Actual:</label><pre class="wrong">${this._esc(d.actual||'')}</pre></div>`;
+h+=`</div></div>`});
+h+='</div>'}
+el.innerHTML=h}
 
 // Room management
 _showCreateRoomModal(){

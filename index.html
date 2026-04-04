@@ -126,7 +126,8 @@
                             <div class="tab-group" id="code-tabs">
                                 <button class="tab-btn active" data-tab="tab-code">📝 Code</button>
                                 <button class="tab-btn" data-tab="tab-ai">🤖 AI</button>
-                                <button class="tab-btn" data-tab="tab-stress">🔬 Verify</button>
+                                <button class="tab-btn" data-tab="tab-stress">⚡ Stress Test</button>
+                                <button class="tab-btn" data-tab="tab-verify">✅ Verify</button>
                             </div>
                         </div>
                     </div>
@@ -134,19 +135,61 @@
                         <div class="tab-panel active" id="tab-code"><p class="card-hint" id="io-hint">Code dùng <code>input()</code> và <code>print()</code></p><div id="editor-main-wrap" class="cm-wrap"></div></div>
                         <div class="tab-panel" id="tab-ai">
                             <div class="ai-section">
-                                <div class="ai-key-row"><div class="form-group" style="flex:1;margin-bottom:0"><label>🔑 Gemini API Key</label><input type="password" id="ai-api-key" placeholder="AIzaSy..."></div><a href="https://aistudio.google.com/apikey" target="_blank" class="btn btn-sm btn-ghost" style="margin-top:20px">🔗 Lấy key</a></div>
+                                <div class="ai-key-row">
+                                    <div class="form-group" style="flex:1;margin-bottom:0"><label>🔑 Gemini API Key</label><input type="password" id="ai-api-key" placeholder="AIzaSy..."></div>
+                                    <div class="form-group" style="margin-bottom:0;min-width:160px"><label>🧠 Model</label>
+                                        <select id="ai-model-select" class="preset-dropdown" style="width:100%">
+                                            <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+                                            <option value="gemini-2.0-flash-lite">Gemini 2.0 Flash Lite</option>
+                                            <option value="gemini-2.5-flash-preview-05-20">Gemini 2.5 Flash</option>
+                                        </select>
+                                    </div>
+                                    <a href="https://aistudio.google.com/apikey" target="_blank" class="btn btn-sm btn-ghost" style="margin-top:20px">🔗 Lấy key</a>
+                                </div>
                                 <div class="form-group"><label>📋 Mô tả đề bài</label><textarea id="ai-prompt" rows="5" class="ai-textarea" placeholder="VD: Cho N, kiểm tra N có phải số nguyên tố không..."></textarea></div>
-                                <div class="ai-actions"><button class="btn btn-accent" id="btn-ai-generate">🪄 Sinh Code</button><button class="btn btn-ghost btn-sm" id="btn-ai-brute">🐢 Brute Force</button><span class="ai-status" id="ai-status"></span></div>
-                                <div class="ai-preview hidden" id="ai-preview"><div class="ai-preview-header"><label>💡 Code gợi ý</label><div><button class="btn btn-success btn-sm" id="btn-ai-use">✅ Dùng Code Chính</button><button class="btn btn-ghost btn-sm" id="btn-ai-use-brute">📋 Dùng Brute</button></div></div><div id="editor-ai-preview" class="cm-wrap"></div></div>
+                                <div class="ai-context-info hidden" id="ai-context-info"></div>
+                                <div class="ai-actions">
+                                    <button class="btn btn-accent" id="btn-ai-generate">🪄 Sinh Code</button>
+                                    <button class="btn btn-ghost btn-sm" id="btn-ai-brute">🐢 Brute Force</button>
+                                    <button class="btn btn-success btn-sm" id="btn-ai-auto" title="Sinh code chính + brute → tự động chạy Stress Test">🚀 Auto Gen & Verify</button>
+                                    <span class="ai-status" id="ai-status"></span>
+                                </div>
+                                <div class="ai-preview hidden" id="ai-preview">
+                                    <div class="ai-preview-header">
+                                        <label>💡 Code gợi ý</label>
+                                        <div>
+                                            <button class="btn btn-success btn-sm" id="btn-ai-use">✅ Dùng Code Chính</button>
+                                            <button class="btn btn-ghost btn-sm" id="btn-ai-use-brute">📋 Dùng Brute → Auto Fill</button>
+                                        </div>
+                                    </div>
+                                    <div id="editor-ai-preview" class="cm-wrap"></div>
+                                </div>
                             </div>
                         </div>
                         <div class="tab-panel" id="tab-stress">
                             <div class="stress-section">
-                                <p class="card-hint">Nhập code <strong>brute force</strong> để so sánh với Code Chính</p>
+                                <p class="card-hint">Nhập code <strong>brute force</strong> để so sánh với Code Chính bằng random input</p>
                                 <div id="editor-brute-wrap" class="cm-wrap"></div>
-                                <div class="stress-config"><div class="form-group" style="margin-bottom:0"><label>Số test</label><input type="number" id="stress-count" value="50" min="10" max="500" style="width:100px"></div><div class="form-group" style="margin-bottom:0"><label>Max</label><input type="number" id="stress-max-val" value="100" min="5" max="10000" style="width:100px"></div><button class="btn btn-accent" id="btn-stress-run">🔬 Kiểm Tra</button></div>
+                                <div class="stress-config">
+                                    <div class="form-group" style="margin-bottom:0"><label>Số test</label><input type="number" id="stress-count" value="50" min="10" max="500" style="width:100px"></div>
+                                    <div class="form-group" style="margin-bottom:0"><label>Max</label><input type="number" id="stress-max-val" value="100" min="5" max="10000" style="width:100px"></div>
+                                    <button class="btn btn-accent" id="btn-stress-run">⚡ Chạy Stress</button>
+                                </div>
                                 <div class="stress-progress hidden" id="stress-progress"><span class="progress-spinner"></span><span id="stress-progress-text">Đang khởi tạo...</span></div>
                                 <div class="stress-results hidden" id="stress-results"></div>
+                            </div>
+                        </div>
+                        <div class="tab-panel" id="tab-verify">
+                            <div class="verify-section">
+                                <p class="card-hint">Chạy lại <strong>test cases đã sinh</strong> (Step 5) với Code Chính để xác minh đáp án</p>
+                                <div class="verify-actions">
+                                    <button class="btn btn-accent" id="btn-verify-run">✅ Verify Code</button>
+                                    <span class="verify-status" id="verify-status"></span>
+                                </div>
+                                <div class="verify-progress hidden" id="verify-progress"><span class="progress-spinner"></span><span id="verify-progress-text">Đang kiểm tra...</span>
+                                    <div class="progress-bar-track" style="margin-top:8px"><div class="progress-bar" id="verify-bar" style="width:0%"></div></div>
+                                </div>
+                                <div class="verify-results hidden" id="verify-results"></div>
                             </div>
                         </div>
                     </div>
