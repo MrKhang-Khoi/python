@@ -895,6 +895,7 @@ ph+=`<div class="room-prob-card" style="padding:10px 12px;background:rgba(255,25
 <div style="font-weight:600;margin-bottom:4px;color:var(--text-primary)">${this._esc(p?.title||'Bài '+(i+1))}</div>
 <div style="white-space:pre-wrap;line-height:1.6">${this._esc(p?.description||'Không có mô tả')}</div>
 ${p?.sampleIO&&p.sampleIO.length?p.sampleIO.map((s,si)=>`<div class="sample-io-display" style="margin-top:8px"><div class="sample-io-display-header">Ví dụ ${si+1}</div><div class="sample-io-display-grid"><div class="sample-box"><div class="sample-box-title">INPUT</div><pre>${this._esc(s.input||'')}</pre></div><div class="sample-box"><div class="sample-box-title">OUTPUT</div><pre>${this._esc(s.output||'')}</pre></div></div></div>`).join(''):''}
+${(p?.testCases&&p.testCases.length)?`<details style="margin-top:10px"><summary style="cursor:pointer;font-weight:600;color:var(--accent-light);font-size:.8rem">📋 Test Cases (${p.testCases.length} test)</summary><div style="max-height:300px;overflow-y:auto;margin-top:6px"><table style="width:100%;font-size:.75rem;border-collapse:collapse"><thead><tr><th style="padding:4px 8px;text-align:left;border-bottom:1px solid var(--border);color:var(--text-muted)">#</th><th style="padding:4px 8px;text-align:left;border-bottom:1px solid var(--border);color:var(--text-muted)">Input</th><th style="padding:4px 8px;text-align:left;border-bottom:1px solid var(--border);color:var(--text-muted)">Output</th><th style="padding:4px 8px;text-align:left;border-bottom:1px solid var(--border);color:var(--text-muted)">Subtask</th></tr></thead><tbody>${p.testCases.map((tc,ti)=>`<tr style="border-bottom:1px solid rgba(255,255,255,.03)"><td style="padding:4px 8px;color:var(--text-muted)">${ti+1}</td><td style="padding:4px 8px"><pre style="margin:0;max-width:250px;overflow:auto;white-space:pre-wrap;font-size:.72rem">${this._esc((tc.input||'').substring(0,200))}</pre></td><td style="padding:4px 8px"><pre style="margin:0;max-width:250px;overflow:auto;white-space:pre-wrap;font-size:.72rem">${this._esc((tc.output||'').substring(0,200))}</pre></td><td style="padding:4px 8px;color:var(--text-muted)">ST${tc.subtaskId||1}</td></tr>`).join('')}</tbody></table></div></details>`:''}
 <div class="contest-prob-st-editor" id="contest-st-editor-${i}" style="display:none">
 <label>⚙️ Subtasks (Tổng phải = 100%)</label>
 <div id="contest-st-list-${i}"></div>
@@ -949,7 +950,6 @@ h+=`<button class="btn btn-accent btn-sm" onclick="window._uic._gradeRoomHistory
 }
 if(gs==='graded'||gs==='published'){
 h+=`<button class="btn btn-ghost btn-sm" onclick="window._uic._publishRoomHistory('${code}')"${gs==='published'?' disabled':''}>${gs==='published'?'✅ Đã công bố':'📢 Công Bố Kết Quả'}</button>`;
-h+=`<button class="btn btn-ghost btn-sm" onclick="window._uic._aiAnalyzeRoom('${code}')">🤖 AI Phân Tích</button>`;
 }
 h+=`</div>`;
 }
@@ -1798,7 +1798,10 @@ const gradeSnap=await this.fb.db.ref(`rooms/${rc}/gradeResults/${name}`).once('v
 const grades=gradeSnap.val()||{};
 const probCount=this.publishedCount||this._gradeProblems?.length||1;
 const probs=this._gradeProblems||[];
-let h=`<div class="modal-overlay" id="modal-student-detail" style="display:flex"><div class="modal-content" style="max-width:800px;max-height:85vh;overflow-y:auto">`;
+// Load teacher notes for this student
+const noteSnap=await this.fb.db.ref(`rooms/${rc}/teacherNotes/${name}`).once('value');
+const existingNotes=noteSnap.val()||{};
+let h=`<div class="modal-overlay" id="modal-student-detail" style="display:flex"><div class="modal-content" style="max-width:850px;max-height:85vh;overflow-y:auto">`;
 h+=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><h3>👤 ${this._esc(name)}</h3><button class="btn btn-ghost btn-sm" onclick="document.getElementById('modal-student-detail').remove()">✕ Đóng</button></div>`;
 for(let pi=0;pi<probCount;pi++){
 const g=grades[pi]||{};const code=(stu.finalCode&&stu.finalCode[pi])||'(Chưa nộp)';
@@ -1808,7 +1811,11 @@ h+=`<div style="margin-bottom:16px;padding:12px;background:rgba(255,255,255,.02)
 h+=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><strong>Bài ${pi+1}${prob.title?': '+this._esc(prob.title):''}</strong><span class="lb-prob-score ${(g.score||0)>=ms?'full':(g.score||0)>0?'partial':'zero'}">${g.score||0}/${ms}đ</span></div>`;
 if(prob.description){h+=`<details style="margin-bottom:8px;font-size:.78rem;color:var(--text-muted)"><summary style="cursor:pointer">📝 Xem đề bài</summary><div style="padding:6px 8px;margin-top:4px;background:rgba(0,0,0,.15);border-radius:4px;white-space:pre-wrap;color:var(--text-secondary)">${this._esc(prob.description)}</div></details>`}
 h+=`<pre style="background:rgba(0,0,0,.3);padding:10px;border-radius:4px;font-size:.75rem;max-height:200px;overflow:auto;margin-bottom:8px;white-space:pre-wrap">${this._esc(code)}</pre>`;
-if(g.aiAnalysis){h+=`<div style="padding:8px 12px;background:rgba(99,102,241,.06);border:1px solid rgba(99,102,241,.15);border-radius:6px;font-size:.78rem;margin-bottom:8px"><strong>🤖 AI:</strong> ${this._esc(g.aiAnalysis).replace(/\n/g,'<br>')}</div>`}
+// Test case details (grading results per test)
+if(g.details&&g.details.length){h+=`<details style="margin-bottom:8px;font-size:.78rem"><summary style="cursor:pointer;font-weight:600;color:var(--accent-light)">📋 Chi tiết chấm (${g.details.filter(d=>d.verdict==='AC').length}/${g.details.length} AC)</summary><div style="max-height:200px;overflow-y:auto;margin-top:6px"><table style="width:100%;font-size:.73rem;border-collapse:collapse"><thead><tr><th style="padding:3px 6px;text-align:left;border-bottom:1px solid var(--border);color:var(--text-muted)">#</th><th style="padding:3px 6px;text-align:left;border-bottom:1px solid var(--border);color:var(--text-muted)">Verdict</th><th style="padding:3px 6px;text-align:left;border-bottom:1px solid var(--border);color:var(--text-muted)">Time</th><th style="padding:3px 6px;text-align:left;border-bottom:1px solid var(--border);color:var(--text-muted)">Subtask</th></tr></thead><tbody>${g.details.map((d,di)=>`<tr style="border-bottom:1px solid rgba(255,255,255,.03)"><td style="padding:3px 6px;color:var(--text-muted)">${di+1}</td><td style="padding:3px 6px"><span class="verdict ${d.verdict}" style="font-weight:700">${d.verdict}</span></td><td style="padding:3px 6px;font-family:var(--font-mono)">${d.time||0}ms</td><td style="padding:3px 6px;color:var(--text-muted)">ST${d.subtaskId||1}</td></tr>`).join('')}</tbody></table></div></details>`}
+// AI Analysis display
+if(g.aiAnalysis){h+=`<div id="ai-result-${this._esc(name)}-${pi}" style="padding:8px 12px;background:rgba(99,102,241,.06);border:1px solid rgba(99,102,241,.15);border-radius:6px;font-size:.78rem;margin-bottom:8px"><strong>🤖 AI:</strong> ${this._esc(g.aiAnalysis).replace(/\n/g,'<br>')}</div>`}
+else{h+=`<div id="ai-result-${this._esc(name)}-${pi}" style="display:none;padding:8px 12px;background:rgba(99,102,241,.06);border:1px solid rgba(99,102,241,.15);border-radius:6px;font-size:.78rem;margin-bottom:8px"></div>`}
 // Submission history
 if(stu.submissions&&stu.submissions[pi]){
 const subs=stu.submissions[pi];const subKeys=Object.keys(subs).sort();
@@ -1817,10 +1824,15 @@ subKeys.forEach(ts=>{const sub=subs[ts];const d=new Date(parseInt(ts));
 h+=`<div style="padding:4px 8px;margin:2px 0;background:rgba(255,255,255,.02);border-radius:4px">Lần ${sub.attempt||'?'} — ${d.toLocaleTimeString('vi')}</div>`});
 h+=`</details>`}
 // Teacher note input
-const existingNote=this._teacherNotes?.[name]||'';
-h+=`<div style="margin-top:8px"><label style="font-size:.72rem;font-weight:600;color:var(--text-muted)">💬 Nhận xét GV:</label><textarea id="tnote-${this._esc(name)}-${pi}" rows="2" style="width:100%;margin-top:4px;background:var(--bg-card);border:1px solid var(--border);border-radius:4px;padding:6px;font-size:.78rem;color:var(--text-primary);resize:vertical" placeholder="Nhập nhận xét cho ${this._esc(name)}...">${this._esc(existingNote)}</textarea></div>`;
+const existNote=existingNotes[pi]||'';
+h+=`<div style="margin-top:8px"><label style="font-size:.72rem;font-weight:600;color:var(--text-muted)">💬 Nhận xét GV:</label><textarea id="tnote-${this._esc(name)}-${pi}" rows="2" style="width:100%;margin-top:4px;background:var(--bg-card);border:1px solid var(--border);border-radius:4px;padding:6px;font-size:.78rem;color:var(--text-primary);resize:vertical" placeholder="Nhập nhận xét cho ${this._esc(name)}...">${this._esc(existNote)}</textarea></div>`;
 h+=`</div>`}
-h+=`<div style="display:flex;gap:8px;margin-top:12px"><button class="btn btn-accent btn-sm" onclick="window._uic._saveTeacherNotes('${this._esc(name)}',${probCount})">💾 Lưu nhận xét</button></div>`;
+// Action buttons: Save + AI + Publish
+h+=`<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">`;
+h+=`<button class="btn btn-accent btn-sm" onclick="window._uic._saveTeacherNotes('${this._esc(name)}',${probCount})">💾 Lưu nhận xét</button>`;
+h+=`<button class="btn btn-ghost btn-sm" id="btn-ai-student-${this._esc(name)}" onclick="window._uic._aiAnalyzeStudent('${this._esc(name)}',${probCount})">🤖 AI Phân Tích</button>`;
+h+=`<button class="btn btn-ghost btn-sm" onclick="window._uic._publishFromModal()">📢 Công Bố Kết Quả</button>`;
+h+=`</div>`;
 h+=`</div></div>`;
 document.body.insertAdjacentHTML('beforeend',h);
 }catch(e){this._toast('Lỗi: '+e.message,'error')}}
@@ -1832,6 +1844,46 @@ const el=document.getElementById(`tnote-${name}-${pi}`);
 if(el&&el.value.trim()){
 await this.fb.db.ref(`rooms/${rc}/teacherNotes/${name}/${pi}`).set(el.value.trim())}}
 this._toast('💾 Đã lưu nhận xét!','success')}
+
+// AI analyze single student from modal
+async _aiAnalyzeStudent(name,probCount){
+const rc=this._viewingRoomCode||this.roomCode;if(!rc)return;
+const k=document.getElementById('ai-api-key')?.value?.trim()||this.gemini.getApiKey();
+if(!k){this._toast('Nhập Gemini API Key trong tab AI trước','error');return}
+this.gemini.setApiKey(k);
+const btn=document.getElementById(`btn-ai-student-${name}`);
+if(btn){btn.disabled=true;btn.textContent='⏳ Đang phân tích...'}
+const probs=this._gradeProblems||[];
+try{
+for(let pi=0;pi<probCount;pi++){
+const gradeSnap=await this.fb.db.ref(`rooms/${rc}/gradeResults/${name}/${pi}`).once('value');
+const g=gradeSnap.val();if(!g)continue;
+const codeSnap=await this.fb.db.ref(`rooms/${rc}/students/${name}/finalCode/${pi}`).once('value');
+const code=codeSnap.val();if(!code)continue;
+const p=probs[pi]||{};
+const prompt=`Phân tích code Python của học sinh cho bài "${p.title||'?'}".\nĐề bài: ${p.description||'N/A'}\nĐiểm: ${g.score}/${g.maxScore||100}\n\nCode:\n\`\`\`python\n${code}\n\`\`\`\n\nHãy:\n1. Nêu lỗi logic chính (nếu có)\n2. Đánh giá phong cách code\n3. Gợi ý cải thiện ngắn gọn\n\nTrả lời bằng tiếng Việt, tối đa 150 từ.`;
+try{
+const resp=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${k}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:0.2,maxOutputTokens:300}})});
+const d=await resp.json();const analysis=d.candidates?.[0]?.content?.parts?.[0]?.text||'Không phân tích được';
+await this.fb.db.ref(`rooms/${rc}/gradeResults/${name}/${pi}/aiAnalysis`).set(analysis);
+// Update UI inline
+const aiEl=document.getElementById(`ai-result-${name}-${pi}`);
+if(aiEl){aiEl.innerHTML=`<strong>🤖 AI:</strong> ${this._esc(analysis).replace(/\n/g,'<br>')}`;aiEl.style.display='block'}
+}catch(e){console.error('AI analyze:',name,pi,e)}
+await new Promise(r=>setTimeout(r,500))}
+if(btn){btn.disabled=false;btn.textContent='✅ Đã phân tích'}
+this._toast('🤖 AI đã phân tích xong!','success');
+}catch(e){if(btn){btn.disabled=false;btn.textContent='🤖 AI Phân Tích'}this._toast('Lỗi AI: '+e.message,'error')}}
+
+// Publish from student detail modal
+async _publishFromModal(){
+const rc=this._viewingRoomCode||this.roomCode;
+if(!rc){this._toast('Không có phòng thi','error');return}
+// Close modal before publishing
+const modal=document.getElementById('modal-student-detail');
+if(modal)modal.remove();
+await this._publishResults(rc)}
+
 
 // ===== PHASE 3: PUBLISH RESULTS =====
 async _publishResults(targetRoomCode){
