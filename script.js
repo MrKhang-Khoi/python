@@ -1305,7 +1305,7 @@ const exRes=this._exerciseResults||{};const exResultsForThis=exRes[exId]||{};con
 this.fb.cleanupExercise();
 this.fb.listenAllExerciseResults(res=>{const lr=res[exId]||{};const lb={};Object.keys(lr).forEach(n=>{const r=lr[n];lb[n]={name:n,totalScore:r.score||0,problems:{0:r.score||0},lastSubmit:r.submittedAt||0}});this._renderLeaderboard(lb,'stu-leaderboard-body',this.studentName)},'exercise')}
 
-async _joinRoom(){const code=document.getElementById('stu-room-code').value.trim();const errEl=document.getElementById('stu-join-error');errEl.textContent='';if(!code){errEl.textContent='⚠️ Nhập mã phòng thi';return}try{this.roomCode=code;this._currentExercise=null;const info=await this.fb.joinRoom(code,this.studentName);document.getElementById('stu-dashboard').classList.add('hidden');document.getElementById('stu-waiting-info').textContent=`Phòng: ${code} — ${info.title}`;if(info.status==='active'){this._stuStartContest(info)}else if(info.status==='ended'){this._showStudentEndedScreen(code,info)}else{document.getElementById('stu-waiting').classList.remove('hidden')}this.fb.listenRoomInfo(code,ri=>{if(!ri)return;if(ri.status==='active'){document.getElementById('stu-waiting').classList.add('hidden');this._stuStartContest(ri)}else if(ri.status==='ended'){if(this.timerInterval)clearInterval(this.timerInterval);document.getElementById('stu-contest').classList.add('hidden');this._showStudentEndedScreen(code,ri)}});this._toast(`Đã vào phòng ${code}!`,'success')}catch(e){errEl.textContent='❌ '+e.message}}
+async _joinRoom(){const code=document.getElementById('stu-room-code').value.trim();const errEl=document.getElementById('stu-join-error');errEl.textContent='';if(!code){errEl.textContent='⚠️ Nhập mã phòng thi';return}try{this.roomCode=code;this._currentExercise=null;const info=await this.fb.joinRoom(code,this.studentName);document.getElementById('stu-dashboard').classList.add('hidden');document.getElementById('stu-waiting-info').textContent=`Phòng: ${code} — ${info.title}`;if(info.status==='active'){this._stuStartContest(info)}else if(info.status==='ended'){this._showStudentEndedScreen(code,info)}else{document.getElementById('stu-waiting').classList.remove('hidden')}this.fb.listenRoomInfo(code,ri=>{if(!ri)return;if(ri.status==='active'){document.getElementById('stu-waiting').classList.add('hidden');this._stuStartContest(ri)}else if(ri.status==='ended'){if(this.timerInterval){clearInterval(this.timerInterval);this.timerInterval=null}this._stopAntiCheat();if(this._contestAutoSave){clearInterval(this._contestAutoSave);this._contestAutoSave=null}document.getElementById('stu-contest').classList.add('hidden');this._showStudentEndedScreen(code,ri)}});this._toast(`Đã vào phòng ${code}!`,'success')}catch(e){errEl.textContent='❌ '+e.message}}
 
 async _showStudentEndedScreen(roomCode,info){
 document.getElementById('stu-ended').classList.remove('hidden');
@@ -1339,18 +1339,18 @@ const probSection=document.getElementById('stu-ended-problems');
 probSection.classList.remove('hidden');
 const tabsEl=document.getElementById('stu-ended-prob-tabs');
 const detailEl=document.getElementById('stu-ended-prob-detail');
-// Get grades for each problem
-const gradeSnap=await this.fb.db.ref(`rooms/${roomCode}/gradeResults/${this.studentName}`).once('value');
-const myGrades=gradeSnap.val()||{};
+// Get grades ONLY if published
+const isPublished=!!info.published;
+const myGrades=isPublished?(await this.fb.db.ref(`rooms/${roomCode}/gradeResults/${this.studentName}`).once('value')).val()||{}:{};
 tabsEl.innerHTML='';
 const probKeys=Object.keys(probs).sort((a,b)=>parseInt(a)-parseInt(b));
 const showProb=(pi)=>{
 const p=probs[pi];
-const grade=myGrades[pi];
+const grade=isPublished?myGrades[pi]:null;
 const score=grade?grade.score:null;
 const ms=p.maxScore||(grade?.maxScore)||100;
 let scoreHtml='';
-if(score!==null){const cls=score>=ms?'perfect':score>0?'partial':'zero';scoreHtml=`<div class="contest-prob-score ${cls}">🎯 Điểm: ${score}/${ms}</div>`}
+if(isPublished&&score!==null){const cls=score>=ms?'perfect':score>0?'partial':'zero';scoreHtml=`<div class="contest-prob-score ${cls}">🎯 Điểm: ${score}/${ms}</div>`}
 let sampleHtml='';
 if(p.sampleIO&&p.sampleIO.length){
 sampleHtml='<div style="margin-top:12px">';
@@ -1366,9 +1366,9 @@ ${scoreHtml}
 ${sampleHtml}</div>`};
 probKeys.forEach((pi,i)=>{
 const btn=document.createElement('button');btn.className='contest-prob-tab'+(i===0?' active':'');
-const p=probs[pi];const grade=myGrades[pi];
+const p=probs[pi];const grade=isPublished?myGrades[pi]:null;
 const ms=p.maxScore||(grade?.maxScore)||100;
-const scoreIcon=grade?(grade.score>=ms?'✅':grade.score>0?'🟡':'❌'):'⬜';
+const scoreIcon=isPublished&&grade?(grade.score>=ms?'✅':grade.score>0?'🟡':'❌'):'📝';
 btn.textContent=`${scoreIcon} Bài ${parseInt(pi)+1}`;
 btn.onclick=()=>{tabsEl.querySelectorAll('.contest-prob-tab').forEach(b=>b.classList.remove('active'));btn.classList.add('active');showProb(pi)};
 tabsEl.appendChild(btn)});
