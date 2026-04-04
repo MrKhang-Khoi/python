@@ -759,14 +759,15 @@ const res=this._teacherExResults||{};
 const filter=(document.getElementById('t-exercise-search')||{}).value||'';
 const keys=Object.keys(exs).filter(k=>{const ex=exs[k];return(!filter||(ex.title||'').toLowerCase().includes(filter.toLowerCase())||(ex.topic||'').toLowerCase().includes(filter.toLowerCase()))});
 if(!keys.length){c.innerHTML=`<p style="color:var(--text-muted);text-align:center;padding:20px">Không tìm thấy bài tập "${this._esc(filter)}"</p>`;return}
-let h='<table class="ex-mgmt-table"><thead><tr><th>#</th><th>Tên bài</th><th>Chủ đề</th><th>Tests</th><th>Ngày tạo</th><th>HS đã làm</th><th>Thao tác</th></tr></thead><tbody>';
+let h='<table class="ex-mgmt-table"><thead><tr><th>#</th><th>Tên bài</th><th>Chủ đề</th><th style="width:96px">Độ khó</th><th>Tests</th><th>Ngày tạo</th><th>HS đã làm</th><th>Thao tác</th></tr></thead><tbody>';
 keys.forEach((k,i)=>{const ex=exs[k];const d=new Date(ex.createdAt);const tc=ex.testCases?ex.testCases.length:0;
 const exRes=res[k]||{};const doneCount=Object.keys(exRes).length;
 const totalAccts=this._cachedAccounts?Object.keys(this._cachedAccounts).length:0;
 const pct=totalAccts>0?Math.round(doneCount/totalAccts*100):0;
 const barColor=pct>=80?'var(--success)':pct>=40?'var(--warning,#f59e0b)':'var(--error)';
 h+=`<tr onclick="window._uic._openViewExercise('${k}')">`;
-h+=`<td>${i+1}</td><td style="font-weight:600">${this._esc(ex.title)}</td><td><span class="oj-ex-topic">${this._esc(ex.topic||'Chung')}</span></td><td>${tc}</td><td>${d.toLocaleDateString('vi')}</td>`;
+const _diffHtml=(dv=>{if(!dv)return'<span class="diff-badge diff-none">—</span>';const _lbl={easy:'Dễ',medium:'Trung bình',hard:'Khó'}[dv]||dv;const _cls={easy:'diff-easy',medium:'diff-medium',hard:'diff-hard'}[dv]||'diff-none';return`<span class="diff-badge ${_cls}">${_lbl}</span>`})(ex.difficulty);
+h+=`<td>${i+1}</td><td style="font-weight:600">${this._esc(ex.title)}</td><td><span class="oj-ex-topic">${this._esc(ex.topic||'Chung')}</span></td><td>${_diffHtml}</td><td>${tc}</td><td>${d.toLocaleDateString('vi')}</td>`;
 h+=`<td><div style="display:flex;align-items:center;gap:8px"><div style="flex:1;height:6px;background:rgba(255,255,255,.08);border-radius:3px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${barColor};border-radius:3px;transition:width .3s"></div></div><span style="font-size:.78rem;color:var(--text-muted);white-space:nowrap">${doneCount}/${totalAccts}</span></div></td>`;
 h+=`<td><div class="ex-mgmt-actions"><button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();window._uic._openViewExercise('${k}')">✏️</button><button class="btn-danger-sm" onclick="event.stopPropagation();window._uic._deleteExercise('${k}')">✕</button></div></td></tr>`});
 h+='</tbody></table>';c.innerHTML=h}
@@ -1249,7 +1250,7 @@ if(!keys.length){c.innerHTML=`<p style="color:var(--text-muted);text-align:cente
 c.className='oj-exercise-list-v2';
 // Pagination
 const PAGE_SIZE=20;if(!this._exPage)this._exPage=1;const totalPages=Math.ceil(keys.length/PAGE_SIZE);if(this._exPage>totalPages)this._exPage=totalPages;const startIdx=(this._exPage-1)*PAGE_SIZE;const pageKeys=keys.slice(startIdx,startIdx+PAGE_SIZE);
-let h='<table class="stu-ex-table"><thead><tr><th style="width:40px">STT</th><th>Bài tập</th><th style="width:100px">Chủ đề</th><th style="width:88px">Trạng thái</th><th style="width:70px">Điểm</th><th style="width:80px">Số test</th><th style="width:80px">Ngày tạo</th></tr></thead><tbody>';
+let h='<table class="stu-ex-table"><thead><tr><th style="width:40px">STT</th><th>Bài tập</th><th style="width:100px">Chủ đề</th><th style="width:80px">Độ khó</th><th style="width:88px">Trạng thái</th><th style="width:70px">Điểm</th><th style="width:80px">Số test</th><th style="width:80px">Ngày tạo</th></tr></thead><tbody>';
 pageKeys.forEach((k,idx)=>{const ex=exs[k];const d=new Date(ex.createdAt);const tc=ex.testCases?ex.testCases.length:0;const topic=ex.topic||'Chung';
 const myResult=this.studentName&&this._exerciseResults[k]&&this._exerciseResults[k][this.studentName];
 const isDone=!!myResult;const score=myResult?myResult.score:null;
@@ -1259,7 +1260,9 @@ const statusHtml=isDone?(score>=100?'<span class="stu-status-badge done">✅ Ho�
 h+=`<tr class="${isDone?(score>=100?'stu-ex-done':'stu-ex-partial'):'stu-ex-new'}" onclick="window._uic._openExercise('${k}')">`;
 h+=`<td class="stu-ex-idx">${startIdx+idx+1}</td>`;
 h+=`<td><div class="stu-ex-name">${this._esc(ex.title)}</div><div class="stu-ex-desc-line">${this._esc(ex.description||'').substring(0,70)}${(ex.description||'').length>70?'…':''}</div></td>`;
+const _sDiffHtml=(dv=>{if(!dv)return'<span class="diff-badge diff-none">—</span>';const _lbl={easy:'Dễ',medium:'Trung bình',hard:'Khó'}[dv]||dv;const _cls={easy:'diff-easy',medium:'diff-medium',hard:'diff-hard'}[dv]||'diff-none';return`<span class="diff-badge ${_cls}">${_lbl}</span>`})(ex.difficulty);
 h+=`<td><span class="stu-ex-topic-pill">${this._esc(topic)}</span></td>`;
+h+=`<td>${_sDiffHtml}</td>`;
 h+=`<td class="stu-ex-status-cell">${statusHtml}</td>`;
 h+=`<td class="stu-ex-score-cell">${scoreHtml}</td>`;
 h+=`<td class="stu-ex-tests-cell">${tc} test</td>`;
