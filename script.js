@@ -1069,6 +1069,11 @@ $('btn-stu-logout').onclick=async()=>{const ok=await this._confirmDialog('ðŸšª Ä
 $('btn-join-room').onclick=()=>this._joinRoom();
 $('btn-stu-submit').onclick=()=>this._stuSubmit();
 $('btn-stu-run').onclick=()=>this._stuRun();
+// Sync floating bar buttons with original (disabled state + status)
+const _syncFloat=()=>{const fRun=$('btn-float-run');const fSub=$('btn-float-submit');const fStat=$('oj-float-status');if(fRun)fRun.disabled=$('btn-stu-run').disabled;if(fSub)fSub.disabled=$('btn-stu-submit').disabled;if(fStat){const s=$('stu-submit-status');fStat.textContent=s?s.textContent:''}};
+new MutationObserver(_syncFloat).observe($('btn-stu-submit'),{attributes:true,attributeFilter:['disabled']});
+new MutationObserver(_syncFloat).observe($('btn-stu-run'),{attributes:true,attributeFilter:['disabled']});
+new MutationObserver(()=>{const fStat=$('oj-float-status');const s=$('stu-submit-status');if(fStat&&s)fStat.textContent=s.textContent}).observe($('stu-submit-status'),{childList:true,characterData:true,subtree:true});
 // Toggle custom input visibility when Run button is present
 $('btn-use-sample-input').onclick=()=>this._fillSampleInput();
 $('btn-stu-back-join').onclick=()=>{$('stu-ended').classList.add('hidden');$('stu-dashboard').classList.remove('hidden');this.fb.cleanupExercise();this._renderExerciseList(this._cachedExercises||{});this._renderStudentRanking();this._renderStudentStats()};

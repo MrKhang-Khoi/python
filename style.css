@@ -511,7 +511,8 @@ textarea.ai-textarea{resize:vertical}
 @keyframes floatBarIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
 .oj-floating-bar:hover{box-shadow:0 8px 32px rgba(0,0,0,.6),0 0 0 1px rgba(99,102,241,.3);transform:translateY(-2px)}
 .oj-float-btn{padding:10px 20px !important;font-size:.88rem !important;border-radius:var(--radius-sm) !important;font-weight:700 !important}
-#stu-contest.hidden .oj-floating-bar,.stu-screen.hidden .oj-floating-bar{display:none}
+.oj-float-status{font-size:.78rem;font-weight:600;color:var(--text-muted);white-space:nowrap}
+.oj-float-status:empty{display:none}
 .oj-custom-input-area{padding:0 8px;border-top:1px solid var(--border);background:rgba(0,0,0,.15);transition:all .3s ease}
 .oj-custom-input-area.hidden{display:none}
 .oj-custom-input-header{display:flex;justify-content:space-between;align-items:center;padding:6px 4px;font-size:.78rem;font-weight:600;color:var(--text-secondary)}

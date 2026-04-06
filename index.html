@@ -514,7 +514,7 @@
                     <div class="oj-editor-header">
                         <span class="oj-lang-badge">🐍 Python 3</span>
                         <span id="auto-save-indicator" class="auto-save-indicator"></span>
-                        <div style="display:flex;gap:6px"><button class="oj-btn-test" id="btn-stu-run">🧪 Chạy thử</button><button class="oj-btn-run" id="btn-stu-submit">▶ Nộp Bài</button></div>
+                        <div style="display:none"><button class="oj-btn-test" id="btn-stu-run">🧪 Chạy thử</button><button class="oj-btn-run" id="btn-stu-submit">▶ Nộp Bài</button></div>
                     </div>
                     <div id="stu-editor-wrap" class="oj-editor-wrap"></div>
                     <!-- Custom input area for testing -->
@@ -533,8 +533,9 @@
             </div>
             <!-- Floating action bar: always visible -->
             <div id="oj-floating-bar" class="oj-floating-bar">
-                <button class="oj-btn-test oj-float-btn" onclick="document.getElementById('btn-stu-run').click()">🧪 Chạy thử</button>
-                <button class="oj-btn-run oj-float-btn" onclick="document.getElementById('btn-stu-submit').click()">▶ Nộp Bài</button>
+                <span id="oj-float-status" class="oj-float-status"></span>
+                <button class="oj-btn-test oj-float-btn" id="btn-float-run" onclick="document.getElementById('btn-stu-run').click()">🧪 Chạy thử</button>
+                <button class="oj-btn-run oj-float-btn" id="btn-float-submit" onclick="document.getElementById('btn-stu-submit').click()">▶ Nộp Bài</button>
             </div>
         </div>
 
