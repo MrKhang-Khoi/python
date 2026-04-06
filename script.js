@@ -169,11 +169,13 @@ _selectRole(role){this.role=role;document.getElementById('splash').classList.add
 
 // ===== TEACHER =====
 _initTeacher(){if(this._teacherInited){document.getElementById('view-teacher').classList.remove('hidden');return}this._teacherInited=true;document.getElementById('view-teacher').classList.remove('hidden');this._initCM();this._bindTeacher();this._bindTeacherTabs();this.addSubtask(70,'Subtask 1');this.addSubtask(30,'Subtask 2');this._updateSTTotal();const k=this.gemini.getApiKey();if(k)document.getElementById('ai-api-key').value=k;this._validateForm();
+// Stats sub-tab switching
+document.querySelectorAll('.stats-subtab').forEach(btn=>{btn.onclick=()=>{document.querySelectorAll('.stats-subtab').forEach(b=>b.classList.remove('active'));btn.classList.add('active');document.querySelectorAll('.stats-subtab-content').forEach(p=>p.classList.remove('active'));const panel=document.getElementById('stab-'+btn.dataset.stab);if(panel)panel.classList.add('active')}});
 // Auto-restore draft if exists
 this._restoreDraft();
-this.fb.listenAccounts(accts=>{this._cachedAccounts=accts;this._renderAccountList(accts);this._renderProgress()});
-this.fb.listenExercises(exs=>{this._teacherExercises=exs;this._renderTeacherExerciseList(exs);this._renderProgress()});
-this.fb.listenAllExerciseResults(res=>{this._teacherExResults=res;this._renderTeacherExerciseList(this._teacherExercises||{});this._renderProgress()});
+this.fb.listenAccounts(accts=>{this._cachedAccounts=accts;this._renderAccountList(accts);this._renderProgress();this._renderTopicStats()});
+this.fb.listenExercises(exs=>{this._teacherExercises=exs;this._renderTeacherExerciseList(exs);this._renderProgress();this._renderTopicStats()});
+this.fb.listenAllExerciseResults(res=>{this._teacherExResults=res;this._renderTeacherExerciseList(this._teacherExercises||{});this._renderProgress();this._renderTopicStats()});
 // Theory listener
 const thRef=this.fb.db.ref('theories');thRef.on('value',s=>{this._cachedTheories=s.val()||{};this._renderTheoryList(this._cachedTheories,'t-theory-list',true)});this.fb._listeners.push(()=>thRef.off());
 // Room history listener
@@ -844,6 +846,51 @@ exKeys.forEach(k=>{const r=res[k]&&res[k][name];if(r){const s=r.score||0;totalSc
 const avg=exKeys.length>0?Math.round(totalScore/exKeys.length):0;
 h+=`<td><strong style="color:${avg>=80?'var(--success)':avg>=50?'var(--warning,#f59e0b)':'var(--text-muted)'}">${avg}</strong> <span style="font-size:.7rem;color:var(--text-muted)">(${doneCount}/${exKeys.length})</span></td></tr>`});
 h+='</tbody></table></div>';c.innerHTML=h}
+
+// Topic-based stats for teacher
+_renderTopicStats(){const c=document.getElementById('t-topic-stats');const exs=this._teacherExercises||{};const accts=this._cachedAccounts||{};const res=this._teacherExResults||{};const exKeys=Object.keys(exs);const stuNames=Object.keys(accts);
+if(!exKeys.length||!stuNames.length){c.innerHTML='<p style="color:var(--text-muted);text-align:center;padding:16px">Cần có bài tập và tài khoản HS để hiển thị.</p>';return}
+// Group exercises by topic
+const topicMap={};exKeys.forEach(k=>{const topic=exs[k].topic||'Không phân loại';if(!topicMap[topic])topicMap[topic]=[];topicMap[topic].push(k)});
+const topics=Object.keys(topicMap).sort();
+let h='<div class="topic-stats-grid">';
+topics.forEach((topic,ti)=>{const topicExKeys=topicMap[topic];
+// Calculate topic-level stats
+let totalComplete=0;let totalPerfect=0;const totalSlots=stuNames.length*topicExKeys.length;
+const stuData=stuNames.sort().map(name=>{let done=0;let perfect=0;let totalScore=0;
+topicExKeys.forEach(k=>{const r=res[k]&&res[k][name];if(r){done++;totalScore+=r.score||0;if(r.score>=100)perfect++}});
+totalComplete+=done;totalPerfect+=perfect;
+const pct=topicExKeys.length>0?Math.round(done/topicExKeys.length*100):0;
+return{name,done,perfect,totalScore,pct,notDone:topicExKeys.length-done}});
+const completionPct=totalSlots>0?Math.round(totalComplete/totalSlots*100):0;
+const needAlert=stuData.filter(s=>s.pct<50).length;
+// Topic card
+h+=`<div class="topic-card open" id="topic-card-${ti}">`;
+h+=`<div class="topic-card-header" onclick="this.parentElement.classList.toggle('open')">`;
+h+=`<div class="topic-card-title"><span>📂 ${this._esc(topic)}</span><span class="topic-card-badge">${topicExKeys.length} bài</span></div>`;
+h+=`<div class="topic-card-stats">`;
+h+=`<span>✅ ${completionPct}% hoàn thành</span>`;
+if(needAlert>0)h+=`<span style="color:var(--error)">⚠️ ${needAlert} HS cần nhắc</span>`;
+h+=`<span>▼</span></div></div>`;
+h+=`<div class="topic-card-body">`;
+// Table for this topic
+h+=`<div class="progress-table-wrap"><table class="progress-cross-table"><thead><tr><th class="sticky-col">Học sinh</th>`;
+topicExKeys.forEach(k=>h+=`<th title="${this._esc(exs[k].title)}">${this._esc(exs[k].title).substring(0,15)}</th>`);
+h+=`<th>Hoàn thành</th><th>Trạng thái</th></tr></thead><tbody>`;
+stuData.forEach(s=>{const alertCls=s.pct<50?'topic-alert-row':'';
+h+=`<tr class="${alertCls}"><td class="sticky-col" style="font-weight:600">${this._esc(s.name)}</td>`;
+topicExKeys.forEach(k=>{const r=res[k]&&res[k][s.name];if(r){const sc=r.score||0;const cls=sc>=100?'score-perfect':sc>=50?'score-pass':'score-fail';h+=`<td><span class="progress-score ${cls}">${sc}</span></td>`}else{h+=`<td><span class="progress-score score-none">—</span></td>`}});
+// Completion column
+const barColor=s.pct>=80?'var(--success)':s.pct>=50?'var(--warning,#f59e0b)':'var(--error)';
+h+=`<td><div style="display:flex;align-items:center;gap:6px"><div style="flex:1;height:6px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden"><div style="height:100%;width:${s.pct}%;background:${barColor};border-radius:3px"></div></div><span style="font-size:.78rem;font-weight:600;color:var(--text-muted)">${s.done}/${topicExKeys.length}</span></div></td>`;
+// Status column
+if(s.pct>=100)h+=`<td><span style="color:var(--success);font-weight:700">🌟 Hoàn thành</span></td>`;
+else if(s.pct>=50)h+=`<td><span style="color:var(--warning,#f59e0b);font-weight:600">📝 Đang làm</span></td>`;
+else if(s.done>0)h+=`<td><span class="topic-alert-icon">⚠️ Cần nhắc nhở</span></td>`;
+else h+=`<td><span class="topic-alert-icon">🚨 Chưa làm bài nào</span></td>`;
+h+=`</tr>`});
+h+=`</tbody></table></div></div></div>`});
+h+='</div>';c.innerHTML=h}
 
 
 _setRoomStatus(s){const el=document.getElementById('t-room-status');el.textContent=s==='waiting'?'Chờ':s==='active'?'Đang thi':'Kết thúc';el.className='room-status-badge '+s}

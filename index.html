@@ -339,7 +339,17 @@
                     <h2 class="tab-panel-title">📊 Tiến Độ Học Sinh</h2>
                     <p class="tab-panel-sub">Bảng tổng hợp điểm theo bài tập và học sinh</p>
                 </div>
-                <div id="t-progress-table"><p style="color:var(--text-muted);text-align:center;padding:40px">Đang tải...</p></div>
+                <!-- Sub-tabs -->
+                <div class="stats-subtabs">
+                    <button class="stats-subtab active" data-stab="overview">📋 Tổng Quan</button>
+                    <button class="stats-subtab" data-stab="topics">📂 Theo Chủ Đề</button>
+                </div>
+                <div class="stats-subtab-content active" id="stab-overview">
+                    <div id="t-progress-table"><p style="color:var(--text-muted);text-align:center;padding:40px">Đang tải...</p></div>
+                </div>
+                <div class="stats-subtab-content" id="stab-topics">
+                    <div id="t-topic-stats"><p style="color:var(--text-muted);text-align:center;padding:40px">Đang tải...</p></div>
+                </div>
             </div>
 
             <!-- ===== TAB 5: PHÒNG THI ===== -->

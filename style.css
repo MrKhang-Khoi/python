@@ -356,6 +356,31 @@ textarea.ai-textarea{resize:vertical}
 .st-sum-bar-fill.full{background:var(--success)}.st-sum-bar-fill.partial{background:var(--warning)}.st-sum-bar-fill.zero{background:var(--danger)}
 .st-sum-score{font-weight:700;font-size:.88rem;min-width:50px;text-align:right}
 
+/* Stats Sub-tabs */
+.stats-subtabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:20px;padding:0 4px}
+.stats-subtab{background:none;border:none;color:var(--text-muted);font-size:.86rem;font-weight:600;padding:12px 20px;cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;font-family:inherit}
+.stats-subtab:hover{color:var(--text-primary)}
+.stats-subtab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.stats-subtab-content{display:none}
+.stats-subtab-content.active{display:block}
+
+/* Topic Stats */
+.topic-stats-grid{display:flex;flex-direction:column;gap:20px}
+.topic-card{border:1px solid var(--border);border-radius:var(--radius-md);overflow:hidden;background:var(--bg-card)}
+.topic-card-header{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;background:rgba(99,102,241,.04);border-bottom:1px solid var(--border);cursor:pointer;transition:background .2s}
+.topic-card-header:hover{background:rgba(99,102,241,.08)}
+.topic-card-title{font-weight:700;font-size:.95rem;color:var(--text-primary);display:flex;align-items:center;gap:8px}
+.topic-card-badge{font-size:.72rem;padding:3px 10px;border-radius:var(--radius-pill);font-weight:700;background:rgba(99,102,241,.12);color:var(--accent-light)}
+.topic-card-stats{display:flex;gap:16px;font-size:.78rem;color:var(--text-muted)}
+.topic-card-stats span{display:flex;align-items:center;gap:4px}
+.topic-card-body{padding:0;max-height:0;overflow:hidden;transition:max-height .3s ease}
+.topic-card.open .topic-card-body{max-height:2000px;padding:0}
+.topic-card .progress-cross-table{font-size:.82rem}
+.topic-card .progress-cross-table th,.topic-card .progress-cross-table td{padding:8px 12px}
+.topic-alert-row{background:rgba(239,68,68,.06) !important}
+.topic-alert-icon{color:var(--error);font-weight:700;font-size:.9rem}
+
+
 /* ===== OJ NAVBAR ===== */
 .oj-navbar{display:flex;align-items:center;justify-content:space-between;padding:0 20px;height:52px;background:rgba(15,18,28,.95);border-bottom:1px solid var(--border);backdrop-filter:blur(12px);position:sticky;top:0;z-index:100}
 .oj-nav-left{display:flex;align-items:center;gap:6px}
