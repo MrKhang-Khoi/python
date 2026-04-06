@@ -161,7 +161,12 @@ this.cmBrute=CodeMirror(document.getElementById('editor-brute-wrap'),{...cfg,val
 this.cmAiPreview=CodeMirror(document.getElementById('editor-ai-preview'),{...cfg,readOnly:true,value:''});this.cmAiPreview.setSize(null,180);this.cmAiPreview.on('change',()=>this._debouncedSaveDraft());
 // Bind auto-save on form inputs (debounced 3s)
 const draftInputs=['problem-title','task-name','problem-topic','total-tests','problem-description','ai-prompt'];draftInputs.forEach(id=>{const el=document.getElementById(id);if(el){el.addEventListener('input',()=>this._debouncedSaveDraft())}});
-['chk-file-io','chk-uppercase'].forEach(id=>{const el=document.getElementById(id);if(el)el.addEventListener('change',()=>this._debouncedSaveDraft())})}
+['chk-file-io','chk-uppercase'].forEach(id=>{const el=document.getElementById(id);if(el)el.addEventListener('change',()=>this._debouncedSaveDraft())});
+// Use event delegation on dynamic containers so any sub-input change triggers auto-save
+['subtasks-container','input-lines-container','sample-io-container'].forEach(cid=>{const c=document.getElementById(cid);if(c){c.addEventListener('input',()=>this._debouncedSaveDraft());c.addEventListener('change',()=>this._debouncedSaveDraft())}});
+// Observe DOM mutations (add/remove subtask/line/var) to trigger auto-save
+const obs=new MutationObserver(()=>this._debouncedSaveDraft());
+['subtasks-container','input-lines-container','sample-io-container'].forEach(cid=>{const c=document.getElementById(cid);if(c)obs.observe(c,{childList:true,subtree:true})})}
 
 _bindTeacher(){const $=id=>document.getElementById(id);
 // Tabs
@@ -2038,7 +2043,7 @@ _validateForm(){const has=this.cmMain&&this.cmMain.getValue().trim().length>0;co
 
 collectFormData(){const sts=this._getSubtasks();const inputLines=[];document.querySelectorAll('#input-lines-container .input-line-card').forEach(lc=>{const chk=lc.querySelector('.chk-repeat');const sel=lc.querySelector('.repeat-var-select');const repeatRef=chk&&chk.checked&&sel.value?sel.value:null;const variables=[];lc.querySelectorAll('.var-row').forEach(vr=>{const v={name:vr.querySelector('.var-name-input').value.trim()||'X',type:vr.querySelector('.var-type-select').value,subtaskLimits:{}};vr.querySelectorAll('.var-constraints-inline .constraint-chip').forEach(ch=>{const minVal=parseFloat(ch.querySelector('.cst-min').value)||0;const maxVal=parseFloat(ch.querySelector('.cst-max').value)||100;if(v.type==='string'){v.subtaskLimits[parseInt(ch.dataset.stId)]={min:0,max:0,lenMin:Math.max(1,Math.round(minVal)),lenMax:Math.max(1,Math.round(maxVal))}}else{v.subtaskLimits[parseInt(ch.dataset.stId)]={min:minVal,max:maxVal}}});if(v.type==='array'){const ref=vr.querySelector('.arr-length-ref');v.lengthRef=ref&&ref.value?ref.value:null;v.pattern=vr.querySelector('.arr-pattern')?.value||'random'}if(v.type==='string'){v.charset=vr.querySelector('.str-charset')?.value||'az';if(v.charset==='mixed'){const dEl=vr.querySelector('.ratio-digits');const lEl=vr.querySelector('.ratio-lower');const uEl=vr.querySelector('.ratio-upper');if(dEl&&lEl&&uEl){v.charsetRatio={digits:parseInt(dEl.value)||0,lower:parseInt(lEl.value)||0,upper:parseInt(uEl.value)||0}}}}variables.push(v)});inputLines.push({variables,repeatRef})});return{pythonCode:this.cmMain.getValue(),taskName:document.getElementById('task-name').value||'BAITAP',uppercase:document.getElementById('chk-uppercase').checked,fileIO:document.getElementById('chk-file-io').checked,totalTests:parseInt(document.getElementById('total-tests').value)||20,subtasks:sts,inputLines}}
 
-async startGeneration(){if(this.isGenerating)return;this.isGenerating=true;document.getElementById('btn-generate').disabled=true;document.getElementById('error-area').classList.add('hidden');document.getElementById('section-preview').classList.add('hidden');document.getElementById('progress-area').classList.remove('hidden');this.themis.clear();try{const cfg=this.collectFormData();this._setProg(5,'⏳ Pyodide...');await this.pyEngine.init();this._setProg(20,'✅ Pyodide OK');const gen=new DataGenerator(cfg);const inputs=gen.generateAllInputs();this.themis.setTaskName(cfg.taskName,cfg.uppercase);const inpN=this.themis.taskName+(cfg.uppercase?'.INP':'.inp'),outN=this.themis.taskName+(cfg.uppercase?'.OUT':'.out');for(let i=0;i<inputs.length;i++){this._setProg(30+Math.round(i/inputs.length*55),`🐍 Test ${i+1}/${inputs.length}`);const out=cfg.fileIO?await this.pyEngine.runFileIO(cfg.pythonCode,inputs[i].input,inpN,outN):await this.pyEngine.runStdio(cfg.pythonCode,inputs[i].input);this.themis.addTestCase(i+1,inputs[i].input,out,inputs[i].subtaskId,inputs[i].subtaskName);await new Promise(r=>setTimeout(r,10))}this._setProg(90,'📦 Đóng gói...');await this.themis.generateZip();this._setProg(100,'🎉 Xong!');this._showPreview();this._toast(`${inputs.length} test OK!`,'success')}catch(e){document.getElementById('error-area').classList.remove('hidden');document.getElementById('error-text').textContent=e.message;this._toast('Lỗi','error')}finally{this.isGenerating=false;document.getElementById('btn-generate').disabled=false;setTimeout(()=>document.getElementById('progress-area').classList.add('hidden'),2000);this._validateForm()}}
+async startGeneration(){if(this.isGenerating)return;this.isGenerating=true;document.getElementById('btn-generate').disabled=true;document.getElementById('error-area').classList.add('hidden');document.getElementById('section-preview').classList.add('hidden');document.getElementById('progress-area').classList.remove('hidden');this.themis.clear();try{const cfg=this.collectFormData();this._setProg(5,'⏳ Pyodide...');await this.pyEngine.init();this._setProg(20,'✅ Pyodide OK');const gen=new DataGenerator(cfg);const inputs=gen.generateAllInputs();this.themis.setTaskName(cfg.taskName,cfg.uppercase);const inpN=this.themis.taskName+(cfg.uppercase?'.INP':'.inp'),outN=this.themis.taskName+(cfg.uppercase?'.OUT':'.out');for(let i=0;i<inputs.length;i++){this._setProg(30+Math.round(i/inputs.length*55),`🐍 Test ${i+1}/${inputs.length}`);const out=cfg.fileIO?await this.pyEngine.runFileIO(cfg.pythonCode,inputs[i].input,inpN,outN):await this.pyEngine.runStdio(cfg.pythonCode,inputs[i].input);this.themis.addTestCase(i+1,inputs[i].input,out,inputs[i].subtaskId,inputs[i].subtaskName);await new Promise(r=>setTimeout(r,10))}this._setProg(90,'📦 Đóng gói...');await this.themis.generateZip();this._setProg(100,'🎉 Xong!');this._showPreview();this._toast(`${inputs.length} test OK!`,'success');this._debouncedSaveDraft()}catch(e){document.getElementById('error-area').classList.remove('hidden');document.getElementById('error-text').textContent=e.message;this._toast('Lỗi','error')}finally{this.isGenerating=false;document.getElementById('btn-generate').disabled=false;setTimeout(()=>document.getElementById('progress-area').classList.add('hidden'),2000);this._validateForm()}}
 
 _setProg(p,m){document.getElementById('progress-bar').style.width=p+'%';document.getElementById('progress-text').textContent=m;document.getElementById('progress-percent').textContent=p+'%'}
 
@@ -2073,6 +2078,7 @@ draft.fileIO=document.getElementById('chk-file-io')?.checked||false;
 draft.uppercase=document.getElementById('chk-uppercase')?.checked||false;
 draft.description=document.getElementById('problem-description')?.value||'';
 draft.aiPrompt=document.getElementById('ai-prompt')?.value||'';
+draft.difficulty=document.getElementById('ex-difficulty')?.value||'medium';
 // Code editors
 if(this.cmMain)draft.codeMain=this.cmMain.getValue();
 if(this.cmBrute)draft.codeBrute=this.cmBrute.getValue();
@@ -2091,8 +2097,13 @@ if(v.type==='string'){v.charset=vr.querySelector('.str-charset')?.value||'az';if
 line.vars.push(v)});draft.inputLines.push(line)});
 // Sample I/O
 draft.sampleIO=this._getSampleIOs();
+// Generated test cases (preserve for restore)
+if(this.themis&&this.themis.testCases&&this.themis.testCases.length){
+draft.generatedTests=this.themis.testCases.map(tc=>({index:tc.index,input:tc.input,output:tc.output,subtaskId:tc.subtaskId,subtaskName:tc.subtaskName}))}
 draft.savedAt=Date.now();
-localStorage.setItem('themis_draft_compose',JSON.stringify(draft));
+try{localStorage.setItem('themis_draft_compose',JSON.stringify(draft))}catch(storageErr){
+// If test data is too large, save without tests
+delete draft.generatedTests;localStorage.setItem('themis_draft_compose',JSON.stringify(draft))}
 this._showDraftStatus('saved');
 }catch(e){console.warn('Draft save error:',e)}}
 
@@ -2101,6 +2112,9 @@ const raw=localStorage.getItem('themis_draft_compose');if(!raw)return;
 const d=JSON.parse(raw);
 // Check if draft is too old (> 7 days)
 if(d.savedAt&&Date.now()-d.savedAt>7*24*60*60*1000){localStorage.removeItem('themis_draft_compose');return}
+// Check if draft has any meaningful content
+const hasMeaningful=d.title||d.taskName||d.description||(d.codeMain&&d.codeMain.trim()&&d.codeMain.trim()!=='# Code đáp án\nn = int(input())\nprint(n * 2)');
+if(!hasMeaningful)return;
 // Restore basic fields
 if(d.title)document.getElementById('problem-title').value=d.title;
 if(d.taskName)document.getElementById('task-name').value=d.taskName;
@@ -2110,6 +2124,7 @@ if(d.fileIO!==undefined)document.getElementById('chk-file-io').checked=d.fileIO;
 if(d.uppercase!==undefined)document.getElementById('chk-uppercase').checked=d.uppercase;
 if(d.description)document.getElementById('problem-description').value=d.description;
 if(d.aiPrompt)document.getElementById('ai-prompt').value=d.aiPrompt;
+if(d.difficulty){const diffEl=document.getElementById('ex-difficulty');if(diffEl)diffEl.value=d.difficulty}
 // Restore code editors
 if(d.codeMain&&this.cmMain){this.cmMain.setValue(d.codeMain);setTimeout(()=>this.cmMain.refresh(),50)}
 if(d.codeBrute&&this.cmBrute){this.cmBrute.setValue(d.codeBrute);setTimeout(()=>this.cmBrute.refresh(),50)}
@@ -2144,9 +2159,16 @@ this._toggleEmpty()}
 if(d.sampleIO&&d.sampleIO.length){
 document.getElementById('sample-io-container').innerHTML='';this._sampleIOCounter=0;
 d.sampleIO.forEach(s=>this._addSampleIO(s.input||'',s.output||'',s.explanation||''))}
+// Restore generated test cases
+if(d.generatedTests&&d.generatedTests.length&&this.themis){
+this.themis.clear();
+d.generatedTests.forEach(tc=>this.themis.addTestCase(tc.index,tc.input,tc.output,tc.subtaskId,tc.subtaskName));
+this.themis.setTaskName(d.taskName||'BAITAP',!!d.uppercase);
+try{this.themis.generateZip().then(()=>{this._showPreview();this._validateForm()}).catch(()=>{})}catch(e){}}
 this._validateForm();
 const draftTitle=d.title||d.taskName||'chưa đặt tên';
-this._toast(`🔄 Đã khôi phục bài soạn dở: "${draftTitle}"`,'info');
+const tcInfo=d.generatedTests?` (${d.generatedTests.length} test)`:'';
+this._toast(`🔄 Đã khôi phục bài soạn dở: "${draftTitle}"${tcInfo}`,'info');
 this._showDraftStatus('restored');
 }catch(e){console.warn('Draft restore error:',e);localStorage.removeItem('themis_draft_compose')}}
 
