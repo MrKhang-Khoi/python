@@ -756,24 +756,48 @@ document.getElementById('btn-pdf-download').onclick=()=>this._downloadTheoryFile
 document.getElementById('btn-pdf-newtab').onclick=()=>{if(driveViewUrl)window.open(driveViewUrl,'_blank');else if(frameUrl)window.open(frameUrl,'_blank')};
 modal.classList.remove('hidden')}
 
-// === Teacher exercise list with search ===
+// === Teacher exercise list with search (grouped by topic) ===
+_tTopicOpen={};
+_toggleTeacherTopic(topic){this._tTopicOpen[topic]=!this._tTopicOpen[topic];const el=document.getElementById('tg-t-'+CSS.escape(topic));if(el)el.classList.toggle('open',!!this._tTopicOpen[topic])}
 _renderTeacherExerciseList(exs){const c=document.getElementById('t-exercise-list');if(!exs||!Object.keys(exs).length){c.innerHTML='<p style="color:var(--text-muted);text-align:center;padding:40px">Chưa có bài tập nào. Chuyển sang tab "Soạn Đề" để tạo.</p>';return}
 const res=this._teacherExResults||{};
 const filter=(document.getElementById('t-exercise-search')||{}).value||'';
 const keys=Object.keys(exs).filter(k=>{const ex=exs[k];return(!filter||(ex.title||'').toLowerCase().includes(filter.toLowerCase())||(ex.topic||'').toLowerCase().includes(filter.toLowerCase()))});
 if(!keys.length){c.innerHTML=`<p style="color:var(--text-muted);text-align:center;padding:20px">Không tìm thấy bài tập "${this._esc(filter)}"</p>`;return}
-let h='<table class="ex-mgmt-table"><thead><tr><th>#</th><th>Tên bài</th><th>Chủ đề</th><th style="width:96px">Độ khó</th><th>Tests</th><th>Ngày tạo</th><th>HS đã làm</th><th>Thao tác</th></tr></thead><tbody>';
-keys.forEach((k,i)=>{const ex=exs[k];const d=new Date(ex.createdAt);const tc=ex.testCases?ex.testCases.length:0;
-const exRes=res[k]||{};const doneCount=Object.keys(exRes).length;
+// Group by topic
+const groups={};keys.forEach(k=>{const topic=exs[k].topic||'Không phân loại';if(!groups[topic])groups[topic]=[];groups[topic].push(k)});
+const sortedTopics=Object.keys(groups).sort((a,b)=>a.localeCompare(b,'vi'));
 const totalAccts=this._cachedAccounts?Object.keys(this._cachedAccounts).length:0;
+let h='';let globalIdx=0;
+sortedTopics.forEach(topic=>{
+const topicKeys=groups[topic];
+// When searching, auto-open groups that have matches
+const isOpen=filter?true:!!this._tTopicOpen[topic];
+// Compute group-level stats
+let groupDone=0;topicKeys.forEach(k=>{const er=res[k]||{};groupDone+=Object.keys(er).length});
+const avgPct=totalAccts>0&&topicKeys.length>0?Math.round(groupDone/(topicKeys.length*totalAccts)*100):0;
+const barColor=avgPct>=80?'var(--success)':avgPct>=40?'var(--warning,#f59e0b)':'var(--accent-light)';
+h+=`<div class="topic-group ${isOpen?'open':''}" id="tg-t-${this._esc(topic)}">`;
+h+=`<div class="topic-group-header" onclick="window._uic._toggleTeacherTopic('${this._esc(topic).replace(/'/g,"\\'")}')">`;
+h+=`<span class="topic-group-chevron">▶</span>`;
+h+=`<span class="topic-group-name">${this._esc(topic)} <span class="topic-group-count">${topicKeys.length} bài</span></span>`;
+h+=`<div class="topic-group-stats">`;
+h+=`<div class="topic-group-progress"><div class="topic-group-progress-fill" style="width:${avgPct}%;background:${barColor}"></div></div>`;
+h+=`<span>${groupDone}/${topicKeys.length*totalAccts} lượt</span>`;
+h+=`</div></div>`;
+h+=`<div class="topic-group-body">`;
+h+=`<table class="ex-mgmt-table"><thead><tr><th>#</th><th>Tên bài</th><th style="width:96px">Độ khó</th><th>Tests</th><th>Ngày tạo</th><th>HS đã làm</th><th>Thao tác</th></tr></thead><tbody>`;
+topicKeys.forEach((k,i)=>{globalIdx++;const ex=exs[k];const d=new Date(ex.createdAt);const tc=ex.testCases?ex.testCases.length:0;
+const exRes=res[k]||{};const doneCount=Object.keys(exRes).length;
 const pct=totalAccts>0?Math.round(doneCount/totalAccts*100):0;
-const barColor=pct>=80?'var(--success)':pct>=40?'var(--warning,#f59e0b)':'var(--error)';
-h+=`<tr onclick="window._uic._openViewExercise('${k}')">`;
+const bColor=pct>=80?'var(--success)':pct>=40?'var(--warning,#f59e0b)':'var(--error)';
 const _diffHtml=(dv=>{if(!dv)return'<span class="diff-badge diff-none">—</span>';const _lbl={easy:'Dễ',medium:'Trung bình',hard:'Khó'}[dv]||dv;const _cls={easy:'diff-easy',medium:'diff-medium',hard:'diff-hard'}[dv]||'diff-none';return`<span class="diff-badge ${_cls}">${_lbl}</span>`})(ex.difficulty);
-h+=`<td>${i+1}</td><td style="font-weight:600">${this._esc(ex.title)}</td><td><span class="oj-ex-topic">${this._esc(ex.topic||'Chung')}</span></td><td>${_diffHtml}</td><td>${tc}</td><td>${d.toLocaleDateString('vi')}</td>`;
-h+=`<td><div style="display:flex;align-items:center;gap:8px"><div style="flex:1;height:6px;background:rgba(255,255,255,.08);border-radius:3px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${barColor};border-radius:3px;transition:width .3s"></div></div><span style="font-size:.78rem;color:var(--text-muted);white-space:nowrap">${doneCount}/${totalAccts}</span></div></td>`;
+h+=`<tr onclick="window._uic._openViewExercise('${k}')">`;
+h+=`<td>${i+1}</td><td style="font-weight:600">${this._esc(ex.title)}</td><td>${_diffHtml}</td><td>${tc}</td><td>${d.toLocaleDateString('vi')}</td>`;
+h+=`<td><div style="display:flex;align-items:center;gap:8px"><div style="flex:1;height:6px;background:rgba(255,255,255,.08);border-radius:3px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${bColor};border-radius:3px;transition:width .3s"></div></div><span style="font-size:.78rem;color:var(--text-muted);white-space:nowrap">${doneCount}/${totalAccts}</span></div></td>`;
 h+=`<td><div class="ex-mgmt-actions"><button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();window._uic._openViewExercise('${k}')">✏️</button><button class="btn-danger-sm" onclick="event.stopPropagation();window._uic._deleteExercise('${k}')">✕</button></div></td></tr>`});
-h+='</tbody></table>';c.innerHTML=h}
+h+=`</tbody></table></div></div>`});
+c.innerHTML=h}
 
 // Student progress cross-table
 _renderProgress(){const c=document.getElementById('t-progress-table');const exs=this._teacherExercises||{};const accts=this._cachedAccounts||{};const res=this._teacherExResults||{};const exKeys=Object.keys(exs);const stuNames=Object.keys(accts);if(!exKeys.length||!stuNames.length){c.innerHTML='<p style="color:var(--text-muted);text-align:center;padding:16px">Cần có bài tập và tài khoản HS để hiển thị tiến độ.</p>';return}
@@ -1254,6 +1278,8 @@ this._toast(`Xin chào ${name}!`,'success')}catch(e){errEl.textContent='❌ '+e.
 
 // BUG-1 FIX: Removed duplicate _stuLogout — see canonical version at L1142
 
+_sTopicOpen={};
+_toggleStudentTopic(topic){this._sTopicOpen[topic]=!this._sTopicOpen[topic];const el=document.getElementById('tg-s-'+CSS.escape(topic));if(el)el.classList.toggle('open',!!this._sTopicOpen[topic])}
 _renderExerciseList(exs){const c=document.getElementById('exercise-list');const allKeys=Object.keys(exs);if(!allKeys.length){c.innerHTML='<p style="color:var(--text-muted);text-align:center;padding:40px">📭 Chưa có bài tập nào. Giáo viên chưa đăng.</p>';c.className='';return}
 const filter=(document.getElementById('stu-exercise-search')||{}).value||'';
 const statusFilter=(document.getElementById('stu-status-filter')||{}).value||'all';
@@ -1268,29 +1294,48 @@ if(countEl){const txt=filter||statusFilter!=='all'?`${keys.length}/${allKeys.len
 const badgeEl=document.getElementById('stu-notif-badge');if(badgeEl){if(notDoneAll>0){badgeEl.textContent=notDoneAll;badgeEl.classList.remove('hidden')}else{badgeEl.classList.add('hidden')}}
 if(!keys.length){c.innerHTML=`<p style="color:var(--text-muted);text-align:center;padding:20px">${filter?'Không tìm thấy "'+this._esc(filter)+'"':'Không có bài tập phù hợp bộ lọc'}</p>`;c.className='';return}
 c.className='oj-exercise-list-v2';
-// Pagination
-const PAGE_SIZE=20;if(!this._exPage)this._exPage=1;const totalPages=Math.ceil(keys.length/PAGE_SIZE);if(this._exPage>totalPages)this._exPage=totalPages;const startIdx=(this._exPage-1)*PAGE_SIZE;const pageKeys=keys.slice(startIdx,startIdx+PAGE_SIZE);
-let h='<table class="stu-ex-table"><thead><tr><th style="width:36px">STT</th><th>Bài tập</th><th style="width:90px">Chủ đề</th><th style="width:80px">Độ khó</th><th style="width:84px">Trạng thái</th><th style="width:56px">Điểm</th><th style="width:56px">Tests</th><th style="width:72px">Ngày tạo</th></tr></thead><tbody>';
-pageKeys.forEach((k,idx)=>{const ex=exs[k];const d=new Date(ex.createdAt);const tc=ex.testCases?ex.testCases.length:0;const topic=ex.topic||'Chung';
+// Group by topic
+const groups={};keys.forEach(k=>{const topic=exs[k].topic||'Không phân loại';if(!groups[topic])groups[topic]=[];groups[topic].push(k)});
+const sortedTopics=Object.keys(groups).sort((a,b)=>a.localeCompare(b,'vi'));
+const hasFilter=!!(filter||statusFilter!=='all');
+let h='';
+sortedTopics.forEach(topic=>{
+const topicKeys=groups[topic];
+const isOpen=hasFilter?true:!!this._sTopicOpen[topic];
+// Personal stats for this topic
+let doneCnt=0,perfectCnt=0,totalScore=0;
+topicKeys.forEach(k=>{const myRes=this.studentName&&this._exerciseResults[k]&&this._exerciseResults[k][this.studentName];if(myRes){doneCnt++;totalScore+=myRes.score||0;if(myRes.score>=100)perfectCnt++}});
+const pct=topicKeys.length>0?Math.round(doneCnt/topicKeys.length*100):0;
+const barColor=pct>=100?'var(--success)':pct>=50?'var(--warning,#f59e0b)':'var(--accent-light)';
+const personalIcon=doneCnt===topicKeys.length?(perfectCnt===topicKeys.length?'💯':'✅'):(doneCnt>0?'🔶':'❌');
+const personalClass=doneCnt===topicKeys.length?'tg-done':(doneCnt>0?'tg-partial':'tg-none');
+h+=`<div class="topic-group ${isOpen?'open':''}" id="tg-s-${this._esc(topic)}">`;
+h+=`<div class="topic-group-header" onclick="window._uic._toggleStudentTopic('${this._esc(topic).replace(/'/g,"\\'")}')">`;
+h+=`<span class="topic-group-chevron">▶</span>`;
+h+=`<span class="topic-group-name">${this._esc(topic)} <span class="topic-group-count">${topicKeys.length} bài</span></span>`;
+h+=`<div class="topic-group-stats">`;
+h+=`<div class="topic-group-progress"><div class="topic-group-progress-fill" style="width:${pct}%;background:${barColor}"></div></div>`;
+h+=`<span class="topic-group-personal ${personalClass}">${personalIcon} ${doneCnt}/${topicKeys.length}</span>`;
+h+=`</div></div>`;
+h+=`<div class="topic-group-body">`;
+h+=`<table class="stu-ex-table"><thead><tr><th style="width:36px">STT</th><th>Bài tập</th><th style="width:80px">Độ khó</th><th style="width:84px">Trạng thái</th><th style="width:56px">Điểm</th><th style="width:56px">Tests</th><th style="width:72px">Ngày tạo</th></tr></thead><tbody>`;
+topicKeys.forEach((k,idx)=>{const ex=exs[k];const d=new Date(ex.createdAt);const tc=ex.testCases?ex.testCases.length:0;
 const myResult=this.studentName&&this._exerciseResults[k]&&this._exerciseResults[k][this.studentName];
 const isDone=!!myResult;const score=myResult?myResult.score:null;
 const scoreClass=score>=100?'perfect':score>=50?'partial':'fail';
 const scoreHtml=isDone?`<span class="stu-ex-score ${scoreClass}">${score}</span>`:`<span class="stu-ex-score none">—</span>`;
 const statusHtml=isDone?(score>=100?'<span class="stu-status-badge done">✅ Hoàn thành</span>':'<span class="stu-status-badge partial">🔶 Chưa đạt</span>'):'<span class="stu-status-badge notdone">❌ Chưa làm</span>';
 h+=`<tr class="${isDone?(score>=100?'stu-ex-done':'stu-ex-partial'):'stu-ex-new'}" onclick="window._uic._openExercise('${k}')">`;
-h+=`<td class="stu-ex-idx">${startIdx+idx+1}</td>`;
+h+=`<td class="stu-ex-idx">${idx+1}</td>`;
 h+=`<td><div class="stu-ex-name">${this._esc(ex.title)}</div><div class="stu-ex-desc-line">${this._esc(ex.description||'').substring(0,70)}${(ex.description||'').length>70?'…':''}</div></td>`;
 const _sDiffHtml=(dv=>{if(!dv)return'<span class="diff-badge diff-none">—</span>';const _lbl={easy:'Dễ',medium:'Trung bình',hard:'Khó'}[dv]||dv;const _cls={easy:'diff-easy',medium:'diff-medium',hard:'diff-hard'}[dv]||'diff-none';return`<span class="diff-badge ${_cls}">${_lbl}</span>`})(ex.difficulty);
-h+=`<td><span class="stu-ex-topic-pill">${this._esc(topic)}</span></td>`;
 h+=`<td>${_sDiffHtml}</td>`;
 h+=`<td class="stu-ex-status-cell">${statusHtml}</td>`;
 h+=`<td class="stu-ex-score-cell">${scoreHtml}</td>`;
 h+=`<td class="stu-ex-tests-cell">${tc} test</td>`;
 h+=`<td class="stu-ex-date-cell">${d.toLocaleDateString('vi')}</td>`;
 h+=`</tr>`});
-h+='</tbody></table>';
-// Pagination controls
-if(totalPages>1){h+=`<div class="stu-pagination"><button class="stu-page-btn" ${this._exPage<=1?'disabled':''} onclick="window._uic._exPage=${this._exPage-1};window._uic._renderExerciseList(window._uic._cachedExercises)">‹ Trước</button><span class="stu-page-info">Trang ${this._exPage} / ${totalPages} (${keys.length} bài)</span><button class="stu-page-btn" ${this._exPage>=totalPages?'disabled':''} onclick="window._uic._exPage=${this._exPage+1};window._uic._renderExerciseList(window._uic._cachedExercises)">Sau ›</button></div>`}
+h+=`</tbody></table></div></div>`});
 c.innerHTML=h}
 
 async _openExercise(exId){const snap=await this.fb.db.ref(`exercises/${exId}`).once('value');const ex=snap.val();if(!ex)return;this._currentExercise={id:exId,...ex};this.roomCode=null;this.problems=[ex];this.currentProbIdx=0;document.getElementById('stu-dashboard').classList.add('hidden');document.getElementById('stu-contest').classList.remove('hidden');document.getElementById('stu-contest-title').textContent=ex.title;document.getElementById('stu-player-name').textContent=this.studentName;

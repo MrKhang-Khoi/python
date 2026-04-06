@@ -1014,3 +1014,30 @@ textarea.ai-textarea{resize:vertical}
 .draft-save-status.saved {background:rgba(16,185,129,.1);color:var(--success);border:1px solid rgba(16,185,129,.2)}
 .draft-save-status.restored {background:rgba(99,102,241,.1);color:var(--accent-light);border:1px solid rgba(99,102,241,.2);animation:draftRestorePulse 2s ease}
 @keyframes draftRestorePulse {0%{transform:scale(1.1);box-shadow:0 0 12px rgba(99,102,241,.3)}100%{transform:scale(1);box-shadow:none}}
+
+/* ============ TOPIC GROUP ACCORDION ============ */
+.topic-group {margin-bottom:8px;border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;background:var(--bg-card);transition:box-shadow .2s}
+.topic-group:hover {box-shadow:0 2px 12px rgba(0,0,0,.15)}
+.topic-group-header {display:flex;align-items:center;gap:10px;padding:12px 16px;cursor:pointer;user-select:none;transition:background .15s}
+.topic-group-header:hover {background:rgba(255,255,255,.03)}
+.topic-group-header:active {background:rgba(255,255,255,.05)}
+.topic-group-chevron {font-size:.7rem;color:var(--text-muted);transition:transform .25s ease;flex-shrink:0;width:16px;text-align:center}
+.topic-group.open .topic-group-chevron {transform:rotate(90deg)}
+.topic-group-name {font-size:.88rem;font-weight:700;color:var(--text-primary);flex:1;display:flex;align-items:center;gap:8px}
+.topic-group-count {font-size:.72rem;font-weight:600;padding:2px 8px;border-radius:var(--radius-pill);background:rgba(99,102,241,.1);color:var(--accent-light)}
+.topic-group-stats {display:flex;align-items:center;gap:10px;font-size:.75rem;color:var(--text-muted)}
+.topic-group-progress {width:60px;height:5px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden}
+.topic-group-progress-fill {height:100%;border-radius:3px;transition:width .4s ease}
+.topic-group-body {max-height:0;overflow:hidden;transition:max-height .35s cubic-bezier(.4,0,.2,1)}
+.topic-group.open .topic-group-body {max-height:9999px}
+.topic-group-body .ex-mgmt-table {border:none;border-radius:0}
+.topic-group-body .ex-mgmt-table thead th {position:sticky;top:0;z-index:1;background:var(--bg-card)}
+.topic-group-body .stu-ex-table {border:none;border-radius:0}
+.topic-group-body .stu-ex-table thead th {position:sticky;top:0;z-index:1;background:var(--bg-card)}
+/* Student topic group personal stats */
+.topic-group-personal {display:flex;align-items:center;gap:6px;font-size:.72rem;font-weight:600}
+.topic-group-personal .tg-done {color:var(--success)}
+.topic-group-personal .tg-partial {color:var(--warning)}
+.topic-group-personal .tg-none {color:var(--text-muted)}
+/* Empty state for groups */
+.topic-group-empty {padding:20px;text-align:center;color:var(--text-muted);font-size:.82rem}
