@@ -1417,6 +1417,17 @@ c.innerHTML=h}
 async _openExercise(exId){const snap=await this.fb.db.ref(`exercises/${exId}`).once('value');const ex=snap.val();if(!ex)return;this._currentExercise={id:exId,...ex};this.roomCode=null;this.problems=[ex];this.currentProbIdx=0;document.getElementById('stu-dashboard').classList.add('hidden');document.getElementById('stu-contest').classList.remove('hidden');document.getElementById('stu-contest-title').textContent=ex.title;document.getElementById('stu-player-name').textContent=this.studentName;
 document.getElementById('stu-timer').textContent='∞';document.getElementById('stu-timer').classList.remove('critical');
 if(this.timerInterval){clearInterval(this.timerInterval);this.timerInterval=null}
+// === RESET UI state from previous exercise ===
+const consoleOut=document.getElementById('oj-console-output');if(consoleOut)consoleOut.innerHTML='<span style="color:var(--text-muted)">Nhấn "Chạy thử" hoặc "Nộp Bài" để bắt đầu.</span>';
+const statusEl=document.getElementById('stu-submit-status');if(statusEl)statusEl.textContent='';
+const resultsCard=document.getElementById('stu-results-card');if(resultsCard)resultsCard.classList.add('hidden');
+const noResults=document.getElementById('no-results-msg');if(noResults)noResults.style.display='';
+const inputArea=document.getElementById('oj-custom-input-area');if(inputArea)inputArea.classList.add('hidden');
+const customInput=document.getElementById('oj-custom-input');if(customInput)customInput.value='';
+// Reset pane tab to "Đề Bài"
+document.querySelectorAll('.oj-ptab').forEach(b=>b.classList.remove('active'));const descTab=document.querySelector('.oj-ptab[data-ptab="desc"]');if(descTab)descTab.classList.add('active');document.querySelectorAll('.oj-ptab-content').forEach(p=>p.classList.remove('active'));const descPanel=document.getElementById('ptab-desc');if(descPanel)descPanel.classList.add('active');
+// Enable submit button (may have been disabled)
+const submitBtn=document.getElementById('btn-stu-submit');if(submitBtn){submitBtn.disabled=false;submitBtn.textContent='▶ Nộp Bài'}
 this._renderProblemTabs();this._showProblem(0);this._initStudentEditor();
 // F04: Restore draft from localStorage first, then Firebase
 const savedDraft=localStorage.getItem('themis_draft_'+exId);
