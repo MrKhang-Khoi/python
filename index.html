@@ -360,12 +360,73 @@
                         <button class="btn btn-ghost btn-sm" id="btn-export-csv">📥 Xuất CSV</button>
                     </div>
                 </div>
-                <!-- Contest problems list -->
-                <div id="t-contest-problems" class="hidden" style="margin-bottom:20px">
-                    <h3 style="font-size:.92rem;font-weight:700;margin-bottom:10px;color:var(--text-secondary)">📋 Đề thi đã đăng</h3>
-                    <div id="t-contest-problem-list"></div>
+
+                <!-- ===== ACTIVE ROOM DASHBOARD (shown when room is active) ===== -->
+                <div id="t-active-room-dashboard" class="hidden">
+                    <!-- Step Indicator -->
+                    <div class="contest-steps">
+                        <div class="contest-step active" id="cstep-1"><span class="cstep-num">1</span><span class="cstep-label">Đề Thi</span></div>
+                        <div class="contest-step-line"></div>
+                        <div class="contest-step" id="cstep-2"><span class="cstep-num">2</span><span class="cstep-label">Phòng Chờ</span></div>
+                        <div class="contest-step-line"></div>
+                        <div class="contest-step" id="cstep-3"><span class="cstep-num">3</span><span class="cstep-label">Đang Thi</span></div>
+                    </div>
+
+                    <!-- Room Info Card -->
+                    <div class="contest-room-info">
+                        <div class="contest-room-header">
+                            <div>
+                                <div class="contest-room-title" id="t-room-title-display">Tên kỳ thi</div>
+                                <div class="contest-room-meta">
+                                    <span>🏷 Mã phòng: <strong id="t-room-code-display">------</strong></span>
+                                    <span>⏱ <span id="t-room-time-display">0</span> phút</span>
+                                    <span class="room-status-badge" id="t-room-status-display">Chờ</span>
+                                </div>
+                            </div>
+                            <div class="contest-room-timer">
+                                <span class="contest-timer-value" id="t-room-timer-display">00:00</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Two-column layout: Problems + Student Lobby -->
+                    <div class="contest-main-grid">
+                        <!-- Left: Problems -->
+                        <div class="contest-left-col">
+                            <div class="contest-section-card">
+                                <div class="contest-section-header">
+                                    <span>📋 Đề Thi Đã Đăng</span>
+                                    <span class="contest-section-badge" id="t-prob-count-badge">0 bài</span>
+                                </div>
+                                <div id="t-contest-problem-list"></div>
+                            </div>
+                        </div>
+
+                        <!-- Right: Student Lobby -->
+                        <div class="contest-right-col">
+                            <div class="contest-section-card">
+                                <div class="contest-section-header">
+                                    <span>👥 Học Sinh Tham Gia</span>
+                                    <span class="contest-section-badge" id="t-lobby-count">0 HS</span>
+                                </div>
+                                <div id="t-student-lobby" class="student-lobby">
+                                    <p class="lobby-empty">⏳ Đang chờ học sinh tham gia...</p>
+                                </div>
+                            </div>
+
+                            <!-- Action Buttons (contextual) -->
+                            <div class="contest-actions" id="t-contest-actions">
+                                <button class="btn btn-success contest-action-btn" id="btn-start-contest-main">▶️ Bắt Đầu Thi</button>
+                                <button class="btn btn-danger-sm contest-action-btn" id="btn-end-contest-main" style="display:none">⏹ Kết Thúc</button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <!-- GRADING SECTION -->
+
+                <!-- Hidden container for backward compat -->
+                <div id="t-contest-problems" class="hidden"></div>
+
+                <!-- Grading Section -->
                 <div id="grading-section" style="margin-bottom:20px">
                     <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
                         <button class="btn btn-accent btn-sm" id="btn-grade-all" onclick="window._uic._gradeAllStudents()">🔬 Chấm Tất Cả</button>

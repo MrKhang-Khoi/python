@@ -381,6 +381,48 @@ textarea.ai-textarea{resize:vertical}
 .topic-alert-icon{color:var(--error);font-weight:700;font-size:.9rem}
 
 
+/* ===== CONTEST DASHBOARD ===== */
+.contest-steps{display:flex;align-items:center;justify-content:center;gap:0;margin-bottom:24px;padding:16px 0}
+.contest-step{display:flex;align-items:center;gap:8px;padding:8px 16px;border-radius:var(--radius-pill);background:rgba(255,255,255,.03);border:1px solid var(--border);transition:all .3s;opacity:.5}
+.contest-step.active{opacity:1;background:rgba(99,102,241,.08);border-color:var(--accent);box-shadow:0 0 12px rgba(99,102,241,.15)}
+.contest-step.done{opacity:1;background:rgba(34,197,94,.08);border-color:var(--success)}
+.cstep-num{width:28px;height:28px;border-radius:50%;background:var(--border);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.82rem;color:var(--text-muted);transition:all .3s}
+.contest-step.active .cstep-num{background:var(--accent);color:#fff}
+.contest-step.done .cstep-num{background:var(--success);color:#fff}
+.cstep-label{font-weight:600;font-size:.84rem;color:var(--text-secondary)}
+.contest-step.active .cstep-label{color:var(--accent-light)}
+.contest-step.done .cstep-label{color:var(--success)}
+.contest-step-line{width:40px;height:2px;background:var(--border);transition:background .3s}
+.contest-step-line.done{background:var(--success)}
+
+.contest-room-info{padding:16px 20px;background:linear-gradient(135deg,rgba(99,102,241,.06),rgba(139,92,246,.04));border:1px solid rgba(99,102,241,.15);border-radius:var(--radius-md);margin-bottom:20px}
+.contest-room-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px}
+.contest-room-title{font-size:1.15rem;font-weight:800;color:var(--text-primary);margin-bottom:4px}
+.contest-room-meta{display:flex;gap:16px;font-size:.82rem;color:var(--text-muted);flex-wrap:wrap}
+.contest-room-meta strong{color:var(--accent-light);font-family:var(--font-mono);letter-spacing:1px}
+.contest-room-timer{text-align:center}
+.contest-timer-value{font-family:var(--font-mono);font-size:2rem;font-weight:800;color:var(--accent-light);letter-spacing:2px;text-shadow:0 0 20px rgba(99,102,241,.3)}
+
+.contest-main-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@media(max-width:900px){.contest-main-grid{grid-template-columns:1fr}}
+.contest-section-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-md);overflow:hidden}
+.contest-section-header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:rgba(255,255,255,.02);border-bottom:1px solid var(--border);font-weight:700;font-size:.88rem;color:var(--text-secondary)}
+.contest-section-badge{font-size:.72rem;padding:3px 10px;border-radius:var(--radius-pill);font-weight:700;background:rgba(99,102,241,.12);color:var(--accent-light)}
+
+/* Student Lobby */
+.student-lobby{padding:12px;min-height:200px;max-height:400px;overflow-y:auto}
+.lobby-empty{color:var(--text-muted);text-align:center;padding:40px 20px;font-size:.88rem}
+.lobby-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px}
+.lobby-student-card{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:var(--radius-sm);background:rgba(255,255,255,.03);border:1px solid var(--border);transition:all .3s;animation:lobbyJoin .4s ease}
+.lobby-student-card:hover{background:rgba(99,102,241,.06);border-color:rgba(99,102,241,.2)}
+.lobby-avatar{width:32px;height:32px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.78rem;color:#fff;flex-shrink:0}
+.lobby-student-name{font-weight:600;font-size:.82rem;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lobby-student-time{font-size:.68rem;color:var(--text-muted)}
+@keyframes lobbyJoin{from{opacity:0;transform:scale(.9)}to{opacity:1;transform:scale(1)}}
+
+.contest-actions{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap}
+.contest-action-btn{flex:1;justify-content:center;padding:12px 20px !important;font-size:.92rem !important;font-weight:700 !important;border-radius:var(--radius-sm) !important}
+
 /* ===== OJ NAVBAR ===== */
 .oj-navbar{display:flex;align-items:center;justify-content:space-between;padding:0 20px;height:52px;background:rgba(15,18,28,.95);border-bottom:1px solid var(--border);backdrop-filter:blur(12px);position:sticky;top:0;z-index:100}
 .oj-nav-left{display:flex;align-items:center;gap:6px}

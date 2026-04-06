@@ -437,10 +437,13 @@ await this.fb.db.ref(`rooms/${this.roomCode}/info/problemNames`).set(problemName
 await this.fb.db.ref(`rooms/${this.roomCode}/info/totalMaxScore`).set(totalMaxScore);
 // Log to Google Sheet
 this.drive.logData('Rooms',[this.roomCode,title,time,'waiting',new Date().toISOString(),'',selectedIds.length,0,problemNames.join(', '),totalMaxScore]).catch(()=>{});
-// Render contest problem list — use full view with action buttons
+// Show active room dashboard
+this._showActiveRoomDashboard(this.roomCode,title,time,selectedIds.length);
+// Render problems in the dashboard
 this._viewingRoomCode=this.roomCode;
 await this._viewRoomHistory(this.roomCode);
-this.fb.listenStudents(this.roomCode,s=>{this._activeRoomStudentCount=s?Object.keys(s).length:0;document.getElementById('t-student-count').textContent=this._activeRoomStudentCount});
+// Listen for students joining (lobby)
+this.fb.listenStudents(this.roomCode,s=>{this._activeRoomStudents=s||{};const count=Object.keys(s||{}).length;this._activeRoomStudentCount=count;document.getElementById('t-student-count').textContent=count;this._renderStudentLobby(s||{})});
 this.fb.listenLeaderboard(this.roomCode,lb=>{this._activeRoomLeaderboard=lb;this._renderLeaderboard(lb,'t-leaderboard-body')});
 this._toast(`🏆 Phòng ${this.roomCode} đã tạo với ${selectedIds.length} bài (tổng ${totalMaxScore}đ)!`,'success')
 }catch(e){this._toast('Lỗi: '+e.message,'error')}}
@@ -448,6 +451,60 @@ this._toast(`🏆 Phòng ${this.roomCode} đã tạo với ${selectedIds.length}
 _updateRoomTotalScore(){const inputs=document.querySelectorAll('.room-prob-score');let total=0;inputs.forEach(inp=>total+=parseInt(inp.value)||0);const el=document.getElementById('room-total-score');if(el)el.textContent=`Tổng: ${total} điểm`;el.style.color=total===20?'var(--success)':total>20?'var(--warning)':'var(--accent-light)'}
 
 _toggleProbDetail(idx){const el=document.getElementById(`room-prob-detail-${idx}`);if(el)el.classList.toggle('hidden')}
+
+// ===== Active Room Dashboard =====
+_showActiveRoomDashboard(code,title,time,probCount){
+const dash=document.getElementById('t-active-room-dashboard');if(!dash)return;
+dash.classList.remove('hidden');
+const el=id=>document.getElementById(id);
+el('t-room-title-display').textContent=title;
+el('t-room-code-display').textContent=code;
+el('t-room-time-display').textContent=time;
+el('t-prob-count-badge').textContent=probCount+' bài';
+el('t-room-timer-display').textContent='00:00';
+// Set step to 1 (problems loaded)
+this._setContestStep(1);
+// Wire new buttons to existing handlers
+el('btn-start-contest-main').onclick=()=>this._startContest();
+el('btn-start-contest-main').style.display='';
+el('btn-end-contest-main').onclick=()=>this._endContest();
+el('btn-end-contest-main').style.display='none';
+}
+
+_hideActiveRoomDashboard(){
+const dash=document.getElementById('t-active-room-dashboard');if(dash)dash.classList.add('hidden');
+}
+
+_setContestStep(step){
+[1,2,3].forEach(i=>{const el=document.getElementById('cstep-'+i);if(!el)return;
+el.classList.remove('active','done');
+if(i<step)el.classList.add('done');
+else if(i===step)el.classList.add('active')});
+// Update step lines
+const lines=document.querySelectorAll('.contest-step-line');
+lines.forEach((l,i)=>{l.classList.toggle('done',i<step-1)})}
+
+_renderStudentLobby(students){
+const lobby=document.getElementById('t-student-lobby');
+const countEl=document.getElementById('t-lobby-count');
+const names=Object.keys(students);
+if(countEl)countEl.textContent=names.length+' HS';
+if(!names.length){lobby.innerHTML='<p class="lobby-empty">⏳ Đang chờ học sinh tham gia...</p>';return}
+// Auto-advance step indicator to Lobby when students join
+if(names.length>0)this._setContestStep(2);
+const colors=['#6366f1','#8b5cf6','#06b6d4','#10b981','#f59e0b','#ef4444','#ec4899','#14b8a6'];
+let h='<div class="lobby-grid">';
+names.sort().forEach((name,i)=>{
+const initial=(name[0]||'?').toUpperCase();
+const color=colors[i%colors.length];
+const joinTime=students[name]?.joinedAt?new Date(students[name].joinedAt).toLocaleTimeString('vi',{hour:'2-digit',minute:'2-digit'}):'';
+h+=`<div class="lobby-student-card">
+<div class="lobby-avatar" style="background:${color}">${initial}</div>
+<div>
+<div class="lobby-student-name" title="${this._esc(name)}">${this._esc(name)}</div>
+${joinTime?`<div class="lobby-student-time">Vào lúc ${joinTime}</div>`:''}
+</div></div>`});
+h+='</div>';lobby.innerHTML=h}
 
 // Contest problem management
 _editContestProblem(idx,code){
@@ -942,16 +999,21 @@ h+=`</tbody></table></div></div></div>`});
 h+='</div>';c.innerHTML=h}
 
 
-_setRoomStatus(s){const el=document.getElementById('t-room-status');el.textContent=s==='waiting'?'Chờ':s==='active'?'Đang thi':'Kết thúc';el.className='room-status-badge '+s}
+_setRoomStatus(s){const el=document.getElementById('t-room-status');if(el){el.textContent=s==='waiting'?'Chờ':s==='active'?'Đang thi':'Kết thúc';el.className='room-status-badge '+s}
+const el2=document.getElementById('t-room-status-display');if(el2){el2.textContent=s==='waiting'?'Chờ':s==='active'?'Đang thi':'Kết thúc';el2.className='room-status-badge '+s}}
 
 async _startContest(){if(!this.roomCode)return;
 const ok=await this._confirmDialog('▶️ Bắt đầu cuộc thi','Học sinh sẽ bắt đầu làm bài ngay khi bạn xác nhận. Bạn chắc chắn?','Bắt đầu','btn-accent');
 if(!ok)return;
 this._contestEnded=false;
 await this.fb.startContest(this.roomCode);this._setRoomStatus('active');this._toast('Cuộc thi bắt đầu!','success');
+// Update dashboard step and buttons
+this._setContestStep(3);
+const startBtn=document.getElementById('btn-start-contest-main');if(startBtn)startBtn.style.display='none';
+const endBtn=document.getElementById('btn-end-contest-main');if(endBtn)endBtn.style.display='';
 // Update Google Sheet with start time (BUG-D fix)
 this.drive.logData('Rooms',[this.roomCode+'_START','','','active','',new Date().toISOString(),'','','']).catch(()=>{});
-this.fb.listenRoomInfo(this.roomCode,info=>{if(this._contestEnded)return;if(info&&info.startTime&&info.timeLimit){const end=info.startTime+info.timeLimit*60000;if(this.timerInterval)clearInterval(this.timerInterval);const upd=()=>{if(this._contestEnded)return;const rem=Math.max(0,end-Date.now());const m=Math.floor(rem/60000),s=Math.floor(rem%60000/1000);document.getElementById('t-room-timer').textContent=`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;if(rem<=0){clearInterval(this.timerInterval);this._setRoomStatus('ended')}};this.timerInterval=setInterval(upd,1000);upd()}})}
+this.fb.listenRoomInfo(this.roomCode,info=>{if(this._contestEnded)return;if(info&&info.startTime&&info.timeLimit){const end=info.startTime+info.timeLimit*60000;if(this.timerInterval)clearInterval(this.timerInterval);const upd=()=>{if(this._contestEnded)return;const rem=Math.max(0,end-Date.now());const m=Math.floor(rem/60000),s=Math.floor(rem%60000/1000);const txt=`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;document.getElementById('t-room-timer').textContent=txt;const td=document.getElementById('t-room-timer-display');if(td)td.textContent=txt;if(rem<=0){clearInterval(this.timerInterval);this._setRoomStatus('ended')}};this.timerInterval=setInterval(upd,1000);upd()}})}
 
 async _endContest(){if(!this.roomCode)return;
 const ok=await this._confirmDialog('⏹ Kết thúc cuộc thi','Tất cả học sinh sẽ bị dừng làm bài. Hành động này không thể hoàn tác!','Kết thúc','btn-danger');
@@ -978,6 +1040,7 @@ this._toast('Đã kết thúc cuộc thi!','info');
 const endedCode=this.roomCode;
 this.roomCode=null;
 document.getElementById('teacher-room-bar').classList.add('hidden');
+this._hideActiveRoomDashboard();
 // Cleanup active room listeners
 this.fb.cleanup();
 // Reload all rooms data then open the ended room's detail view
@@ -989,19 +1052,23 @@ async _restoreActiveRoom(){const saved=localStorage.getItem('themis_activeRoom')
 try{const snap=await this.fb.db.ref(`rooms/${saved}/info`).once('value');const info=snap.val();if(!info){localStorage.removeItem('themis_activeRoom');return}
 this.roomCode=saved;this.publishedCount=info.problemCount||0;
 document.getElementById('teacher-room-bar').classList.remove('hidden');document.getElementById('t-room-code').textContent=saved;this._setRoomStatus(info.status||'waiting');
+// Show active room dashboard
+this._showActiveRoomDashboard(saved,info.title||'Phòng thi',info.timeLimit||0,info.problemCount||0);
+// Set correct step based on status
+if(info.status==='active')this._setContestStep(3);
 // Re-listen students & leaderboard
-this.fb.listenStudents(saved,s=>{this._activeRoomStudentCount=s?Object.keys(s).length:0;document.getElementById('t-student-count').textContent=this._activeRoomStudentCount});
+this.fb.listenStudents(saved,s=>{this._activeRoomStudents=s||{};const count=Object.keys(s||{}).length;this._activeRoomStudentCount=count;document.getElementById('t-student-count').textContent=count;this._renderStudentLobby(s||{})});
 this.fb.listenLeaderboard(saved,lb=>{this._activeRoomLeaderboard=lb;this._renderLeaderboard(lb,'t-leaderboard-body')});
-// Render problem list
-const probSnap=await this.fb.db.ref(`rooms/${saved}/problems`).once('value');const probs=probSnap.val()||[];
-const listEl=document.getElementById('t-contest-problem-list');
-let h='';(Array.isArray(probs)?probs:Object.values(probs)).forEach((p,i)=>{h+=`<div style="padding:8px 12px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:6px;margin-bottom:4px;font-size:.85rem"><strong>Bài ${i+1}:</strong> ${this._esc(p?.title||'?')} <span style="color:var(--text-muted)">• ${(p?.testCases||[]).length} test</span></div>`});
-listEl.innerHTML=h;document.getElementById('t-contest-problems').classList.remove('hidden');
+// Render problem list with full actions
+this._viewingRoomCode=saved;
+await this._viewRoomHistory(saved);
 // Resume timer if active
 if(info.status==='active'&&info.startTime&&info.timeLimit){this._contestEnded=false;
+const startBtn=document.getElementById('btn-start-contest-main');if(startBtn)startBtn.style.display='none';
+const endBtn=document.getElementById('btn-end-contest-main');if(endBtn)endBtn.style.display='';
 const end=info.startTime+info.timeLimit*60000;
 if(end>Date.now()){if(this.timerInterval)clearInterval(this.timerInterval);
-const upd=()=>{if(this._contestEnded)return;const rem=Math.max(0,end-Date.now());const m=Math.floor(rem/60000),s=Math.floor(rem%60000/1000);document.getElementById('t-room-timer').textContent=`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;if(rem<=0){clearInterval(this.timerInterval);this._setRoomStatus('ended')}};
+const upd=()=>{if(this._contestEnded)return;const rem=Math.max(0,end-Date.now());const m=Math.floor(rem/60000),s=Math.floor(rem%60000/1000);const txt=`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;document.getElementById('t-room-timer').textContent=txt;const td=document.getElementById('t-room-timer-display');if(td)td.textContent=txt;if(rem<=0){clearInterval(this.timerInterval);this._setRoomStatus('ended')}};
 this.timerInterval=setInterval(upd,1000);upd()}}
 this._toast(`🔄 Đã khôi phục phòng thi ${saved}`,'info');
 }catch(e){localStorage.removeItem('themis_activeRoom');console.error('Restore room failed:',e)}}
@@ -2186,7 +2253,7 @@ await this.fb.db.ref(`rooms/${roomCode}`).remove();
 this.drive.deleteRow('Rooms',roomCode).catch(()=>{});
 // Reset active room if this is the one being deleted
 if(this.roomCode===roomCode){this.roomCode=null;localStorage.removeItem('themis_activeRoom');
-document.getElementById('teacher-room-bar').classList.add('hidden')}
+document.getElementById('teacher-room-bar').classList.add('hidden');this._hideActiveRoomDashboard()}
 // Reset viewing state if viewing this room's details
 if(this._viewingRoomCode===roomCode){this._viewingRoomCode=null;
 document.getElementById('t-contest-problems').classList.add('hidden')}
