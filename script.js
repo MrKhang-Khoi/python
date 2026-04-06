@@ -774,7 +774,7 @@ if(!keys.length){c.innerHTML=`<p style="color:var(--text-muted);text-align:cente
 const groups={};keys.forEach(k=>{const topic=exs[k].topic||'Không phân loại';if(!groups[topic])groups[topic]=[];groups[topic].push(k)});
 const sortedTopics=Object.keys(groups).sort((a,b)=>a.localeCompare(b,'vi'));
 const totalAccts=this._cachedAccounts?Object.keys(this._cachedAccounts).length:0;
-let h='';let globalIdx=0;
+let h='';
 sortedTopics.forEach(topic=>{
 const topicKeys=groups[topic];
 // When searching, auto-open groups that have matches
@@ -793,7 +793,7 @@ h+=`<span>${groupDone}/${topicKeys.length*totalAccts} lượt</span>`;
 h+=`</div></div>`;
 h+=`<div class="topic-group-body">`;
 h+=`<table class="ex-mgmt-table"><thead><tr><th>#</th><th>Tên bài</th><th style="width:96px">Độ khó</th><th>Tests</th><th>Ngày tạo</th><th>HS đã làm</th><th>Thao tác</th></tr></thead><tbody>`;
-topicKeys.forEach((k,i)=>{globalIdx++;const ex=exs[k];const d=new Date(ex.createdAt);const tc=ex.testCases?ex.testCases.length:0;
+topicKeys.forEach((k,i)=>{const ex=exs[k];const d=new Date(ex.createdAt);const tc=ex.testCases?ex.testCases.length:0;
 const exRes=res[k]||{};const doneCount=Object.keys(exRes).length;
 const pct=totalAccts>0?Math.round(doneCount/totalAccts*100):0;
 const bColor=pct>=80?'var(--success)':pct>=40?'var(--warning,#f59e0b)':'var(--error)';
@@ -1098,7 +1098,7 @@ const room=allRooms[code];const info=room.info;if(!info)continue;
 const hasRecord=room.students&&room.students[this.studentName];
 const isActive=info.status==='active';
 const isWaiting=info.status==='waiting';
-const isEnded=info.status==='ended';
+
 // Upcoming: active or waiting rooms (any student can see)
 if(isActive||isWaiting){
 upcomingContests.push({code,title:info.title||'Không tên',status:info.status,
@@ -1348,8 +1348,8 @@ sortedTopics.forEach(topic=>{
 const topicKeys=groups[topic];
 const isOpen=hasFilter?true:!!this._sTopicOpen[topic];
 // Personal stats for this topic
-let doneCnt=0,perfectCnt=0,totalScore=0;
-topicKeys.forEach(k=>{const myRes=this.studentName&&this._exerciseResults[k]&&this._exerciseResults[k][this.studentName];if(myRes){doneCnt++;totalScore+=myRes.score||0;if(myRes.score>=100)perfectCnt++}});
+let doneCnt=0,perfectCnt=0;
+topicKeys.forEach(k=>{const myRes=this.studentName&&this._exerciseResults[k]&&this._exerciseResults[k][this.studentName];if(myRes){doneCnt++;if(myRes.score>=100)perfectCnt++}});
 const pct=topicKeys.length>0?Math.round(doneCnt/topicKeys.length*100):0;
 const barColor=pct>=100?'var(--success)':pct>=50?'var(--warning,#f59e0b)':'var(--accent-light)';
 const personalIcon=doneCnt===topicKeys.length?(perfectCnt===topicKeys.length?'💯':'✅'):(doneCnt>0?'🔶':'❌');
