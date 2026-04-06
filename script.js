@@ -450,6 +450,54 @@ _updateRoomTotalScore(){const inputs=document.querySelectorAll('.room-prob-score
 
 _toggleProbDetail(idx){const el=document.getElementById(`room-prob-detail-${idx}`);if(el)el.classList.toggle('hidden')}
 
+// Contest problem management
+_editContestProblem(idx,code){
+// Open detail and show edit form
+const detail=document.getElementById(`room-prob-detail-${idx}`);if(detail)detail.classList.remove('hidden');
+const viewEl=document.getElementById(`prob-view-${idx}`);if(viewEl)viewEl.classList.add('hidden');
+const editEl=document.getElementById(`prob-edit-${idx}`);if(editEl)editEl.classList.remove('hidden');
+this._toast('✏️ Chế độ chỉnh sửa','info')}
+
+_cancelEditProblem(idx){
+const viewEl=document.getElementById(`prob-view-${idx}`);if(viewEl)viewEl.classList.remove('hidden');
+const editEl=document.getElementById(`prob-edit-${idx}`);if(editEl)editEl.classList.add('hidden')}
+
+async _saveContestProblem(idx,code){
+const titleInput=document.getElementById(`prob-edit-title-${idx}`);
+const descInput=document.getElementById(`prob-edit-desc-${idx}`);
+const scoreInput=document.getElementById(`prob-edit-score-${idx}`);
+if(!titleInput||!descInput){this._toast('Mở chế độ sửa trước','error');return}
+const title=titleInput.value.trim();const desc=descInput.value;const score=parseInt(scoreInput.value)||5;
+if(!title){this._toast('Tên đề không được trống','error');return}
+const ok=await this._confirmDialog('💾 Lưu thay đổi',`Cập nhật bài ${idx+1}: "${title}" (${score}đ)?`,'Lưu','btn-accent');
+if(!ok)return;
+try{const updates={};updates[`rooms/${code}/problems/${idx}/title`]=title;updates[`rooms/${code}/problems/${idx}/description`]=desc;updates[`rooms/${code}/problems/${idx}/maxScore`]=score;
+await this.fb.db.ref().update(updates);
+this._cancelEditProblem(idx);
+// Refresh the view
+const titleDisplay=document.getElementById(`prob-title-display-${idx}`);if(titleDisplay)titleDisplay.textContent=title;
+const viewTitle=document.querySelector(`#prob-view-${idx} div`);if(viewTitle)viewTitle.textContent=title;
+this._toast('✅ Đã lưu thay đổi!','success');
+// Reload room data to reflect changes
+if(this._viewingRoomCode===code)setTimeout(()=>this._viewRoomHistory(code),500);
+}catch(e){this._toast('Lỗi lưu: '+e.message,'error')}}
+
+async _deleteContestProblem(idx,code){
+const ok=await this._confirmDialog('🗑 Xóa đề bài',`Xóa bài ${idx+1} khỏi phòng thi?\n⚠️ Hành động này không thể hoàn tác!`,'Xóa','btn-danger');
+if(!ok)return;
+try{const probSnap=await this.fb.db.ref(`rooms/${code}/problems`).once('value');
+const probs=probSnap.val()||[];const probArr=Array.isArray(probs)?[...probs]:Object.values(probs);
+if(idx<0||idx>=probArr.length){this._toast('Chỉ số bài không hợp lệ','error');return}
+probArr.splice(idx,1);
+await this.fb.db.ref(`rooms/${code}/problems`).set(probArr);
+// Update room info
+await this.fb.db.ref(`rooms/${code}/info/problemCount`).set(probArr.length);
+const names=probArr.map(p=>p?.title||'?').join(', ');
+await this.fb.db.ref(`rooms/${code}/info/problemNames`).set(names);
+this._toast(`🗑 Đã xóa bài ${idx+1}!`,'success');
+if(this._viewingRoomCode===code)setTimeout(()=>this._viewRoomHistory(code),500);
+}catch(e){this._toast('Lỗi xóa: '+e.message,'error')}}
+
 // Account management (root level — no roomCode needed)
 async _addSingleStudent(){const name=document.getElementById('new-stu-name').value.trim();const pass=document.getElementById('new-stu-pass').value.trim();if(!name||!pass){this._toast('Nhập tên và mật khẩu','error');return}try{await this.fb.createAccount(name,pass);this.drive.logData('Accounts',[name,pass,new Date().toISOString(),'','active']).catch(()=>{});document.getElementById('new-stu-name').value='';document.getElementById('new-stu-pass').value='';this._toast(`Đã tạo: ${name}`,'success')}catch(e){this._toast('Lỗi: '+e.message,'error')}}
 
@@ -994,19 +1042,43 @@ const pCount=info.problemCount||probArr.length||1;this.publishedCount=pCount;
 // Show problem list
 const listEl=document.getElementById('t-contest-problem-list');
 let ph='';probArr.forEach((p,i)=>{const ms=p?.maxScore||Math.floor(100/probArr.length);
-ph+=`<div class="room-prob-card" style="padding:10px 12px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:6px;margin-bottom:4px;font-size:.85rem;cursor:pointer;transition:all .2s" onclick="window._uic._toggleProbDetail(${i})">
-<div style="display:flex;justify-content:space-between;align-items:center">
-<span><strong>Bài ${i+1}:</strong> ${this._esc(p?.title||'?')}</span>
+ph+=`<div class="room-prob-card" id="room-prob-card-${i}" style="padding:0;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:8px;margin-bottom:8px;font-size:.85rem;overflow:hidden;transition:all .2s">
+<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;cursor:pointer" onclick="window._uic._toggleProbDetail(${i})">
+<span><strong>Bài ${i+1}:</strong> <span id="prob-title-display-${i}">${this._esc(p?.title||'?')}</span></span>
 <span style="display:flex;align-items:center;gap:8px">
 <span style="color:var(--accent-light);font-weight:700">${ms}đ</span>
 <span style="color:var(--text-muted);font-size:.78rem">• ${(p?.testCases||[]).length} test</span>
-<span style="color:var(--text-muted);font-size:.75rem">▼</span>
 </span></div>
-<div id="room-prob-detail-${i}" class="hidden" style="margin-top:8px;padding:8px;background:rgba(0,0,0,.15);border-radius:6px;font-size:.82rem;color:var(--text-secondary);cursor:text" onclick="event.stopPropagation()">
-<div style="font-weight:600;margin-bottom:4px;color:var(--text-primary)">${this._esc(p?.title||'Bài '+(i+1))}</div>
-<div style="white-space:pre-wrap;line-height:1.6">${this._esc(p?.description||'Không có mô tả')}</div>
+<div style="display:flex;gap:4px;padding:0 14px 8px;flex-wrap:wrap">
+<button class="btn btn-ghost btn-sm" style="font-size:.72rem" onclick="event.stopPropagation();window._uic._toggleProbDetail(${i})">👁 Xem</button>
+<button class="btn btn-ghost btn-sm" style="font-size:.72rem" onclick="event.stopPropagation();window._uic._editContestProblem(${i},'${code}')">✏️ Sửa</button>
+<button class="btn btn-ghost btn-sm" style="font-size:.72rem" onclick="event.stopPropagation();window._uic._saveContestProblem(${i},'${code}')">💾 Lưu</button>
+<button class="btn-danger-sm" style="font-size:.72rem;padding:3px 8px" onclick="event.stopPropagation();window._uic._deleteContestProblem(${i},'${code}')">🗑 Xóa</button>
+</div>
+<div id="room-prob-detail-${i}" class="hidden" style="padding:12px 14px;background:rgba(0,0,0,.15);border-top:1px solid var(--border);cursor:text" onclick="event.stopPropagation()">
+<!-- View mode -->
+<div id="prob-view-${i}">
+<div style="font-weight:600;margin-bottom:6px;color:var(--text-primary)">${this._esc(p?.title||'Bài '+(i+1))}</div>
+<div style="white-space:pre-wrap;line-height:1.6;color:var(--text-secondary);font-size:.82rem">${this._esc(p?.description||'Không có mô tả')}</div>
 ${p?.sampleIO&&p.sampleIO.length?p.sampleIO.map((s,si)=>`<div class="sample-io-display" style="margin-top:8px"><div class="sample-io-display-header">Ví dụ ${si+1}</div><div class="sample-io-display-grid"><div class="sample-box"><div class="sample-box-title">INPUT</div><pre>${this._esc(s.input||'')}</pre></div><div class="sample-box"><div class="sample-box-title">OUTPUT</div><pre>${this._esc(s.output||'')}</pre></div></div></div>`).join(''):''}
 ${(p?.testCases&&p.testCases.length)?`<details style="margin-top:10px"><summary style="cursor:pointer;font-weight:600;color:var(--accent-light);font-size:.8rem">📋 Test Cases (${p.testCases.length} test)</summary><div style="max-height:300px;overflow-y:auto;margin-top:6px"><table style="width:100%;font-size:.75rem;border-collapse:collapse"><thead><tr><th style="padding:4px 8px;text-align:left;border-bottom:1px solid var(--border);color:var(--text-muted)">#</th><th style="padding:4px 8px;text-align:left;border-bottom:1px solid var(--border);color:var(--text-muted)">Input</th><th style="padding:4px 8px;text-align:left;border-bottom:1px solid var(--border);color:var(--text-muted)">Output</th><th style="padding:4px 8px;text-align:left;border-bottom:1px solid var(--border);color:var(--text-muted)">Subtask</th></tr></thead><tbody>${p.testCases.map((tc,ti)=>`<tr style="border-bottom:1px solid rgba(255,255,255,.03)"><td style="padding:4px 8px;color:var(--text-muted)">${ti+1}</td><td style="padding:4px 8px"><pre style="margin:0;max-width:250px;overflow:auto;white-space:pre-wrap;font-size:.72rem">${this._esc((tc.input||'').substring(0,200))}</pre></td><td style="padding:4px 8px"><pre style="margin:0;max-width:250px;overflow:auto;white-space:pre-wrap;font-size:.72rem">${this._esc((tc.output||'').substring(0,200))}</pre></td><td style="padding:4px 8px;color:var(--text-muted)">ST${tc.subtaskId||1}</td></tr>`).join('')}</tbody></table></div></details>`:''}
+</div>
+<!-- Edit mode (hidden by default) -->
+<div id="prob-edit-${i}" class="hidden" style="margin-top:8px">
+<label style="font-size:.75rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;margin-bottom:2px;display:block">Tên đề</label>
+<input id="prob-edit-title-${i}" class="form-input" value="${this._esc(p?.title||'')}" style="margin-bottom:8px;font-size:.84rem">
+<label style="font-size:.75rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;margin-bottom:2px;display:block">Mô tả</label>
+<textarea id="prob-edit-desc-${i}" class="form-input" rows="6" style="margin-bottom:8px;font-size:.82rem;resize:vertical">${this._esc(p?.description||'')}</textarea>
+<label style="font-size:.75rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;margin-bottom:2px;display:block">Điểm tối đa</label>
+<input id="prob-edit-score-${i}" class="form-input" type="number" value="${ms}" min="1" max="100" style="width:80px;margin-bottom:8px;font-size:.84rem">
+<div style="display:flex;gap:6px;justify-content:flex-end;margin-top:4px">
+<button class="btn btn-ghost btn-sm" style="font-size:.72rem" onclick="window._uic._cancelEditProblem(${i})">✕ Hủy</button>
+<button class="btn btn-accent btn-sm" style="font-size:.72rem" onclick="window._uic._saveContestProblem(${i},'${code}')">💾 Lưu thay đổi</button>
+</div>
+</div>
+<div style="margin-top:8px;display:flex;justify-content:flex-end">
+<button class="btn btn-ghost btn-sm" style="font-size:.72rem" onclick="event.stopPropagation();window._uic._toggleContestStEditor(${i},${JSON.stringify(p?.subtasks||[]).replace(/"/g,'&quot;')},''+code)">⚙️ Sửa Subtask</button>
+</div>
 <div class="contest-prob-st-editor" id="contest-st-editor-${i}" style="display:none">
 <label>⚙️ Subtasks (Tổng phải = 100%)</label>
 <div id="contest-st-list-${i}"></div>
@@ -1016,9 +1088,6 @@ ${(p?.testCases&&p.testCases.length)?`<details style="margin-top:10px"><summary 
 <button class="btn btn-ghost btn-sm" onclick="window._uic._addContestSubtask(${i})" style="font-size:.72rem">＋ Subtask</button>
 <button class="btn btn-accent btn-sm" onclick="window._uic._saveContestSubtasks('${code}',${i})" style="font-size:.72rem">💾 Lưu & Chấm lại</button>
 </div></div></div>
-<div style="margin-top:8px;display:flex;justify-content:flex-end">
-<button class="btn btn-ghost btn-sm" style="font-size:.72rem" onclick="event.stopPropagation();window._uic._toggleContestStEditor(${i},${JSON.stringify(p?.subtasks||[]).replace(/"/g,'&quot;')},''+code)">⚙️ Sửa Subtask</button>
-</div>
 </div></div>`});
 listEl.innerHTML=ph;
 // Bind subtask editors after DOM is set
