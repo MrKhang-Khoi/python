@@ -397,7 +397,7 @@
                     <span class="oj-nav-title">Themis OJ</span>
                     <button class="oj-nav-tab active" id="nav-tab-exercises" data-tab="exercises">📚 Bài Tập <span id="stu-notif-badge" class="notif-badge hidden">0</span></button>
                     <button class="oj-nav-tab" id="nav-tab-theory" data-tab="theory">📖 Lý Thuyết</button>
-                    <button class="oj-nav-tab" id="nav-tab-contest" data-tab="contest">🏆 Kỳ Thi</button>
+                    <button class="oj-nav-tab" id="nav-tab-contest" data-tab="contest">🏆 Kỳ Thi <span id="stu-contest-badge" class="notif-badge hidden">0</span></button>
                 </div>
                 <div class="oj-nav-right">
                     <div class="notif-bell-wrap">
@@ -440,7 +440,10 @@
                 <!-- TAB: Contest join -->
                 <div id="tab-panel-contest" class="oj-tab-panel hidden">
                     <div class="oj-page-header"><div><h2 class="oj-page-title">Kỳ Thi Trực Tuyến</h2><p class="oj-page-sub">Tham gia kỳ thi hoặc xem lại kết quả</p></div></div>
-                    <div class="oj-join-card">
+                    <!-- UPCOMING / ACTIVE CONTESTS -->
+                    <div id="stu-upcoming-contests"></div>
+                    <!-- MANUAL JOIN -->
+                    <div class="oj-join-card" style="margin-top:16px">
                         <div class="form-group"><label>Mã phòng thi</label><input type="text" id="stu-room-code" placeholder="Nhập 6 chữ số" maxlength="6" class="oj-room-input"></div>
                         <button class="btn btn-accent" id="btn-join-room" style="width:100%;justify-content:center;padding:14px;font-size:1rem">🚀 Vào Phòng Thi</button>
                         <p id="stu-join-error" style="color:var(--danger);font-size:.85rem;margin-top:8px;text-align:center"></p>

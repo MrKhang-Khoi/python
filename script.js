@@ -1079,33 +1079,72 @@ const el=document.getElementById('stu-contest-history');if(!el||!this.studentNam
 try{
 const snap=await this.fb.db.ref('rooms').once('value');
 const allRooms=snap.val()||{};
-const myContests=[];
+this._processStudentContests(allRooms);
+// Real-time listener
+const roomRef=this.fb.db.ref('rooms');
+roomRef.on('value',s=>{const rooms=s.val()||{};this._processStudentContests(rooms)});
+this.fb._studentDashListeners.push(()=>roomRef.off());
+}catch(e){console.error('Load contest history:',e);el.innerHTML='<p style="color:var(--text-muted);text-align:center;padding:20px">Lỗi tải lịch sử</p>'}}
+
+_processStudentContests(allRooms){
+const myContests=[];const upcomingContests=[];
 for(const code of Object.keys(allRooms)){
-const room=allRooms[code];
-const info=room.info;
-if(!info)continue;
-// Check if student participated
+const room=allRooms[code];const info=room.info;if(!info)continue;
 const hasRecord=room.students&&room.students[this.studentName];
-if(!hasRecord)continue;
+const isActive=info.status==='active';
+const isWaiting=info.status==='waiting';
+const isEnded=info.status==='ended';
+// Upcoming: active or waiting rooms (any student can see)
+if(isActive||isWaiting){
+upcomingContests.push({code,title:info.title||'Không tên',status:info.status,
+timeLimit:info.timeLimit||0,problemCount:info.problemCount||0,
+createdAt:info.createdAt||0,joined:!!hasRecord,
+studentCount:room.students?Object.keys(room.students).length:0})}
+// History: rooms student has joined
+if(hasRecord){
 myContests.push({code,title:info.title||'Không tên',status:info.status||'waiting',
 gradeStatus:info.gradeStatus||'pending',published:!!info.published,
 timeLimit:info.timeLimit||0,problemCount:info.problemCount||0,
-createdAt:info.createdAt||0,publishedAt:info.publishedAt||0})}
-myContests.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
-this._renderStudentContestHistory(myContests);
-// Also listen for changes
-const roomRef=this.fb.db.ref('rooms');
-roomRef.on('value',s=>{const rooms=s.val()||{};const contests=[];
-for(const code of Object.keys(rooms)){const room=rooms[code];const info=room.info;if(!info)continue;
-if(room.students&&room.students[this.studentName]){
-contests.push({code,title:info.title||'Không tên',status:info.status||'waiting',
-gradeStatus:info.gradeStatus||'pending',published:!!info.published,
-timeLimit:info.timeLimit||0,problemCount:info.problemCount||0,
 createdAt:info.createdAt||0,publishedAt:info.publishedAt||0})}}
-contests.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
-this._renderStudentContestHistory(contests)});
-this.fb._studentDashListeners.push(()=>roomRef.off());
-}catch(e){console.error('Load contest history:',e);el.innerHTML='<p style="color:var(--text-muted);text-align:center;padding:20px">Lỗi tải lịch sử</p>'}}
+upcomingContests.sort((a,b)=>{if(a.status==='active'&&b.status!=='active')return -1;if(b.status==='active'&&a.status!=='active')return 1;return(b.createdAt||0)-(a.createdAt||0)});
+myContests.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+this._renderUpcomingContests(upcomingContests);
+this._renderStudentContestHistory(myContests);
+this._updateContestBadge(upcomingContests)}
+
+_renderUpcomingContests(contests){
+const el=document.getElementById('stu-upcoming-contests');if(!el)return;
+if(!contests.length){el.innerHTML='';return}
+const activeCount=contests.filter(c=>c.status==='active').length;
+let h='<div class="upcoming-contests-section">';
+h+='<div class="upcoming-contests-header"><h3>📡 Kỳ Thi Hiện Tại</h3>';
+if(activeCount>0)h+=`<span class="upcoming-live-badge">● ${activeCount} đang diễn ra</span>`;
+h+='</div><div class="upcoming-grid">';
+contests.forEach(c=>{
+const isActive=c.status==='active';
+const d=new Date(c.createdAt);
+h+=`<div class="upcoming-card ${isActive?'is-active':'is-waiting'}" onclick="document.getElementById('stu-room-code').value='${c.code}';window._uic._joinRoom()">`;
+h+=`<div class="upcoming-card-header">`;
+h+=`<span class="upcoming-card-code">#${c.code}</span>`;
+h+=`<span class="upcoming-card-status ${isActive?'active':'waiting'}">${isActive?'🟢 Đang thi':'⏳ Chờ bắt đầu'}</span>`;
+h+=`</div>`;
+h+=`<div class="upcoming-card-title">${this._esc(c.title)}</div>`;
+h+=`<div class="upcoming-card-meta">`;
+h+=`<span>⏱ ${c.timeLimit} phút</span>`;
+h+=`<span>📝 ${c.problemCount} bài</span>`;
+h+=`<span>👥 ${c.studentCount} HS</span>`;
+h+=`<span>📅 ${d.toLocaleDateString('vi')}</span>`;
+h+=`</div>`;
+if(c.joined)h+=`<div class="upcoming-card-action">${isActive?'👉 Nhấn để tiếp tục thi':'✅ Đã đăng ký — chờ GV bắt đầu'}</div>`;
+else h+=`<div class="upcoming-card-action">${isActive?'🚀 Nhấn để vào thi ngay!':'👉 Nhấn để đăng ký thi'}</div>`;
+h+=`</div>`});
+h+='</div></div>';el.innerHTML=h}
+
+_updateContestBadge(upcomingContests){
+const badge=document.getElementById('stu-contest-badge');if(!badge)return;
+const activeCount=upcomingContests.filter(c=>c.status==='active').length;
+if(activeCount>0){badge.textContent=activeCount;badge.classList.remove('hidden')}
+else{badge.classList.add('hidden')}}
 
 _renderStudentContestHistory(contests){
 const el=document.getElementById('stu-contest-history');if(!el)return;

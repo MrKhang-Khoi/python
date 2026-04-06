@@ -1041,3 +1041,27 @@ textarea.ai-textarea{resize:vertical}
 .topic-group-personal .tg-none {color:var(--text-muted)}
 /* Empty state for groups */
 .topic-group-empty {padding:20px;text-align:center;color:var(--text-muted);font-size:.82rem}
+
+/* ============ UPCOMING CONTEST CARDS ============ */
+.upcoming-contests-section {margin-bottom:16px}
+.upcoming-contests-header {display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.upcoming-contests-header h3 {font-size:.95rem;font-weight:700;color:var(--text-primary);margin:0}
+.upcoming-live-badge {font-size:.68rem;font-weight:700;padding:3px 8px;border-radius:var(--radius-pill);background:rgba(239,68,68,.15);color:#f87171;animation:livePulse 1.5s infinite}
+@keyframes livePulse {0%,100%{opacity:1}50%{opacity:.5}}
+.upcoming-grid {display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+.upcoming-card {background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);padding:16px;cursor:pointer;transition:all .2s;position:relative;overflow:hidden}
+.upcoming-card:hover {border-color:rgba(99,102,241,.4);box-shadow:0 4px 16px rgba(0,0,0,.2);transform:translateY(-1px)}
+.upcoming-card.is-active {border-color:rgba(16,185,129,.4);background:linear-gradient(135deg,rgba(16,185,129,.04),transparent)}
+.upcoming-card.is-active::before {content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--success),#34d399)}
+.upcoming-card.is-waiting {border-color:rgba(245,158,11,.3);background:linear-gradient(135deg,rgba(245,158,11,.03),transparent)}
+.upcoming-card.is-waiting::before {content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--warning,#f59e0b),#fbbf24)}
+.upcoming-card-header {display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.upcoming-card-code {font-size:.72rem;font-weight:700;color:var(--text-muted);font-family:monospace}
+.upcoming-card-status {font-size:.7rem;font-weight:700;padding:3px 8px;border-radius:var(--radius-pill)}
+.upcoming-card-status.active {background:rgba(16,185,129,.12);color:var(--success)}
+.upcoming-card-status.waiting {background:rgba(245,158,11,.12);color:var(--warning,#f59e0b)}
+.upcoming-card-title {font-size:.92rem;font-weight:700;color:var(--text-primary);margin-bottom:6px;line-height:1.3}
+.upcoming-card-meta {display:flex;align-items:center;gap:12px;font-size:.75rem;color:var(--text-muted)}
+.upcoming-card-action {margin-top:10px;font-size:.78rem;font-weight:600}
+.upcoming-card.is-active .upcoming-card-action {color:var(--success)}
+.upcoming-card.is-waiting .upcoming-card-action {color:var(--warning,#f59e0b)}
