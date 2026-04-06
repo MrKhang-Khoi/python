@@ -864,7 +864,9 @@ const barColor=avgPct>=80?'var(--success)':avgPct>=40?'var(--warning,#f59e0b)':'
 h+=`<div class="topic-group ${isOpen?'open':''}" id="tg-t-${this._topicSlug(topic)}">`;
 h+=`<div class="topic-group-header" onclick="window._uic._toggleTeacherTopic('${this._esc(topic).replace(/'/g,"\\'")}')">`;
 h+=`<span class="topic-group-chevron">▶</span>`;
-h+=`<span class="topic-group-name">${this._esc(topic)} <span class="topic-group-count">${topicKeys.length} bài</span></span>`;
+const isExamTopic=(topic.trim().toLowerCase()==='đề thi'||topic.trim().toLowerCase()==='de thi');
+const examBadge=isExamTopic?' <span style="font-size:.65rem;padding:2px 6px;border-radius:4px;background:rgba(239,68,68,.12);color:#f87171;font-weight:700;vertical-align:middle">🔒 Ẩn HS</span>':'';
+h+=`<span class="topic-group-name">${this._esc(topic)}${examBadge} <span class="topic-group-count">${topicKeys.length} bài</span></span>`;
 h+=`<div class="topic-group-stats">`;
 h+=`<div class="topic-group-progress"><div class="topic-group-progress-fill" style="width:${avgPct}%;background:${barColor}"></div></div>`;
 h+=`<span>${groupDone}/${topicKeys.length*totalAccts} lượt</span>`;
@@ -1222,7 +1224,8 @@ _registerStudentListeners(){
 // Cleanup any existing student dashboard listeners first to prevent duplicates
 this.fb.cleanupStudentDash();
 this._exerciseResults={};this._prevExCount=0;
-this.fb.listenExercises(exs=>{this._cachedExercises=exs;this._loadExerciseStatuses(exs);this._checkNewExerciseNotification(exs)},'student');
+this.fb.listenExercises(exs=>{// Filter out exam-only exercises (topic='Đề Thi') from student view
+const filtered={};Object.keys(exs).forEach(k=>{const t=(exs[k].topic||'').trim().toLowerCase();if(t!=='đề thi'&&t!=='de thi')filtered[k]=exs[k]});this._cachedExercises=filtered;this._loadExerciseStatuses(filtered);this._checkNewExerciseNotification(filtered)},'student');
 this.fb.listenAllExerciseResults(res=>{this._exerciseResults=res;if(this._cachedExercises){this._renderExerciseList(this._cachedExercises);this._renderStudentRanking();this._renderStudentStats()}},'student');
 const thRef2=this.fb.db.ref('theories');thRef2.on('value',s=>{this._stuTheories=s.val()||{};this._renderTheoryList(this._stuTheories,'stu-theory-list',false)});this.fb._studentDashListeners.push(()=>thRef2.off());
 // Listen for notifications
@@ -1476,7 +1479,10 @@ this._toast(`Xin chào ${name}!`,'success')}catch(e){errEl.textContent='❌ '+e.
 
 _sTopicOpen={};
 _toggleStudentTopic(topic){this._sTopicOpen[topic]=!this._sTopicOpen[topic];const el=document.getElementById('tg-s-'+this._topicSlug(topic));if(el)el.classList.toggle('open',!!this._sTopicOpen[topic])}
-_renderExerciseList(exs){const c=document.getElementById('exercise-list');const allKeys=Object.keys(exs);if(!allKeys.length){c.innerHTML='<p style="color:var(--text-muted);text-align:center;padding:40px">📭 Chưa có bài tập nào. Giáo viên chưa đăng.</p>';c.className='';return}
+_renderExerciseList(exs){const c=document.getElementById('exercise-list');
+// Safety filter: exclude exam-only topic from student view
+const filteredExs={};Object.keys(exs).forEach(k=>{const t=(exs[k].topic||'').trim().toLowerCase();if(t!=='đề thi'&&t!=='de thi')filteredExs[k]=exs[k]});exs=filteredExs;
+const allKeys=Object.keys(exs);if(!allKeys.length){c.innerHTML='<p style="color:var(--text-muted);text-align:center;padding:40px">📭 Chưa có bài tập nào. Giáo viên chưa đăng.</p>';c.className='';return}
 const filter=(document.getElementById('stu-exercise-search')||{}).value||'';
 const statusFilter=(document.getElementById('stu-status-filter')||{}).value||'all';
 const keys=allKeys.filter(k=>{const ex=exs[k];const textMatch=!filter||(ex.title||'').toLowerCase().includes(filter.toLowerCase())||(ex.topic||'').toLowerCase().includes(filter.toLowerCase());
