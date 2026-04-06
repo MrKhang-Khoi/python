@@ -172,10 +172,13 @@ textarea.ai-textarea{resize:vertical}
 .var-row .var-name-input{width:75px;padding:4px 8px;font-size:.8rem;font-weight:600}
 .var-row .var-type-select{width:auto;min-width:110px;padding:4px 8px;font-size:.78rem}
 .var-constraints-inline{display:flex;gap:3px;flex-wrap:wrap;flex:1;align-items:center}
-.constraint-chip{display:flex;align-items:center;gap:2px;padding:2px 6px;border-radius:5px;font-size:.75rem;border:1px solid var(--border);background:rgba(255,255,255,.02)}
+.constraint-chip{display:flex;align-items:center;gap:2px;padding:2px 6px;border-radius:5px;font-size:.75rem;border:1px solid var(--border);background:rgba(255,255,255,.02);flex-wrap:wrap}
 .constraint-chip .st-label{font-weight:600;margin-right:1px;font-size:.72rem}
 .constraint-chip input{width:50px;padding:2px 4px;font-size:.75rem;text-align:center;border-radius:3px}
 .constraint-chip .sep{color:var(--text-muted);font-size:.72rem}
+.constraint-chip .cst-charset{width:auto;min-width:70px;padding:1px 2px;font-size:.7rem;border-radius:3px;background:rgba(99,102,241,.1);border:1px solid rgba(99,102,241,.25);color:var(--text-primary);margin-left:3px}
+.constraint-chip .cst-ratio-group{display:flex;gap:2px;align-items:center;width:100%;margin-top:2px;padding:1px 0}
+.constraint-chip .cst-ratio-group input{width:32px;padding:1px 2px;font-size:.68rem;text-align:center;border-radius:2px;background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.15)}
 .st-1{border-color:rgba(16,185,129,.2)}.st-1 .st-label{color:var(--success)}
 .st-2{border-color:rgba(245,158,11,.2)}.st-2 .st-label{color:var(--warning)}
 .st-3{border-color:rgba(239,68,68,.2)}.st-3 .st-label{color:var(--danger)}
