@@ -437,10 +437,9 @@ await this.fb.db.ref(`rooms/${this.roomCode}/info/problemNames`).set(problemName
 await this.fb.db.ref(`rooms/${this.roomCode}/info/totalMaxScore`).set(totalMaxScore);
 // Log to Google Sheet
 this.drive.logData('Rooms',[this.roomCode,title,time,'waiting',new Date().toISOString(),'',selectedIds.length,0,problemNames.join(', '),totalMaxScore]).catch(()=>{});
-// Render contest problem list
-const listEl=document.getElementById('t-contest-problem-list');
-let h='';selectedIds.forEach((id,i)=>{const ex=exs[id];h+=`<div style="padding:8px 12px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:6px;margin-bottom:4px;font-size:.85rem"><strong>Bài ${i+1}:</strong> ${this._esc(ex?.title||'?')} <span style="color:var(--accent-light);font-weight:700">${maxScores[i]||5}đ</span> <span style="color:var(--text-muted)">• ${(ex?.testCases||[]).length} test</span></div>`});
-listEl.innerHTML=h;document.getElementById('t-contest-problems').classList.remove('hidden');
+// Render contest problem list — use full view with action buttons
+this._viewingRoomCode=this.roomCode;
+await this._viewRoomHistory(this.roomCode);
 this.fb.listenStudents(this.roomCode,s=>{this._activeRoomStudentCount=s?Object.keys(s).length:0;document.getElementById('t-student-count').textContent=this._activeRoomStudentCount});
 this.fb.listenLeaderboard(this.roomCode,lb=>{this._activeRoomLeaderboard=lb;this._renderLeaderboard(lb,'t-leaderboard-body')});
 this._toast(`🏆 Phòng ${this.roomCode} đã tạo với ${selectedIds.length} bài (tổng ${totalMaxScore}đ)!`,'success')
