@@ -1424,8 +1424,6 @@ const resultsCard=document.getElementById('stu-results-card');if(resultsCard)res
 const noResults=document.getElementById('no-results-msg');if(noResults)noResults.style.display='';
 const inputArea=document.getElementById('oj-custom-input-area');if(inputArea)inputArea.classList.add('hidden');
 const customInput=document.getElementById('oj-custom-input');if(customInput)customInput.value='';
-// Reset pane tab to "Đề Bài"
-document.querySelectorAll('.oj-ptab').forEach(b=>b.classList.remove('active'));const descTab=document.querySelector('.oj-ptab[data-ptab="desc"]');if(descTab)descTab.classList.add('active');document.querySelectorAll('.oj-ptab-content').forEach(p=>p.classList.remove('active'));const descPanel=document.getElementById('ptab-desc');if(descPanel)descPanel.classList.add('active');
 // Enable submit button (may have been disabled)
 const submitBtn=document.getElementById('btn-stu-submit');if(submitBtn){submitBtn.disabled=false;submitBtn.textContent='▶ Nộp Bài'}
 this._renderProblemTabs();this._showProblem(0);this._initStudentEditor();
@@ -1435,7 +1433,12 @@ const prev=await this.fb.getExerciseResults(exId,this.studentName);
 if(savedDraft&&this.cmStudent){this.cmStudent.setValue(savedDraft);this._toast('📝 Đã khôi phục bản nháp tự lưu','info')}
 else if(prev&&prev.code&&this.cmStudent){this.cmStudent.setValue(prev.code);this._toast(`📝 Đã khôi phục code (${prev.score}/100)`,'info')}
 else if(prev){this._toast(`Điểm trước: ${prev.score}/100`,'info')}
-if(prev){this._showStudentResults({score:prev.score,details:prev.details},ex)}
+if(prev){this._showStudentResults({score:prev.score,details:prev.details},ex);statusEl.textContent=`✅ Đã nộp (${prev.score}/100)`;
+// Switch to Results tab so student sees their previous score
+document.querySelectorAll('.oj-ptab').forEach(b=>b.classList.remove('active'));const resTab=document.querySelector('.oj-ptab[data-ptab="results"]');if(resTab)resTab.classList.add('active');document.querySelectorAll('.oj-ptab-content').forEach(p=>p.classList.remove('active'));const resPanel=document.getElementById('ptab-results');if(resPanel)resPanel.classList.add('active')}
+else{
+// New exercise: show Đề Bài tab
+document.querySelectorAll('.oj-ptab').forEach(b=>b.classList.remove('active'));const descTab=document.querySelector('.oj-ptab[data-ptab="desc"]');if(descTab)descTab.classList.add('active');document.querySelectorAll('.oj-ptab-content').forEach(p=>p.classList.remove('active'));const descPanel=document.getElementById('ptab-desc');if(descPanel)descPanel.classList.add('active')}
 // BUG-05 FIX: Build leaderboard from exercise results instead of non-existent room leaderboard
 const exRes=this._exerciseResults||{};const exResultsForThis=exRes[exId]||{};const pseudoLb={};Object.keys(exResultsForThis).forEach(name=>{const r=exResultsForThis[name];pseudoLb[name]={name,totalScore:r.score||0,problems:{0:r.score||0},lastSubmit:r.submittedAt||0}});this._renderLeaderboard(pseudoLb,'stu-leaderboard-body',this.studentName);
 // Use 'exercise' group so cleanup only removes this listener, not dashboard listeners
