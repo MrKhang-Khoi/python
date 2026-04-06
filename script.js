@@ -2178,8 +2178,15 @@ if(!ok)return;
 try{
 await this.fb.db.ref(`rooms/${roomCode}`).remove();
 this.drive.deleteRow('Rooms',roomCode).catch(()=>{});
+// Reset active room if this is the one being deleted
 if(this.roomCode===roomCode){this.roomCode=null;localStorage.removeItem('themis_activeRoom');
 document.getElementById('teacher-room-bar').classList.add('hidden')}
+// Reset viewing state if viewing this room's details
+if(this._viewingRoomCode===roomCode){this._viewingRoomCode=null;
+document.getElementById('t-contest-problems').classList.add('hidden')}
+// Remove from local cache and re-render immediately
+if(this._allRooms&&this._allRooms[roomCode])delete this._allRooms[roomCode];
+this._renderRoomHistory();
 this._toast('🗑️ Đã xóa phòng #'+roomCode,'success');
 }catch(e){this._toast('Lỗi: '+e.message,'error')}}
 
