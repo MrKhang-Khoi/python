@@ -758,7 +758,8 @@ modal.classList.remove('hidden')}
 
 // === Teacher exercise list with search (grouped by topic) ===
 _tTopicOpen={};
-_toggleTeacherTopic(topic){this._tTopicOpen[topic]=!this._tTopicOpen[topic];const el=document.getElementById('tg-t-'+CSS.escape(topic));if(el)el.classList.toggle('open',!!this._tTopicOpen[topic])}
+_topicSlug(s){return s.replace(/[^a-zA-Z0-9\u00C0-\u024F\u1E00-\u1EFF]/g,'_')}
+_toggleTeacherTopic(topic){this._tTopicOpen[topic]=!this._tTopicOpen[topic];const el=document.getElementById('tg-t-'+this._topicSlug(topic));if(el)el.classList.toggle('open',!!this._tTopicOpen[topic])}
 _renderTeacherExerciseList(exs){const c=document.getElementById('t-exercise-list');if(!exs||!Object.keys(exs).length){c.innerHTML='<p style="color:var(--text-muted);text-align:center;padding:40px">Chưa có bài tập nào. Chuyển sang tab "Soạn Đề" để tạo.</p>';return}
 const res=this._teacherExResults||{};
 const filter=(document.getElementById('t-exercise-search')||{}).value||'';
@@ -777,7 +778,7 @@ const isOpen=filter?true:!!this._tTopicOpen[topic];
 let groupDone=0;topicKeys.forEach(k=>{const er=res[k]||{};groupDone+=Object.keys(er).length});
 const avgPct=totalAccts>0&&topicKeys.length>0?Math.round(groupDone/(topicKeys.length*totalAccts)*100):0;
 const barColor=avgPct>=80?'var(--success)':avgPct>=40?'var(--warning,#f59e0b)':'var(--accent-light)';
-h+=`<div class="topic-group ${isOpen?'open':''}" id="tg-t-${this._esc(topic)}">`;
+h+=`<div class="topic-group ${isOpen?'open':''}" id="tg-t-${this._topicSlug(topic)}">`;
 h+=`<div class="topic-group-header" onclick="window._uic._toggleTeacherTopic('${this._esc(topic).replace(/'/g,"\\'")}')">`;
 h+=`<span class="topic-group-chevron">▶</span>`;
 h+=`<span class="topic-group-name">${this._esc(topic)} <span class="topic-group-count">${topicKeys.length} bài</span></span>`;
@@ -1279,7 +1280,7 @@ this._toast(`Xin chào ${name}!`,'success')}catch(e){errEl.textContent='❌ '+e.
 // BUG-1 FIX: Removed duplicate _stuLogout — see canonical version at L1142
 
 _sTopicOpen={};
-_toggleStudentTopic(topic){this._sTopicOpen[topic]=!this._sTopicOpen[topic];const el=document.getElementById('tg-s-'+CSS.escape(topic));if(el)el.classList.toggle('open',!!this._sTopicOpen[topic])}
+_toggleStudentTopic(topic){this._sTopicOpen[topic]=!this._sTopicOpen[topic];const el=document.getElementById('tg-s-'+this._topicSlug(topic));if(el)el.classList.toggle('open',!!this._sTopicOpen[topic])}
 _renderExerciseList(exs){const c=document.getElementById('exercise-list');const allKeys=Object.keys(exs);if(!allKeys.length){c.innerHTML='<p style="color:var(--text-muted);text-align:center;padding:40px">📭 Chưa có bài tập nào. Giáo viên chưa đăng.</p>';c.className='';return}
 const filter=(document.getElementById('stu-exercise-search')||{}).value||'';
 const statusFilter=(document.getElementById('stu-status-filter')||{}).value||'all';
@@ -1309,7 +1310,7 @@ const pct=topicKeys.length>0?Math.round(doneCnt/topicKeys.length*100):0;
 const barColor=pct>=100?'var(--success)':pct>=50?'var(--warning,#f59e0b)':'var(--accent-light)';
 const personalIcon=doneCnt===topicKeys.length?(perfectCnt===topicKeys.length?'💯':'✅'):(doneCnt>0?'🔶':'❌');
 const personalClass=doneCnt===topicKeys.length?'tg-done':(doneCnt>0?'tg-partial':'tg-none');
-h+=`<div class="topic-group ${isOpen?'open':''}" id="tg-s-${this._esc(topic)}">`;
+h+=`<div class="topic-group ${isOpen?'open':''}" id="tg-s-${this._topicSlug(topic)}">`;
 h+=`<div class="topic-group-header" onclick="window._uic._toggleStudentTopic('${this._esc(topic).replace(/'/g,"\\'")}')">`;
 h+=`<span class="topic-group-chevron">▶</span>`;
 h+=`<span class="topic-group-name">${this._esc(topic)} <span class="topic-group-count">${topicKeys.length} bài</span></span>`;
