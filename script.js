@@ -108,9 +108,18 @@ listenAccounts(cb){const ref=this._ref('accounts');ref.on('value',s=>cb(s.val()|
 // Exercise management
 async publishExercise(data){const id=Date.now().toString(36);await this._ref(`exercises/${id}`).set({...data,createdAt:Date.now()});return id}
 async updateExercise(id,updates){await this._ref(`exercises/${id}`).update(updates)}
-async deleteExercise(id){await this._ref(`exercises/${id}`).remove()}
+async deleteExercise(id){await this._ref(`exercises/${id}`).remove();await this._ref(`exerciseResults/${id}`).remove()}
 listenExercises(cb,group){const ref=this._ref('exercises');ref.on('value',s=>cb(s.val()||{}));const offFn=()=>ref.off();if(group==='student')this._studentDashListeners.push(offFn);else this._listeners.push(offFn)}
-async submitExerciseResult(exId,username,result){await this._ref(`exerciseResults/${exId}/${username}`).set({score:result.score,submittedAt:Date.now(),details:result.details,code:result.code||''})}
+async submitExerciseResult(exId,username,result){
+// Keep best score: only overwrite if new score >= old score
+const existingSnap=await this._ref(`exerciseResults/${exId}/${username}/score`).once('value');
+const oldScore=existingSnap.val();
+const newScore=result.score||0;
+if(oldScore!=null&&newScore<oldScore){
+// Save attempt history but DON'T overwrite best result 
+await this._ref(`exerciseResults/${exId}/${username}/attempts/${Date.now()}`).set({score:newScore,submittedAt:Date.now()});
+return}
+await this._ref(`exerciseResults/${exId}/${username}`).set({score:newScore,submittedAt:Date.now(),details:result.details,code:result.code||'',bestScore:Math.max(newScore,oldScore||0)})}
 async getExerciseResults(exId,username){const snap=await this._ref(`exerciseResults/${exId}/${username}`).once('value');return snap.val()}
 listenAllExerciseResults(cb,group){const ref=this._ref('exerciseResults');ref.on('value',s=>cb(s.val()||{}));const offFn=()=>ref.off();if(group==='student')this._studentDashListeners.push(offFn);else if(group==='exercise')this._exerciseListeners.push(offFn);else this._listeners.push(offFn)}
 async exportCSV(roomCode){const infoSnap=await this._ref(`rooms/${roomCode}/info`).once('value');const info=infoSnap.val();const lbSnap=await this._ref(`rooms/${roomCode}/leaderboard`).once('value');const lb=lbSnap.val();if(!lb)return'';const pCount=info.problemCount||1;let csv='Hạng,Họ tên,Tổng điểm';for(let i=0;i<pCount;i++)csv+=`,Bài ${i+1}`;csv+='\n';const sorted=Object.values(lb).sort((a,b)=>b.totalScore-a.totalScore||(a.lastSubmit-b.lastSubmit));sorted.forEach((s,i)=>{csv+=`${i+1},${s.name},${s.totalScore}`;for(let j=0;j<pCount;j++)csv+=`,${s.problems&&s.problems[j]||0}`;csv+='\n'});return csv}}
@@ -122,7 +131,11 @@ async grade(code,testCases,subtasks,fileIO,taskName,uppercase,timePerTest,onProg
 await this.engine.init();const inpF=(uppercase?taskName.toUpperCase():taskName.toLowerCase())+(uppercase?'.INP':'.inp');
 const outF=(uppercase?taskName.toUpperCase():taskName.toLowerCase())+(uppercase?'.OUT':'.out');
 const details=[];for(let i=0;i<testCases.length;i++){onProgress&&onProgress(i+1,testCases.length);const tc=testCases[i];const t0=performance.now();let verdict='AC',output='';
-try{output=fileIO?await this.engine.runFileIO(code,tc.input,inpF,outF):await this.engine.runStdio(code,tc.input);const elapsed=performance.now()-t0;if(elapsed>timePerTest*1000)verdict='TLE';else if(output.trim()!==tc.output.trim())verdict='WA';details.push({testIdx:i,subtaskId:tc.subtaskId,verdict,time:Math.round(elapsed)})}catch(e){details.push({testIdx:i,subtaskId:tc.subtaskId,verdict:e.message.includes('TLE')?'TLE':'RE',time:Math.round(performance.now()-t0)})}await new Promise(r=>setTimeout(r,5))}
+try{output=fileIO?await this.engine.runFileIO(code,tc.input,inpF,outF):await this.engine.runStdio(code,tc.input);const elapsed=performance.now()-t0;if(elapsed>timePerTest*1000)verdict='TLE';else{
+// Normalize output: \r\n → \n, trim each line, remove trailing empty lines
+const norm=s=>(s||'').replace(/\r\n/g,'\n').replace(/\r/g,'\n').split('\n').map(l=>l.trimEnd()).join('\n').replace(/\n+$/,'').trim();
+if(norm(output)!==norm(tc.output))verdict='WA'}
+details.push({testIdx:i,subtaskId:tc.subtaskId,verdict,time:Math.round(elapsed)})}catch(e){details.push({testIdx:i,subtaskId:tc.subtaskId,verdict:e.message.includes('TLE')?'TLE':'RE',time:Math.round(performance.now()-t0)})}await new Promise(r=>setTimeout(r,5))}
 const score=this._calcScore(details,subtasks,testCases);return{score,details,code}}
 _calcScore(details,subtasks,testCases){let total=0;for(const st of subtasks){const stTests=details.filter(d=>d.subtaskId===st.id);const allAC=stTests.length>0&&stTests.every(d=>d.verdict==='AC');if(allAC)total+=st.percent}return total}}
 
@@ -1712,10 +1725,7 @@ con=this._renderSmartHints(result,con);
 consoleOut.innerHTML=con;this._showStudentResults(result,p);
 const exRef=this._currentExercise;
 const trimmedResult={score:result.score,details:result.details,code:(result.code||'').substring(0,10000)};
-if(exRef){try{await this.fb.submitExerciseResult(exRef.id,this.studentName,trimmedResult);
-localStorage.removeItem('themis_draft_'+exRef.id);
-this.drive.logData('Submissions',[exRef.id+'_'+this.studentName+'_'+Date.now(),this.studentName,exRef.id,exRef.title,result.score,new Date().toISOString(),result.score>=100?'PERFECT':result.score>0?'PARTIAL':'ZERO']).catch(()=>{});
-statusEl.textContent='✅ Đã nộp!';this._toast(`📚 ${exRef.title}: ${result.score} điểm`,'success')}catch(e){statusEl.textContent='⚠️ Lỗi lưu!';this._toast('⚠️ Lỗi lưu: '+e.message,'error')}}
+if(exRef){try{const prevResult=await this.fb.getExerciseResults(exRef.id,this.studentName);const prevBest=prevResult?prevResult.score:null;await this.fb.submitExerciseResult(exRef.id,this.studentName,trimmedResult);localStorage.removeItem('themis_draft_'+exRef.id);this.drive.logData('Submissions',[exRef.id+'_'+this.studentName+'_'+Date.now(),this.studentName,exRef.id,exRef.title,result.score,new Date().toISOString(),result.score>=100?'PERFECT':result.score>0?'PARTIAL':'ZERO']).catch(()=>{});if(prevBest!=null&&result.score<prevBest){statusEl.textContent='✅ Đã nộp (giữ điểm cao nhất)';this._toast(`📚 ${exRef.title}: ${result.score} điểm lần này • Điểm tốt nhất: ${prevBest} (được giữ lại)`,'info')}else{statusEl.textContent='✅ Đã nộp!';this._toast(`📚 ${exRef.title}: ${result.score} điểm`,'success')}}catch(e){statusEl.textContent='⚠️ Lỗi lưu!';this._toast('⚠️ Lỗi lưu: '+e.message,'error')}}
 else{statusEl.textContent='⚠️ Không xác định bài!';this._toast('⚠️ Không tìm thấy thông tin bài tập.','error')}}catch(e){
 statusEl.textContent='';const errMsg=e.message;
 let con='<div style="color:var(--error);font-weight:600;margin-bottom:6px">💥 Lỗi khi chạy code</div>';
