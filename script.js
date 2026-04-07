@@ -2414,7 +2414,8 @@ _esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML
 
 // ============ DRAFT AUTO-SAVE SYSTEM ============
 _draftSaveTimer=null;
-_debouncedSaveDraft(){if(this._draftSaveTimer)clearTimeout(this._draftSaveTimer);this._showDraftStatus('saving');this._draftSaveTimer=setTimeout(()=>this._saveDraft(),3000)}
+_isRestoringDraft=false;
+_debouncedSaveDraft(){if(this._isRestoringDraft)return;if(this._draftSaveTimer)clearTimeout(this._draftSaveTimer);this._showDraftStatus('saving');this._draftSaveTimer=setTimeout(()=>this._saveDraft(),3000)}
 
 _saveDraft(){try{
 const draft={};
@@ -2456,13 +2457,17 @@ this._showDraftStatus('saved');
 }catch(e){console.warn('Draft save error:',e)}}
 
 _restoreDraft(){try{
-const raw=localStorage.getItem('themis_draft_compose');if(!raw)return;
+this._isRestoringDraft=true;
+// Cancel any pending save that was triggered by CM init / default subtask creation
+if(this._draftSaveTimer){clearTimeout(this._draftSaveTimer);this._draftSaveTimer=null}
+const raw=localStorage.getItem('themis_draft_compose');if(!raw){this._isRestoringDraft=false;return}
 const d=JSON.parse(raw);
 // Check if draft is too old (> 7 days)
-if(d.savedAt&&Date.now()-d.savedAt>7*24*60*60*1000){localStorage.removeItem('themis_draft_compose');return}
+if(d.savedAt&&Date.now()-d.savedAt>7*24*60*60*1000){localStorage.removeItem('themis_draft_compose');this._isRestoringDraft=false;return}
 // Check if draft has any meaningful content
-const hasMeaningful=d.title||d.taskName||d.description||(d.codeMain&&d.codeMain.trim()&&d.codeMain.trim()!=='# Code đáp án\nn = int(input())\nprint(n * 2)');
-if(!hasMeaningful)return;
+const defaultCode='# Code đáp án\nn = int(input())\nprint(n * 2)';
+const hasMeaningful=d.title||d.taskName||d.description||d.aiPrompt||(d.inputLines&&d.inputLines.length)||(d.generatedTests&&d.generatedTests.length)||(d.codeMain&&d.codeMain.trim()&&d.codeMain.trim()!==defaultCode&&d.codeMain.trim()!==defaultCode+'\n');
+if(!hasMeaningful){this._isRestoringDraft=false;return}
 // Restore basic fields
 if(d.title)document.getElementById('problem-title').value=d.title;
 if(d.taskName)document.getElementById('task-name').value=d.taskName;
@@ -2473,16 +2478,16 @@ if(d.uppercase!==undefined)document.getElementById('chk-uppercase').checked=d.up
 if(d.description)document.getElementById('problem-description').value=d.description;
 if(d.aiPrompt)document.getElementById('ai-prompt').value=d.aiPrompt;
 if(d.difficulty){const diffEl=document.getElementById('ex-difficulty');if(diffEl)diffEl.value=d.difficulty}
-// Restore code editors
-if(d.codeMain&&this.cmMain){this.cmMain.setValue(d.codeMain);setTimeout(()=>this.cmMain.refresh(),50)}
-if(d.codeBrute&&this.cmBrute){this.cmBrute.setValue(d.codeBrute);setTimeout(()=>this.cmBrute.refresh(),50)}
-if(d.codeAiPreview&&this.cmAiPreview&&d.codeAiPreview.trim()){this.cmAiPreview.setValue(d.codeAiPreview);document.getElementById('ai-preview')?.classList.remove('hidden');setTimeout(()=>this.cmAiPreview.refresh(),50)}
-// Restore subtasks
+// Restore subtasks FIRST (before input lines — _addVar reads subtask DOM for constraint chips)
 if(d.subtasks&&d.subtasks.length){
 document.getElementById('subtasks-container').innerHTML='';
 this.subtaskCounter=0;
 d.subtasks.forEach(st=>this.addSubtask(parseInt(st.pct)||0,st.name||null));
 this._updateSTTotal()}
+// Restore code editors (setValue triggers CM change, but _isRestoringDraft guard blocks saving)
+if(d.codeMain&&this.cmMain){this.cmMain.setValue(d.codeMain);setTimeout(()=>this.cmMain.refresh(),50)}
+if(d.codeBrute&&this.cmBrute){this.cmBrute.setValue(d.codeBrute);setTimeout(()=>this.cmBrute.refresh(),50)}
+if(d.codeAiPreview&&this.cmAiPreview&&d.codeAiPreview.trim()){this.cmAiPreview.setValue(d.codeAiPreview);document.getElementById('ai-preview')?.classList.remove('hidden');setTimeout(()=>this.cmAiPreview.refresh(),50)}
 // Restore input lines
 if(d.inputLines&&d.inputLines.length){
 document.getElementById('input-lines-container').innerHTML='';
@@ -2495,7 +2500,7 @@ const container=document.querySelector(`[data-line-vars="${lid}"]`);
 if(!container)return;
 const lastRow=container.lastElementChild;if(!lastRow)return;
 // Restore constraints
-if(v.constraints&&v.constraints.length){v.constraints.forEach(c=>{const chip=lastRow.querySelector(`.constraint-chip[data-st-id="${c.stId}"]`);if(chip){if(c.min)chip.querySelector('.cst-min').value=c.min;if(c.max)chip.querySelector('.cst-max').value=c.max;
+if(v.constraints&&v.constraints.length){v.constraints.forEach(c=>{const chip=lastRow.querySelector(`.constraint-chip[data-st-id="${c.stId}"]`);if(chip){if(c.min!==undefined&&c.min!=='')chip.querySelector('.cst-min').value=c.min;if(c.max!==undefined&&c.max!=='')chip.querySelector('.cst-max').value=c.max;
 // Restore per-subtask charset
 if(v.type==='string'&&c.charset){const csSel=chip.querySelector('.cst-charset');if(csSel){csSel.classList.remove('hidden');csSel.value=c.charset;if(c.charset==='mixed'){const rg=chip.querySelector('.cst-ratio-group');if(rg){rg.classList.remove('hidden');const rd=chip.querySelector('.cst-ratio-digits');if(rd)rd.value=c.ratioDigits||'34';const rl=chip.querySelector('.cst-ratio-lower');if(rl)rl.value=c.ratioLower||'33';const ru=chip.querySelector('.cst-ratio-upper');if(ru)ru.value=c.ratioUpper||'33'}}}}}})}
 // Restore array pattern
@@ -2517,7 +2522,9 @@ const draftTitle=d.title||d.taskName||'chưa đặt tên';
 const tcInfo=d.generatedTests?` (${d.generatedTests.length} test)`:'';
 this._toast(`🔄 Đã khôi phục bài soạn dở: "${draftTitle}"${tcInfo}`,'info');
 this._showDraftStatus('restored');
-}catch(e){console.warn('Draft restore error:',e);localStorage.removeItem('themis_draft_compose')}}
+// Release the guard AFTER a short delay so any queued CM change events are suppressed
+setTimeout(()=>{this._isRestoringDraft=false},500);
+}catch(e){console.warn('Draft restore error:',e);this._isRestoringDraft=false}}
 
 _clearDraft(){localStorage.removeItem('themis_draft_compose');const el=document.getElementById('draft-save-status');if(el){el.classList.add('hidden');el.className='draft-save-status hidden'}}
 
