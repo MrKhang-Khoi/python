@@ -111,15 +111,18 @@ async updateExercise(id,updates){await this._ref(`exercises/${id}`).update(updat
 async deleteExercise(id){await this._ref(`exercises/${id}`).remove();await this._ref(`exerciseResults/${id}`).remove()}
 listenExercises(cb,group){const ref=this._ref('exercises');ref.on('value',s=>cb(s.val()||{}));const offFn=()=>ref.off();if(group==='student')this._studentDashListeners.push(offFn);else this._listeners.push(offFn)}
 async submitExerciseResult(exId,username,result){
-// Keep best score: only overwrite if new score >= old score
-const existingSnap=await this._ref(`exerciseResults/${exId}/${username}/score`).once('value');
-const oldScore=existingSnap.val();
+// BUG-C02+RT01 FIX: Use transaction for atomic best-score + update() to preserve attempts
 const newScore=result.score||0;
+const ref=this._ref(`exerciseResults/${exId}/${username}`);
+const existingSnap=await ref.child('score').once('value');
+const oldScore=existingSnap.val();
 if(oldScore!=null&&newScore<oldScore){
 // Save attempt history but DON'T overwrite best result 
-await this._ref(`exerciseResults/${exId}/${username}/attempts/${Date.now()}`).set({score:newScore,submittedAt:Date.now()});
-return}
-await this._ref(`exerciseResults/${exId}/${username}`).set({score:newScore,submittedAt:Date.now(),details:result.details,code:result.code||'',bestScore:Math.max(newScore,oldScore||0)})}
+await ref.child(`attempts/${Date.now()}`).set({score:newScore,submittedAt:Date.now()});
+return {kept:true,bestScore:oldScore}}
+// Use update() instead of set() to preserve attempts history
+await ref.update({score:newScore,submittedAt:Date.now(),details:result.details,code:result.code||'',bestScore:Math.max(newScore,oldScore||0)});
+return {kept:false,bestScore:Math.max(newScore,oldScore||0)}}
 async getExerciseResults(exId,username){const snap=await this._ref(`exerciseResults/${exId}/${username}`).once('value');return snap.val()}
 listenAllExerciseResults(cb,group){const ref=this._ref('exerciseResults');ref.on('value',s=>cb(s.val()||{}));const offFn=()=>ref.off();if(group==='student')this._studentDashListeners.push(offFn);else if(group==='exercise')this._exerciseListeners.push(offFn);else this._listeners.push(offFn)}
 async exportCSV(roomCode){const infoSnap=await this._ref(`rooms/${roomCode}/info`).once('value');const info=infoSnap.val();const lbSnap=await this._ref(`rooms/${roomCode}/leaderboard`).once('value');const lb=lbSnap.val();if(!lb)return'';const pCount=info.problemCount||1;let csv='Hạng,Họ tên,Tổng điểm';for(let i=0;i<pCount;i++)csv+=`,Bài ${i+1}`;csv+='\n';const sorted=Object.values(lb).sort((a,b)=>b.totalScore-a.totalScore||(a.lastSubmit-b.lastSubmit));sorted.forEach((s,i)=>{csv+=`${i+1},${s.name},${s.totalScore}`;for(let j=0;j<pCount;j++)csv+=`,${s.problems&&s.problems[j]||0}`;csv+='\n'});return csv}}
@@ -1041,8 +1044,15 @@ const endedCode=this.roomCode;
 this.roomCode=null;
 document.getElementById('teacher-room-bar').classList.add('hidden');
 this._hideActiveRoomDashboard();
-// Cleanup active room listeners
+// BUG-C06 FIX: Only cleanup room-specific listeners, re-register teacher core listeners
 this.fb.cleanup();
+// Re-register core listeners that cleanup() destroyed (mirrors _initTeacher)
+this.fb.listenAccounts(accts=>{this._cachedAccounts=accts;this._renderAccountList(accts);this._renderProgress();this._renderTopicStats()});
+this.fb.listenExercises(exs=>{this._teacherExercises=exs;this._renderTeacherExerciseList(exs);this._renderProgress();this._renderTopicStats()});
+this.fb.listenAllExerciseResults(res=>{this._teacherExResults=res;this._renderTeacherExerciseList(this._teacherExercises||{});this._renderProgress();this._renderTopicStats()});
+const _thRef2=this.fb.db.ref('theories');_thRef2.on('value',s=>{this._cachedTheories=s.val()||{};this._renderTheoryList(this._cachedTheories,'t-theory-list',true)});this.fb._listeners.push(()=>_thRef2.off());
+const _roomRef2=this.fb.db.ref('rooms');_roomRef2.on('value',s=>{this._allRooms=s.val()||{};this._renderRoomHistory()});this.fb._listeners.push(()=>_roomRef2.off());
+this._initTeacherNotifListener();
 // Reload all rooms data then open the ended room's detail view
 try{const roomsSnap=await this.fb.db.ref('rooms').once('value');this._allRooms=roomsSnap.val()||{};
 this._viewRoomHistory(endedCode)}catch(e){console.error('Auto-open history:',e);this._renderRoomHistory()}}
@@ -1243,7 +1253,7 @@ const data={title:displayTitle,description:desc,topic,difficulty,fileIO:cfg.file
 // Auto-switch to exercise management tab so teacher sees the new exercise immediately
 const exTab=document.querySelector('.t-tab[data-ttab="exercises"]');if(exTab){exTab.click()}}catch(e){this._toast('Lỗi: '+e.message,'error')}}
 
-async _exportCSV(){if(!this.roomCode)return;const csv=await this.fb.exportCSV(this.roomCode);if(!csv){this._toast('Chưa có dữ liệu','error');return}const b=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download=`BangDiem_${this.roomCode}.csv`;document.body.appendChild(a);a.click();document.body.removeChild(a);this._toast('Đã xuất CSV!','success')}
+async _exportCSV(){const rc=this.roomCode||this._viewingRoomCode;if(!rc){this._toast('Không có phòng thi để export','error');return}const csv=await this.fb.exportCSV(rc);if(!csv){this._toast('Chưa có dữ liệu','error');return}const b=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download=`BangDiem_${rc}.csv`;document.body.appendChild(a);a.click();document.body.removeChild(a);this._toast('Đã xuất CSV!','success')}
 
 // ===== STUDENT =====
 _initStudent(){if(this._studentInited){document.getElementById('view-student').classList.remove('hidden');return}this._studentInited=true;document.getElementById('view-student').classList.remove('hidden');
@@ -1607,7 +1617,10 @@ h+=`</tr>`});
 h+=`</tbody></table></div></div>`});
 c.innerHTML=h}
 
-async _openExercise(exId){const snap=await this.fb.db.ref(`exercises/${exId}`).once('value');const ex=snap.val();if(!ex)return;this._currentExercise={id:exId,...ex};this.roomCode=null;this.problems=[ex];this.currentProbIdx=0;document.getElementById('stu-dashboard').classList.add('hidden');document.getElementById('stu-contest').classList.remove('hidden');document.getElementById('stu-contest-title').textContent=ex.title;document.getElementById('stu-player-name').textContent=this.studentName;
+async _openExercise(exId){
+// BUG-C03 FIX: Snapshot exId at entry to prevent race condition
+const snapExId=exId;
+const snap=await this.fb.db.ref(`exercises/${snapExId}`).once('value');const ex=snap.val();if(!ex)return;this._currentExercise={id:snapExId,...ex};this.roomCode=null;this.problems=[ex];this.currentProbIdx=0;document.getElementById('stu-dashboard').classList.add('hidden');document.getElementById('stu-contest').classList.remove('hidden');document.getElementById('stu-contest-title').textContent=ex.title;document.getElementById('stu-player-name').textContent=this.studentName;
 document.getElementById('stu-timer').textContent='∞';document.getElementById('stu-timer').classList.remove('critical');
 if(this.timerInterval){clearInterval(this.timerInterval);this.timerInterval=null}
 // === RESET UI state from previous exercise ===
@@ -1638,7 +1651,7 @@ const exRes=this._exerciseResults||{};const exResultsForThis=exRes[exId]||{};con
 this.fb.cleanupExercise();
 this.fb.listenAllExerciseResults(res=>{const lr=res[exId]||{};const lb={};Object.keys(lr).forEach(n=>{const r=lr[n];lb[n]={name:n,totalScore:r.score||0,problems:{0:r.score||0},lastSubmit:r.submittedAt||0}});this._renderLeaderboard(lb,'stu-leaderboard-body',this.studentName)},'exercise')}
 
-async _joinRoom(){const code=document.getElementById('stu-room-code').value.trim();const errEl=document.getElementById('stu-join-error');errEl.textContent='';if(!code){errEl.textContent='⚠️ Nhập mã phòng thi';return}try{this.roomCode=code;this._currentExercise=null;const info=await this.fb.joinRoom(code,this.studentName);document.getElementById('stu-dashboard').classList.add('hidden');document.getElementById('stu-waiting-info').textContent=`Phòng: ${code} — ${info.title}`;if(info.status==='active'){this._stuStartContest(info)}else if(info.status==='ended'){this._showStudentEndedScreen(code,info)}else{document.getElementById('stu-waiting').classList.remove('hidden')}this.fb.listenRoomInfo(code,ri=>{if(!ri)return;if(ri.status==='active'){document.getElementById('stu-waiting').classList.add('hidden');this._stuStartContest(ri)}else if(ri.status==='ended'){if(this.timerInterval){clearInterval(this.timerInterval);this.timerInterval=null}this._stopAntiCheat();if(this._contestAutoSave){clearInterval(this._contestAutoSave);this._contestAutoSave=null}document.getElementById('stu-contest').classList.add('hidden');this._showStudentEndedScreen(code,ri)}});this._toast(`Đã vào phòng ${code}!`,'success')}catch(e){errEl.textContent='❌ '+e.message}}
+async _joinRoom(){const code=document.getElementById('stu-room-code').value.trim();const errEl=document.getElementById('stu-join-error');errEl.textContent='';if(!code){errEl.textContent='⚠️ Nhập mã phòng thi';return}if(!this.studentName){errEl.textContent='⚠️ Vui lòng đăng nhập trước';return}try{this.roomCode=code;this._currentExercise=null;const info=await this.fb.joinRoom(code,this.studentName);document.getElementById('stu-dashboard').classList.add('hidden');document.getElementById('stu-waiting-info').textContent=`Phòng: ${code} — ${info.title}`;if(info.status==='active'){this._stuStartContest(info)}else if(info.status==='ended'){this._showStudentEndedScreen(code,info)}else{document.getElementById('stu-waiting').classList.remove('hidden')}this.fb.listenRoomInfo(code,ri=>{if(!ri)return;if(ri.status==='active'){document.getElementById('stu-waiting').classList.add('hidden');this._stuStartContest(ri)}else if(ri.status==='ended'){if(this.timerInterval){clearInterval(this.timerInterval);this.timerInterval=null}this._stopAntiCheat();if(this._contestAutoSave){clearInterval(this._contestAutoSave);this._contestAutoSave=null}document.getElementById('stu-contest').classList.add('hidden');this._showStudentEndedScreen(code,ri)}});this._toast(`Đã vào phòng ${code}!`,'success')}catch(e){errEl.textContent='❌ '+e.message}}
 
 async _showStudentEndedScreen(roomCode,info){
 document.getElementById('stu-ended').classList.remove('hidden');
@@ -1760,7 +1773,8 @@ this._startAntiCheat();
 // 💾 AUTO-SAVE: Save ALL problems' code to Firebase every 30s during contest
 // BUG-M04 FIX: Sync ALL cached drafts, not just the currently-visible problem
 if(this._contestAutoSave)clearInterval(this._contestAutoSave);
-this._contestAutoSave=setInterval(()=>{if(this.cmStudent&&this.roomCode&&this.studentName){
+// BUG-C04 FIX: Check _suppressAutoSave to prevent overwriting during restore
+this._contestAutoSave=setInterval(()=>{if(this._suppressAutoSave)return;if(this.cmStudent&&this.roomCode&&this.studentName){
 // Sync current editor content into draft cache before flushing
 const curCode=this.cmStudent.getValue();
 if(curCode.trim()&&curCode.trim()!=='# Viết code tại đây'){
@@ -1792,7 +1806,21 @@ this._autoSaveInterval=setInterval(()=>{if(this._suppressAutoSave)return;if(this
 
 _renderProblemTabs(){const c=document.getElementById('stu-problem-tabs');c.innerHTML='';this.problems.forEach((p,i)=>{const btn=document.createElement('button');btn.className='oj-ptab-btn'+(i===0?' active':'');btn.textContent=`Bài ${i+1}`;btn.onclick=()=>{c.querySelectorAll('.oj-ptab-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');this._showProblem(i)};c.appendChild(btn)})}
 
-_showProblem(idx){this.currentProbIdx=idx;const p=this.problems[idx];if(!p)return;document.getElementById('stu-problem-title').textContent=`Bài ${idx+1}: ${p.title}`;
+_showProblem(idx){
+// BUG-C05 FIX: Save current code before switching problem in contest mode
+if(this.cmStudent&&this.roomCode&&!this._currentExercise){
+const curCode=this.cmStudent.getValue();
+if(curCode.trim()&&curCode.trim()!=='# Viết code tại đây'){
+if(!this._contestDrafts)this._contestDrafts={};
+this._contestDrafts[this.currentProbIdx]=curCode.substring(0,15000)}}
+this.currentProbIdx=idx;const p=this.problems[idx];if(!p)return;
+// BUG-M08 FIX: Restore cached draft for the selected problem
+if(this.cmStudent&&this.roomCode&&!this._currentExercise){
+const cached=this._contestDrafts&&this._contestDrafts[idx];
+this._suppressAutoSave=true;
+this.cmStudent.setValue(cached||'# Viết code tại đây\n');
+this._suppressAutoSave=false}
+document.getElementById('stu-problem-title').textContent=`Bài ${idx+1}: ${p.title}`;
 const isContest=!!this.roomCode&&!this._currentExercise;
 const testInfo=p.testCases?p.testCases.length:(p._testCount||'?');
 document.getElementById('stu-problem-meta').innerHTML=`${p.fileIO?'📁 File I/O: <strong>'+p.taskName+'.INP/.OUT</strong>':'⌨️ stdin/stdout'} &nbsp;•&nbsp; ${p.subtasks?.length||1} subtask${isContest?' &nbsp;•&nbsp; 🔒 Test ẩn':' &nbsp;•&nbsp; '+testInfo+' test'}`;document.getElementById('stu-problem-desc').textContent=p.description||'Không có mô tả';
@@ -1909,9 +1937,12 @@ this._toast(`📝 Bài ${this.currentProbIdx+1}: Đã nộp (lần ${subCount})`
 finally{document.getElementById('btn-stu-submit').disabled=false}
 return}
 
-// === EXERCISE MODE: chấm ngay (giữ nguyên logic cũ) ===
-if(!this._currentExercise){const ok=await this._confirmDialog('📝 Xác nhận nộp bài','Code sẽ được chấm điểm. Bạn có thể nộp lại nhiều lần.','Nộp bài','btn-accent');if(!ok)return}
+// === EXERCISE MODE: chấm ngay ===
+// BUG-C01 FIX: Validate _currentExercise exists before grading
+if(!this._currentExercise){this._toast('⚠️ Không xác định bài tập. Quay lại dashboard.','error');return}
 statusEl.innerHTML='⏳ Đang chấm...';consoleOut.innerHTML='<span style="color:var(--text-muted)">🔄 Đang khởi tạo Pyodide...</span>';document.getElementById('btn-stu-submit').disabled=true;
+// Disable back button during grading to prevent premature exit
+const backBtn=document.getElementById('btn-stu-back-dash');if(backBtn)backBtn.disabled=true;
 try{const result=await this.grader.grade(code,p.testCases,p.subtasks||[],p.fileIO,p.taskName,p.uppercase,p.timePerTest||5,(c,t)=>{statusEl.textContent=`Test ${c}/${t}`;consoleOut.innerHTML=`<span style="color:var(--accent)">⚡ Đang chấm test ${c}/${t}...</span>`});
 const ac=result.details.filter(d=>d.verdict==='AC').length;const wa=result.details.filter(d=>d.verdict==='WA').length;const re=result.details.filter(d=>d.verdict==='RE').length;const tle=result.details.filter(d=>d.verdict==='TLE').length;const total=result.details.length;
 let con=`<div style="margin-bottom:6px"><strong style="color:${result.score>=100?'var(--success)':result.score>=50?'var(--warning,#f59e0b)':'var(--error)'};font-size:1.1rem">${result.score}/100 điểm</strong></div>`;
@@ -1930,16 +1961,25 @@ con+=`</div>`});con+=`</div>`}
 // 💡 Add smart error hints
 con=this._renderSmartHints(result,con);
 consoleOut.innerHTML=con;this._showStudentResults(result,p);
+// BUG-C03 FIX: Snapshot exRef before async to prevent race condition
 const exRef=this._currentExercise;
+const snapExId=exRef?.id;
+const snapTitle=exRef?.title;
 const trimmedResult={score:result.score,details:result.details,code:(result.code||'').substring(0,10000)};
-if(exRef){try{const prevResult=await this.fb.getExerciseResults(exRef.id,this.studentName);const prevBest=prevResult?prevResult.score:null;await this.fb.submitExerciseResult(exRef.id,this.studentName,trimmedResult);localStorage.removeItem('themis_draft_'+exRef.id);this.drive.logData('Submissions',[exRef.id+'_'+this.studentName+'_'+Date.now(),this.studentName,exRef.id,exRef.title,result.score,new Date().toISOString(),result.score>=100?'PERFECT':result.score>0?'PARTIAL':'ZERO']).catch(()=>{});if(prevBest!=null&&result.score<prevBest){statusEl.textContent='✅ Đã nộp (giữ điểm cao nhất)';this._toast(`📚 ${exRef.title}: ${result.score} điểm lần này • Điểm tốt nhất: ${prevBest} (được giữ lại)`,'info')}else{statusEl.textContent='✅ Đã nộp!';this._toast(`📚 ${exRef.title}: ${result.score} điểm`,'success')}}catch(e){statusEl.textContent='⚠️ Lỗi lưu!';this._toast('⚠️ Lỗi lưu: '+e.message,'error')}}
+if(snapExId){try{const submitRes=await this.fb.submitExerciseResult(snapExId,this.studentName,trimmedResult);localStorage.removeItem('themis_draft_'+snapExId);this.drive.logData('Submissions',[snapExId+'_'+this.studentName+'_'+Date.now(),this.studentName,snapExId,snapTitle,result.score,new Date().toISOString(),result.score>=100?'PERFECT':result.score>0?'PARTIAL':'ZERO']).catch(()=>{});
+// BUG-RT02 FIX: Show clear best-score info when current < best
+if(submitRes&&submitRes.kept){statusEl.textContent=`✅ Đã nộp (giữ điểm cao nhất: ${submitRes.bestScore})`;this._toast(`📚 ${snapTitle}: ${result.score} điểm lần này • Điểm tốt nhất: ${submitRes.bestScore} (được giữ lại)`,'info');
+// Show banner on results card
+const banner=document.getElementById('stu-best-score-banner');if(banner){banner.textContent=`⭐ Điểm lần này: ${result.score}/100 — Điểm tốt nhất: ${submitRes.bestScore}/100 (được giữ)`;banner.classList.remove('hidden')}}
+else{statusEl.textContent='✅ Đã nộp!';this._toast(`📚 ${snapTitle}: ${result.score} điểm`,'success');
+const banner=document.getElementById('stu-best-score-banner');if(banner)banner.classList.add('hidden')}}catch(e){statusEl.textContent='⚠️ Lỗi lưu!';this._toast('⚠️ Lỗi lưu: '+e.message,'error')}}
 else{statusEl.textContent='⚠️ Không xác định bài!';this._toast('⚠️ Không tìm thấy thông tin bài tập.','error')}}catch(e){
 statusEl.textContent='';const errMsg=e.message;
 let con='<div style="color:var(--error);font-weight:600;margin-bottom:6px">💥 Lỗi khi chạy code</div>';
 if(errMsg.includes('Python:')){const pyErr=errMsg.replace('Python: ','');
 con+=`<pre style="background:rgba(239,68,68,.08);padding:8px;border-radius:4px;font-size:.78rem;color:#f87171;white-space:pre-wrap;max-height:200px;overflow-y:auto">${this._esc(pyErr)}</pre>`;
 con+=`<div style="color:var(--text-muted);font-size:.75rem;margin-top:6px">💡 Kiểm tra lại cú pháp, biến, và logic.</div>`}else{con+=`<div style="color:var(--error)">${this._esc(errMsg)}</div>`}
-consoleOut.innerHTML=con;this._toast('Lỗi: '+errMsg.substring(0,60),'error')}finally{document.getElementById('btn-stu-submit').disabled=false}}
+consoleOut.innerHTML=con;this._toast('Lỗi: '+errMsg.substring(0,60),'error')}finally{document.getElementById('btn-stu-submit').disabled=false;const _backBtn=document.getElementById('btn-stu-back-dash');if(_backBtn)_backBtn.disabled=false}}
 
 _showStudentResults(result,problem){const card=document.getElementById('stu-results-card');card.classList.remove('hidden');document.getElementById('no-results-msg').style.display='none';const scoreEl=document.getElementById('stu-score');scoreEl.textContent=result.score;scoreEl.className='oj-score-value'+(result.score===100?' perfect':'');
 const sumEl=document.getElementById('stu-subtask-summary');let sumH='';for(const st of (problem.subtasks||[])){const stTests=(result.details||[]).filter(d=>d.subtaskId===st.id);const ac=stTests.filter(d=>d.verdict==='AC').length;const total=stTests.length;const allAC=total>0&&ac===total;const pts=allAC?st.percent:0;sumH+=`<div class="subtask-summary-row ${allAC?'pass':'fail'}"><span class="st-sum-name">${st.name}</span><div class="st-sum-bar"><div class="st-sum-bar-fill ${allAC?'full':ac>0?'partial':'zero'}" style="width:${total?ac/total*100:0}%"></div></div><span style="font-size:.78rem;color:var(--text-muted)">${ac}/${total} AC</span><span class="st-sum-score">${pts}đ</span></div>`}sumEl.innerHTML=sumH;
@@ -1969,6 +2009,9 @@ consoleOut.innerHTML=`<div style="padding:16px;text-align:center"><div style="fo
 async _gradeAllStudents(targetRoomCode){
 const rc=targetRoomCode||this.roomCode||this._viewingRoomCode;
 if(!rc){this._toast('Không có phòng thi','error');return}
+// BUG-M01 FIX: Verify contest has ended before grading
+const infoCheck=await this.fb.db.ref(`rooms/${rc}/info/status`).once('value');
+if(infoCheck.val()==='active'){this._toast('⚠️ Cuộc thi đang diễn ra! Kết thúc trước khi chấm.','error');return}
 const ok=await this._confirmDialog('🔬 Chấm bài','Hệ thống sẽ chạy code của TẤT CẢ học sinh với test cases. Quá trình này có thể mất vài phút.','Bắt đầu chấm','btn-accent');
 if(!ok)return;
 const gradeBtn=document.getElementById('btn-grade-all');if(gradeBtn)gradeBtn.disabled=true;
