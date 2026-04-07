@@ -562,6 +562,7 @@
                     <div class="oj-pane-tabs">
                         <button class="oj-ptab active" data-ptab="desc">📝 Đề Bài</button>
                         <button class="oj-ptab" data-ptab="leaderboard">🏆 Xếp Hạng</button>
+                        <button class="oj-ptab" data-ptab="aitutor" id="ptab-btn-aitutor">🤖 Trợ Lý</button>
                     </div>
                     <div class="oj-ptab-content active" id="ptab-desc">
                         <h3 id="stu-problem-title" class="oj-prob-title">Bài 1</h3>
@@ -573,6 +574,24 @@
                     </div>
                     <div class="oj-ptab-content" id="ptab-leaderboard">
                         <div id="stu-leaderboard-body"><p style="color:var(--text-muted);text-align:center;padding:40px">Chưa có dữ liệu</p></div>
+                    </div>
+                    <!-- AI Tutor Chat Panel -->
+                    <div class="oj-ptab-content" id="ptab-aitutor">
+                        <div class="ai-tutor-panel">
+                            <div class="ai-tutor-header">
+                                <span class="ai-tutor-title">🤖 Trợ Lý Python</span>
+                                <button class="btn btn-ghost btn-sm" id="btn-ai-clear" title="Xóa lịch sử chat">🗑</button>
+                            </div>
+                            <div id="ai-tutor-messages" class="ai-tutor-messages"></div>
+                            <div class="ai-tutor-input-area">
+                                <input type="text" id="ai-tutor-input" class="ai-tutor-input" placeholder="Hỏi về cú pháp Python..." maxlength="500" autocomplete="off" />
+                                <button id="btn-ai-tutor-send" class="ai-tutor-send-btn" title="Gửi câu hỏi">📤</button>
+                            </div>
+                            <div class="ai-tutor-footer">
+                                <span id="ai-tutor-cooldown" class="ai-tutor-cooldown"></span>
+                                <span class="ai-tutor-hint">Chỉ hỗ trợ cú pháp Python • Không viết code giải bài</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="oj-divider" id="oj-divider"></div>

@@ -1786,7 +1786,9 @@ document.querySelectorAll('.oj-ptab').forEach(b=>b.classList.remove('active'));c
 const exRes=this._exerciseResults||{};const exResultsForThis=exRes[exId]||{};const pseudoLb={};Object.keys(exResultsForThis).forEach(name=>{const r=exResultsForThis[name];pseudoLb[name]={name,totalScore:r.score||0,problems:{0:r.score||0},lastSubmit:r.submittedAt||0}});this._renderLeaderboard(pseudoLb,'stu-leaderboard-body',this.studentName);
 // Use 'exercise' group so cleanup only removes this listener, not dashboard listeners
 this.fb.cleanupExercise();
-this.fb.listenAllExerciseResults(res=>{const lr=res[exId]||{};const lb={};Object.keys(lr).forEach(n=>{const r=lr[n];lb[n]={name:n,totalScore:r.score||0,problems:{0:r.score||0},lastSubmit:r.submittedAt||0}});this._renderLeaderboard(lb,'stu-leaderboard-body',this.studentName)},'exercise')}
+this.fb.listenAllExerciseResults(res=>{const lr=res[exId]||{};const lb={};Object.keys(lr).forEach(n=>{const r=lr[n];lb[n]={name:n,totalScore:r.score||0,problems:{0:r.score||0},lastSubmit:r.submittedAt||0}});this._renderLeaderboard(lb,'stu-leaderboard-body',this.studentName)},'exercise');
+// AI Tutor: init and reset for this exercise
+this._initAITutor();this._resetAITutorForExercise()}
 
 async _joinRoom(){const code=document.getElementById('stu-room-code').value.trim();const errEl=document.getElementById('stu-join-error');errEl.textContent='';if(!code){errEl.textContent='⚠️ Nhập mã phòng thi';return}if(!this.studentName){errEl.textContent='⚠️ Vui lòng đăng nhập trước';return}try{this.roomCode=code;this._currentExercise=null;const info=await this.fb.joinRoom(code,this.studentName);document.getElementById('stu-dashboard').classList.add('hidden');document.getElementById('stu-waiting-info').textContent=`Phòng: ${code} — ${info.title}`;if(info.status==='active'){this._stuStartContest(info)}else if(info.status==='ended'){this._showStudentEndedScreen(code,info)}else{document.getElementById('stu-waiting').classList.remove('hidden')}this.fb.listenRoomInfo(code,ri=>{if(!ri)return;if(ri.status==='active'){document.getElementById('stu-waiting').classList.add('hidden');this._stuStartContest(ri)}else if(ri.status==='ended'){if(this.timerInterval){clearInterval(this.timerInterval);this.timerInterval=null}this._stopAntiCheat();if(this._contestAutoSave){clearInterval(this._contestAutoSave);this._contestAutoSave=null}document.getElementById('stu-contest').classList.add('hidden');this._showStudentEndedScreen(code,ri)}});this._toast(`Đã vào phòng ${code}!`,'success')}catch(e){errEl.textContent='❌ '+e.message}}
 
@@ -2863,6 +2865,111 @@ if(hrs<24)return `${hrs} giờ trước`;
 const days=Math.floor(hrs/24);
 if(days<7)return `${days} ngày trước`;
 return new Date(ts).toLocaleDateString('vi')}
+
+// ============ AI TUTOR ============
+_initAITutor(){
+if(this._aiTutorInited)return;this._aiTutorInited=true;
+this._aiTutorHistory=[];this._aiTutorCooldown=0;this._aiTutorTimer=null;
+const sendBtn=document.getElementById('btn-ai-tutor-send');
+const input=document.getElementById('ai-tutor-input');
+const clearBtn=document.getElementById('btn-ai-clear');
+if(!sendBtn||!input)return;
+sendBtn.onclick=()=>this._sendAITutorMessage();
+input.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();this._sendAITutorMessage()}});
+if(clearBtn)clearBtn.onclick=()=>this._clearAITutor();
+this._showAITutorWelcome()}
+
+_showAITutorWelcome(){
+const msgEl=document.getElementById('ai-tutor-messages');if(!msgEl)return;
+if(this.roomCode&&!this._currentExercise){
+msgEl.innerHTML='<div class="ai-tutor-disabled"><div class="ai-tutor-disabled-icon">🔒</div><div class="ai-tutor-disabled-text">Trợ lý AI bị tắt trong kỳ thi</div></div>';
+const inp=document.getElementById('ai-tutor-input');const btn=document.getElementById('btn-ai-tutor-send');
+if(inp)inp.disabled=true;if(btn)btn.disabled=true;return}
+const inp=document.getElementById('ai-tutor-input');const btn=document.getElementById('btn-ai-tutor-send');
+if(inp)inp.disabled=false;if(btn)btn.disabled=false;
+const t=this._currentExercise?.title||'bài tập';
+this._aiTutorHistory=[];msgEl.innerHTML='';
+this._appendAIMsg('bot',`Xin chào! 👋 Mình là **Trợ lý Python**.\n\nMình có thể giúp em:\n• Giải thích **cú pháp**, câu lệnh Python\n• Hướng dẫn cách sử dụng **hàm, vòng lặp, điều kiện**\n• Gợi ý **hướng suy nghĩ** cho bài "${t}"\n\n⚠️ Mình **không viết code giải bài** cho em nhé!\n\nHỏi mình bất cứ điều gì về Python nào! 🐍`)}
+
+_clearAITutor(){this._aiTutorHistory=[];this._showAITutorWelcome();this._toast('🗑 Đã xóa chat','info')}
+_resetAITutorForExercise(){this._aiTutorHistory=[];const m=document.getElementById('ai-tutor-messages');if(m)this._showAITutorWelcome()}
+
+async _sendAITutorMessage(){
+const input=document.getElementById('ai-tutor-input');const sendBtn=document.getElementById('btn-ai-tutor-send');
+if(!input||!sendBtn)return;
+const q=input.value.trim();if(!q){this._toast('Nhập câu hỏi','error');return}
+if(this.roomCode&&!this._currentExercise){this._toast('🔒 AI bị tắt trong kỳ thi','error');return}
+if(this._aiTutorCooldown>0){this._toast(`⏳ Chờ ${this._aiTutorCooldown}s nữa`,'error');return}
+const apiKey=this.gemini.getApiKey();
+if(!apiKey){this._toast('⚠️ Chưa có API Key. GV cần nhập Gemini API Key.','error');return}
+this._appendAIMsg('user',q);input.value='';input.disabled=true;sendBtn.disabled=true;
+const msgEl=document.getElementById('ai-tutor-messages');
+const typD=document.createElement('div');typD.className='ai-tutor-msg bot';typD.id='ai-tutor-typing';
+typD.innerHTML='<div class="ai-tutor-avatar">🤖</div><div class="ai-tutor-bubble"><div class="ai-tutor-typing"><div class="ai-tutor-typing-dot"></div><div class="ai-tutor-typing-dot"></div><div class="ai-tutor-typing-dot"></div></div></div>';
+msgEl.appendChild(typD);msgEl.scrollTop=msgEl.scrollHeight;
+const exTitle=this._currentExercise?.title||'';
+const exDesc=(this._currentExercise?.description||'').substring(0,200);
+const sysPr=`Bạn là trợ lý dạy Python cho học sinh cấp 2-3 Việt Nam.\n\nQUY TẮC BẮT BUỘC:\n1. CHỈ trả lời về Python. Nếu câu hỏi KHÔNG liên quan Python → từ chối: "Mình chỉ hỗ trợ về Python thôi nhé! 🐍"\n2. TUYỆT ĐỐI KHÔNG viết code hoàn chỉnh giải bài. KHÔNG viết hơn 3 dòng code liên tiếp.\n   - Được: giải thích cú pháp, ví dụ MẪU nhỏ (1-3 dòng minh họa)\n   - KHÔNG được: viết lời giải, viết hàm giải bài, viết chương trình hoàn chỉnh\n3. Giải thích THẬT ĐƠN GIẢN, dùng ví dụ đời thường\n4. Trả lời bằng tiếng Việt, tối đa 200 từ\n5. Nếu HS hỏi cách giải bài → CHỈ gợi ý HƯỚNG SUY NGHĨ, KHÔNG cho code\n6. Khuyến khích HS tự thử\n7. Dùng markdown: **in đậm**, \`code\`\n\nHS đang làm bài: "${exTitle}"${exDesc?('\nMô tả: '+exDesc):''}`;
+const contents=[];
+contents.push({role:'user',parts:[{text:sysPr}]});
+contents.push({role:'model',parts:[{text:'Tôi hiểu. Tôi sẽ tuân thủ: chỉ Python, không code hoàn chỉnh, giải thích đơn giản.'}]});
+const hist=this._aiTutorHistory.slice(-10);
+for(const m of hist)contents.push({role:m.role==='user'?'user':'model',parts:[{text:m.text}]});
+contents.push({role:'user',parts:[{text:q}]});
+try{
+const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,{
+method:'POST',headers:{'Content-Type':'application/json'},
+body:JSON.stringify({contents,generationConfig:{temperature:0.4,maxOutputTokens:800}})});
+const typ=document.getElementById('ai-tutor-typing');if(typ)typ.remove();
+if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e.error?.message||`API Error ${r.status}`)}
+const d=await r.json();
+const ans=d.candidates?.[0]?.content?.parts?.[0]?.text||'Xin lỗi, mình không thể trả lời lúc này.';
+this._aiTutorHistory.push({role:'user',text:q});
+this._aiTutorHistory.push({role:'bot',text:ans});
+this._appendAIMsg('bot',ans);
+}catch(err){
+const typ=document.getElementById('ai-tutor-typing');if(typ)typ.remove();
+this._appendAIMsg('bot',`❌ Lỗi: ${err.message}\n\nHãy thử lại sau nhé!`)}
+input.disabled=false;sendBtn.disabled=false;
+this._startAICooldown(10)}
+
+_startAICooldown(sec){
+this._aiTutorCooldown=sec;
+const cdEl=document.getElementById('ai-tutor-cooldown');
+const btn=document.getElementById('btn-ai-tutor-send');
+const inp=document.getElementById('ai-tutor-input');
+if(btn)btn.disabled=true;if(inp)inp.disabled=true;
+if(this._aiTutorTimer)clearInterval(this._aiTutorTimer);
+this._aiTutorTimer=setInterval(()=>{
+this._aiTutorCooldown--;
+if(cdEl)cdEl.textContent=this._aiTutorCooldown>0?`⏳ ${this._aiTutorCooldown}s`:'';
+if(this._aiTutorCooldown<=0){
+clearInterval(this._aiTutorTimer);this._aiTutorTimer=null;
+if(btn)btn.disabled=false;if(inp)inp.disabled=false;inp?.focus()}},1000);
+if(cdEl)cdEl.textContent=`⏳ ${sec}s`}
+
+_appendAIMsg(role,text){
+const msgEl=document.getElementById('ai-tutor-messages');if(!msgEl)return;
+const div=document.createElement('div');div.className=`ai-tutor-msg ${role}`;
+const av=role==='bot'?'🤖':'👤';
+div.innerHTML=`<div class="ai-tutor-avatar">${av}</div><div class="ai-tutor-bubble">${this._renderAIMd(text)}</div>`;
+msgEl.appendChild(div);msgEl.scrollTop=msgEl.scrollHeight}
+
+_renderAIMd(text){
+if(!text)return '';
+let h=text
+.replace(/```(\w*)\n([\s\S]*?)```/g,(m,l,c)=>`<pre><code>${this._escAI(c.trim())}</code></pre>`)
+.replace(/`([^`]+)`/g,'<code>$1</code>')
+.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+.replace(/\*(.+?)\*/g,'<em>$1</em>')
+.replace(/^[•\-]\s+(.+)$/gm,'<li>$1</li>')
+.replace(/^\d+\.\s+(.+)$/gm,'<li>$1</li>')
+.replace(/\n/g,'<br>');
+h=h.replace(/((?:<li>.*?<\/li>(?:<br>)?)+)/g,'<ul>$1</ul>');
+h=h.replace(/<ul>([\s\S]*?)<\/ul>/g,(m,i)=>'<ul>'+i.replace(/<br>/g,'')+'</ul>');
+return h}
+
+_escAI(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
 }
 
 document.addEventListener('DOMContentLoaded',()=>{const uic=new UIController();window._uic=uic;uic.init()});
