@@ -40,7 +40,7 @@ class GeminiHelper{constructor(){this.apiKey=localStorage.getItem('gemini_api_ke
 async generateCode(problem,ctx={}){if(!this.apiKey)throw new Error('Nhập Gemini API Key');
 const io=ctx.fileIO?'Đọc dữ liệu từ file .INP, ghi kết quả vào file .OUT':'Dùng input() để đọc và print() để xuất kết quả';
 const mode=ctx.brute?'BRUTE FORCE (đơn giản, chắc chắn đúng, không cần tối ưu, dùng vòng lặp trực tiếp)':'HIỆU QUẢ (tối ưu thuật toán, đảm bảo chạy nhanh với dữ liệu lớn)';
-const model=ctx.model||'gemini-2.0-flash';
+const model=ctx.model||'gemini-2.5-flash';
 // Build rich prompt with context
 let prompt=`Bạn là chuyên gia lập trình thi đấu (Competitive Programming).\nViết code Python giải bài sau theo phong cách ${mode}.\n\n## ĐỀ BÀI:\n${problem}\n`;
 if(ctx.constraints)prompt+=`\n## RÀNG BUỘC:\n${ctx.constraints}\n`;
@@ -283,7 +283,7 @@ _getSampleIOs(){const cards=document.querySelectorAll('#sample-io-container .sam
 _switchTab(id){document.querySelectorAll('#code-tabs .tab-btn').forEach(b=>{b.classList.toggle('active',b.dataset.tab===id)});document.querySelectorAll('#section-code .tab-panel').forEach(p=>{p.classList.toggle('active',p.id===id)});setTimeout(()=>{this.cmMain.refresh();this.cmBrute.refresh();this.cmAiPreview.refresh()},50)}
 
 // Collect AI context from current form data
-_getAIContext(brute){const ctx={brute,fileIO:document.getElementById('chk-file-io').checked,model:document.getElementById('ai-model-select')?.value||'gemini-2.0-flash'};
+_getAIContext(brute){const ctx={brute,fileIO:document.getElementById('chk-file-io').checked,model:document.getElementById('ai-model-select')?.value||'gemini-2.5-flash'};
 // Constraints from subtasks
 try{const sts=this._getSubtasks();if(sts.length){let c='';sts.forEach(st=>{c+=`- ${st.name}: ${st.percent}% điểm\n`});ctx.subtasksInfo=c;
 // Variable constraints
@@ -2917,7 +2917,7 @@ const hist=this._aiTutorHistory.slice(-10);
 for(const m of hist)contents.push({role:m.role==='user'?'user':'model',parts:[{text:m.text}]});
 contents.push({role:'user',parts:[{text:q}]});
 try{
-const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,{
+const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,{
 method:'POST',headers:{'Content-Type':'application/json'},
 body:JSON.stringify({contents,generationConfig:{temperature:0.4,maxOutputTokens:800}})});
 const typ=document.getElementById('ai-tutor-typing');if(typ)typ.remove();
