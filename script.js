@@ -1263,12 +1263,7 @@ $('btn-stu-logout').onclick=async()=>{const ok=await this._confirmDialog('🚪 �
 $('btn-join-room').onclick=()=>this._joinRoom();
 $('btn-stu-submit').onclick=()=>this._stuSubmit();
 $('btn-stu-run').onclick=()=>this._stuRun();
-// Sync floating bar buttons with original (disabled state + status)
-const _syncFloat=()=>{const fRun=$('btn-float-run');const fSub=$('btn-float-submit');const fStat=$('oj-float-status');if(fRun)fRun.disabled=$('btn-stu-run').disabled;if(fSub)fSub.disabled=$('btn-stu-submit').disabled;if(fStat){const s=$('stu-submit-status');fStat.textContent=s?s.textContent:''}};
-new MutationObserver(_syncFloat).observe($('btn-stu-submit'),{attributes:true,attributeFilter:['disabled']});
-new MutationObserver(_syncFloat).observe($('btn-stu-run'),{attributes:true,attributeFilter:['disabled']});
-new MutationObserver(()=>{const fStat=$('oj-float-status');const s=$('stu-submit-status');if(fStat&&s)fStat.textContent=s.textContent}).observe($('stu-submit-status'),{childList:true,characterData:true,subtree:true});
-// Toggle custom input visibility when Run button is present
+// Sample input button
 $('btn-use-sample-input').onclick=()=>this._fillSampleInput();
 $('btn-stu-back-join').onclick=()=>{$('stu-ended').classList.add('hidden');$('stu-dashboard').classList.remove('hidden');this.fb.cleanupExercise();this._renderExerciseList(this._cachedExercises||{});this._renderStudentRanking();this._renderStudentStats()};
 $('stu-password').onkeydown=e=>{if(e.key==='Enter')this._stuLogin()};
@@ -1282,12 +1277,15 @@ const toggleBtn=$('btn-toggle-pass');if(toggleBtn)toggleBtn.onclick=()=>{const i
 const chgPassBtn=$('btn-change-pass');if(chgPassBtn)chgPassBtn.onclick=()=>this._showChangePasswordModal();
 // Dashboard nav tabs
 document.querySelectorAll('.oj-nav-tab[data-tab]').forEach(btn=>{btn.onclick=()=>{document.querySelectorAll('.oj-nav-tab[data-tab]').forEach(b=>b.classList.remove('active'));btn.classList.add('active');document.querySelectorAll('.oj-tab-panel').forEach(p=>p.classList.add('hidden'));$('tab-panel-'+btn.dataset.tab).classList.remove('hidden')}});
-// Back from contest to dashboard — only cleanup exercise-specific listeners, NOT dashboard listeners
+// Back from contest to dashboard
 const backBtn=$('btn-stu-back-dash');if(backBtn)backBtn.onclick=()=>{$('stu-contest').classList.add('hidden');$('stu-dashboard').classList.remove('hidden');this._currentExercise=null;if(this.timerInterval){clearInterval(this.timerInterval);this.timerInterval=null}if(this._contestAutoSave){clearInterval(this._contestAutoSave);this._contestAutoSave=null}this._stopAntiCheat();this.fb.cleanupExercise();this._renderExerciseList(this._cachedExercises||{});this._renderStudentRanking();this._renderStudentStats()};
-// Pane tabs (Desc/Results/Leaderboard)
+// Pane tabs (Desc/Leaderboard — left pane)
 document.querySelectorAll('.oj-ptab[data-ptab]').forEach(btn=>{btn.onclick=()=>{document.querySelectorAll('.oj-ptab').forEach(b=>b.classList.remove('active'));btn.classList.add('active');document.querySelectorAll('.oj-ptab-content').forEach(p=>p.classList.remove('active'));$('ptab-'+btn.dataset.ptab).classList.add('active')}});
-// Draggable divider
+// Console sub-tabs (Results/Input/Console — right pane bottom)
+document.querySelectorAll('.oj-ctab[data-ctab]').forEach(btn=>{btn.onclick=()=>{document.querySelectorAll('.oj-ctab').forEach(b=>b.classList.remove('active'));btn.classList.add('active');document.querySelectorAll('.oj-ctab-content').forEach(p=>p.classList.remove('active'));$('ctab-'+btn.dataset.ctab).classList.add('active')}});
+// Draggable dividers (vertical + horizontal)
 this._initDivider();
+this._initHDivider();
 // NOTE: Do NOT call _registerStudentListeners() here — it registers before login (studentName=null)
 // Listeners will be registered in _stuLogin() after successful authentication
 // Search bindings
@@ -1544,7 +1542,13 @@ hintsHtml+='</ul></div>'}}
 hintsHtml+='</div>';
 return consoleHtml+hintsHtml}
 
-_initDivider(){const divider=document.getElementById('oj-divider');if(!divider)return;const left=document.getElementById('oj-pane-left');let dragging=false;divider.onmousedown=e=>{dragging=true;divider.classList.add('dragging');e.preventDefault()};document.onmousemove=e=>{if(!dragging)return;const container=left.parentElement;const rect=container.getBoundingClientRect();const pct=Math.min(70,Math.max(25,((e.clientX-rect.left)/rect.width)*100));left.style.width=pct+'%'};document.onmouseup=()=>{if(dragging){dragging=false;divider.classList.remove('dragging');if(this.cmStudent)this.cmStudent.refresh()}}}
+_initDivider(){const divider=document.getElementById('oj-divider');if(!divider)return;const left=document.getElementById('oj-pane-left');let dragging=false;divider.onmousedown=e=>{dragging=true;divider.classList.add('dragging');e.preventDefault()};document.addEventListener('mousemove',e=>{if(!dragging)return;const container=left.parentElement;const rect=container.getBoundingClientRect();const pct=Math.min(50,Math.max(20,((e.clientX-rect.left)/rect.width)*100));left.style.width=pct+'%'});document.addEventListener('mouseup',()=>{if(dragging){dragging=false;divider.classList.remove('dragging');if(this.cmStudent)this.cmStudent.refresh()}})}
+// Horizontal divider: resize editor section vs console section
+_initHDivider(){const hDiv=document.getElementById('oj-h-divider');if(!hDiv)return;const edSec=document.getElementById('oj-editor-section');const conSec=document.getElementById('oj-console-section');const rightPane=document.getElementById('oj-pane-right');let hDragging=false;
+hDiv.onmousedown=e=>{hDragging=true;hDiv.classList.add('dragging');e.preventDefault()};
+document.addEventListener('mousemove',e=>{if(!hDragging)return;const rect=rightPane.getBoundingClientRect();const offsetY=e.clientY-rect.top;const totalH=rect.height;const editorPct=Math.min(85,Math.max(20,(offsetY/totalH)*100));const consolePct=100-editorPct;
+edSec.style.flex='0 0 '+editorPct+'%';conSec.style.flex='0 0 '+consolePct+'%';conSec.style.height=consolePct+'%'});
+document.addEventListener('mouseup',()=>{if(hDragging){hDragging=false;hDiv.classList.remove('dragging');if(this.cmStudent)this.cmStudent.refresh()}})}
 
 
 async _stuLogin(){const name=document.getElementById('stu-name').value.trim();const pass=document.getElementById('stu-password').value;const errEl=document.getElementById('stu-login-error');errEl.textContent='';if(!name||!pass){errEl.textContent='⚠️ Nhập đầy đủ tên và mật khẩu';return}try{await this.fb.verifyStudent(name,pass);this.studentName=name;document.getElementById('stu-login').classList.add('hidden');document.getElementById('stu-dashboard').classList.remove('hidden');document.getElementById('stu-welcome-name').textContent=name;
@@ -1628,8 +1632,8 @@ const consoleOut=document.getElementById('oj-console-output');if(consoleOut)cons
 const statusEl=document.getElementById('stu-submit-status');if(statusEl)statusEl.textContent='';
 const resultsCard=document.getElementById('stu-results-card');if(resultsCard)resultsCard.classList.add('hidden');
 const noResults=document.getElementById('no-results-msg');if(noResults)noResults.style.display='';
-const inputArea=document.getElementById('oj-custom-input-area');if(inputArea)inputArea.classList.add('hidden');
 const customInput=document.getElementById('oj-custom-input');if(customInput)customInput.value='';
+const testOutput=document.getElementById('oj-test-output');if(testOutput)testOutput.textContent='Chưa có output. Nhấn 🧪 Chạy thử.';
 // Enable submit button (may have been disabled)
 const submitBtn=document.getElementById('btn-stu-submit');if(submitBtn){submitBtn.disabled=false;submitBtn.textContent='▶ Nộp Bài'}
 this._renderProblemTabs();this._showProblem(0);this._initStudentEditor();
@@ -1640,8 +1644,8 @@ if(savedDraft&&this.cmStudent){this.cmStudent.setValue(savedDraft);this._toast('
 else if(prev&&prev.code&&this.cmStudent){this.cmStudent.setValue(prev.code);this._toast(`📝 Đã khôi phục code (${prev.score}/100)`,'info')}
 else if(prev){this._toast(`Điểm trước: ${prev.score}/100`,'info')}
 if(prev){this._showStudentResults({score:prev.score,details:prev.details},ex);statusEl.textContent=`✅ Đã nộp (${prev.score}/100)`;
-// Switch to Results tab so student sees their previous score
-document.querySelectorAll('.oj-ptab').forEach(b=>b.classList.remove('active'));const resTab=document.querySelector('.oj-ptab[data-ptab="results"]');if(resTab)resTab.classList.add('active');document.querySelectorAll('.oj-ptab-content').forEach(p=>p.classList.remove('active'));const resPanel=document.getElementById('ptab-results');if(resPanel)resPanel.classList.add('active')}
+// Switch to Results tab in console so student sees their previous score
+document.querySelectorAll('.oj-ctab').forEach(b=>b.classList.remove('active'));const resTab=document.querySelector('.oj-ctab[data-ctab="results"]');if(resTab)resTab.classList.add('active');document.querySelectorAll('.oj-ctab-content').forEach(p=>p.classList.remove('active'));const resPanel=document.getElementById('ctab-results');if(resPanel)resPanel.classList.add('active')}
 else{
 // New exercise: show Đề Bài tab
 document.querySelectorAll('.oj-ptab').forEach(b=>b.classList.remove('active'));const descTab=document.querySelector('.oj-ptab[data-ptab="desc"]');if(descTab)descTab.classList.add('active');document.querySelectorAll('.oj-ptab-content').forEach(p=>p.classList.remove('active'));const descPanel=document.getElementById('ptab-desc');if(descPanel)descPanel.classList.add('active')}
@@ -1843,18 +1847,23 @@ if(!this.cmStudent)return;
 const code=this.cmStudent.getValue().trim();
 if(!code){this._toast('Viết code trước','error');return}
 const p=this.problems[this.currentProbIdx];
-// Show custom input area
-const inputArea=document.getElementById('oj-custom-input-area');
-if(inputArea.classList.contains('hidden')){inputArea.classList.remove('hidden');
-// Auto-fill sample input if empty
+// Switch to input tab if not already there, auto-fill sample
+const activeCtab=document.querySelector('.oj-ctab.active');
+if(!activeCtab||activeCtab.dataset.ctab!=='testinput'){
+document.querySelectorAll('.oj-ctab').forEach(b=>b.classList.remove('active'));
+const inputTab=document.querySelector('.oj-ctab[data-ctab="testinput"]');if(inputTab)inputTab.classList.add('active');
+document.querySelectorAll('.oj-ctab-content').forEach(p2=>p2.classList.remove('active'));
+const inputPanel=document.getElementById('ctab-testinput');if(inputPanel)inputPanel.classList.add('active');
 const inp=document.getElementById('oj-custom-input');
 if(!inp.value.trim())this._fillSampleInput();
 return}
 const customInput=document.getElementById('oj-custom-input').value;
 const statusEl=document.getElementById('stu-submit-status');
 const consoleOut=document.getElementById('oj-console-output');
+const testOutput=document.getElementById('oj-test-output');
 const runBtn=document.getElementById('btn-stu-run');
 statusEl.textContent='🧪 Đang chạy...';runBtn.disabled=true;runBtn.classList.add('running');
+if(testOutput)testOutput.innerHTML='<span style="color:var(--accent)">🔄 Đang khởi tạo...</span>';
 consoleOut.innerHTML='<span style="color:var(--accent)">🔄 Đang khởi tạo Pyodide...</span>';
 try{
 await this.pyEngine.init();
@@ -1884,7 +1893,7 @@ else{html+='<div style="margin-top:8px;padding:8px;background:rgba(239,68,68,.08
 html+='<div style="font-weight:600;color:var(--error);margin-bottom:4px">❌ Kết quả KHÁC so với ví dụ:</div>';
 html+=`<div style="font-size:.78rem"><span style="color:var(--text-muted)">Mong đợi:</span> <code style="color:var(--success)">${this._esc(expected)}</code></div>`;
 html+=`<div style="font-size:.78rem"><span style="color:var(--text-muted)">Nhận được:</span> <code style="color:var(--error)">${this._esc(actual)}</code></div></div>`}}
-consoleOut.innerHTML=html;statusEl.textContent='✅ Chạy xong'
+consoleOut.innerHTML=html;if(testOutput)testOutput.innerHTML=html;statusEl.textContent='✅ Chạy xong'
 }catch(e){
 const errMsg=e.message;
 let html='<div style="margin-bottom:8px"><strong style="color:var(--error);font-size:1.05rem">💥 Lỗi khi chạy code</strong></div>';
@@ -1906,7 +1915,7 @@ html+='<div style="color:var(--text-muted);font-size:.75rem;margin-top:8px">💡
 else if(errMsg.includes('TLE')){
 html+='<div style="padding:8px;background:rgba(245,158,11,.08);border-radius:4px;color:#f59e0b"><strong>⏰ Quá thời gian (TLE)</strong><br><span style="font-size:.78rem">Code chạy quá lâu. Kiểm tra vòng lặp vô hạn hoặc tối ưu thuật toán.</span></div>'}
 else{html+=`<div style="color:var(--error)">${this._esc(errMsg)}</div>`}
-consoleOut.innerHTML=html;statusEl.textContent='❌ Có lỗi'
+consoleOut.innerHTML=html;if(testOutput)testOutput.innerHTML=html;statusEl.textContent='❌ Có lỗi'
 }finally{runBtn.disabled=false;runBtn.classList.remove('running')}}
 
 async _stuSubmit(){if(!this.cmStudent)return;
@@ -1940,6 +1949,8 @@ return}
 // === EXERCISE MODE: chấm ngay ===
 // BUG-C01 FIX: Validate _currentExercise exists before grading
 if(!this._currentExercise){this._toast('⚠️ Không xác định bài tập. Quay lại dashboard.','error');return}
+// Auto-switch to console tab to show grading progress
+document.querySelectorAll('.oj-ctab').forEach(b=>b.classList.remove('active'));const cTab=document.querySelector('.oj-ctab[data-ctab="console"]');if(cTab)cTab.classList.add('active');document.querySelectorAll('.oj-ctab-content').forEach(p2=>p2.classList.remove('active'));const cPanel=document.getElementById('ctab-console');if(cPanel)cPanel.classList.add('active');
 statusEl.innerHTML='⏳ Đang chấm...';consoleOut.innerHTML='<span style="color:var(--text-muted)">🔄 Đang khởi tạo Pyodide...</span>';document.getElementById('btn-stu-submit').disabled=true;
 // Disable back button during grading to prevent premature exit
 const backBtn=document.getElementById('btn-stu-back-dash');if(backBtn)backBtn.disabled=true;
@@ -1984,8 +1995,8 @@ consoleOut.innerHTML=con;this._toast('Lỗi: '+errMsg.substring(0,60),'error')}f
 _showStudentResults(result,problem){const card=document.getElementById('stu-results-card');card.classList.remove('hidden');document.getElementById('no-results-msg').style.display='none';const scoreEl=document.getElementById('stu-score');scoreEl.textContent=result.score;scoreEl.className='oj-score-value'+(result.score===100?' perfect':'');
 const sumEl=document.getElementById('stu-subtask-summary');let sumH='';for(const st of (problem.subtasks||[])){const stTests=(result.details||[]).filter(d=>d.subtaskId===st.id);const ac=stTests.filter(d=>d.verdict==='AC').length;const total=stTests.length;const allAC=total>0&&ac===total;const pts=allAC?st.percent:0;sumH+=`<div class="subtask-summary-row ${allAC?'pass':'fail'}"><span class="st-sum-name">${st.name}</span><div class="st-sum-bar"><div class="st-sum-bar-fill ${allAC?'full':ac>0?'partial':'zero'}" style="width:${total?ac/total*100:0}%"></div></div><span style="font-size:.78rem;color:var(--text-muted)">${ac}/${total} AC</span><span class="st-sum-score">${pts}đ</span></div>`}sumEl.innerHTML=sumH;
 const tbody=document.getElementById('stu-results-tbody');if(result.details){tbody.innerHTML=result.details.map((d,i)=>`<tr><td style="text-align:center">${String(i+1).padStart(2,'0')}</td><td>ST${d.subtaskId}</td><td><span class="verdict ${d.verdict}">${d.verdict}</span></td><td style="font-family:var(--font-mono);font-size:.78rem">${d.time}ms</td></tr>`).join('')}
-// Auto-switch to results tab
-document.querySelectorAll('.oj-ptab').forEach(b=>b.classList.remove('active'));document.querySelector('.oj-ptab[data-ptab="results"]').classList.add('active');document.querySelectorAll('.oj-ptab-content').forEach(p=>p.classList.remove('active'));document.getElementById('ptab-results').classList.add('active')}
+// Auto-switch to results tab in console section
+document.querySelectorAll('.oj-ctab').forEach(b=>b.classList.remove('active'));const resultsTab=document.querySelector('.oj-ctab[data-ctab="results"]');if(resultsTab)resultsTab.classList.add('active');document.querySelectorAll('.oj-ctab-content').forEach(p=>p.classList.remove('active'));const resultsPanel=document.getElementById('ctab-results');if(resultsPanel)resultsPanel.classList.add('active')}
 
 // ===== LEADERBOARD =====
 _renderLeaderboard(lb,containerId,selfName){const c=document.getElementById(containerId);if(!lb||!Object.keys(lb).length){c.innerHTML='<p style="color:var(--text-muted);text-align:center;padding:20px">Chưa có dữ liệu</p>';return}const sorted=Object.values(lb).sort((a,b)=>b.totalScore-a.totalScore||(a.lastSubmit-b.lastSubmit));const pCount=this.problems?.length||this.publishedCount||1;let h='<table class="lb-table"><thead><tr><th>Hạng</th><th>Họ tên</th><th>Tổng</th>';for(let i=0;i<pCount;i++)h+=`<th>Bài ${i+1}</th>`;h+='</tr></thead><tbody>';sorted.forEach((s,i)=>{const rank=i+1;const rankCls=rank<=3?`lb-rank-${rank}`:'';const isSelf=s.name===selfName;const medals=['','🥇','🥈','🥉'];h+=`<tr class="${isSelf?'self':''} lb-flash"><td class="lb-rank ${rankCls}">${medals[rank]||rank}</td><td class="lb-name">${this._esc(s.name)}</td><td class="lb-score">${s.totalScore}</td>`;for(let j=0;j<pCount;j++){const ps=s.problems&&s.problems[j]||0;const cls=ps>=100?'full':ps>0?'partial':'zero';h+=`<td><span class="lb-prob-score ${cls}">${ps}</span></td>`}h+='</tr>'});h+='</tbody></table>';c.innerHTML=h}

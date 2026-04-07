@@ -552,12 +552,11 @@
                 </div>
             </nav>
             <div class="oj-split-pane">
-                <!-- LEFT: Problem description -->
+                <!-- LEFT: Problem description (35%) -->
                 <div class="oj-pane-left" id="oj-pane-left">
                     <div class="oj-pane-tabs">
-                        <button class="oj-ptab active" data-ptab="desc">Đề Bài</button>
-                        <button class="oj-ptab" data-ptab="results">Kết Quả</button>
-                        <button class="oj-ptab" data-ptab="leaderboard">Xếp Hạng</button>
+                        <button class="oj-ptab active" data-ptab="desc">📝 Đề Bài</button>
+                        <button class="oj-ptab" data-ptab="leaderboard">🏆 Xếp Hạng</button>
                     </div>
                     <div class="oj-ptab-content active" id="ptab-desc">
                         <h3 id="stu-problem-title" class="oj-prob-title">Bài 1</h3>
@@ -567,47 +566,67 @@
                         <div id="stu-attachments" class="oj-attachments hidden"></div>
                         <div id="stu-sample-io" class="oj-sample-io"></div>
                     </div>
-                    <div class="oj-ptab-content" id="ptab-results">
-                        <div id="stu-results-card" class="hidden">
-                            <div id="stu-best-score-banner" class="hidden" style="padding:8px 12px;background:linear-gradient(90deg,rgba(245,158,11,.12),rgba(99,102,241,.08));border:1px solid rgba(245,158,11,.25);border-radius:6px;font-size:.82rem;font-weight:600;color:#f59e0b;margin-bottom:10px;text-align:center"></div>
-                            <div class="oj-score-box"><span class="oj-score-label">Điểm</span><span class="oj-score-value" id="stu-score">0</span><span class="oj-score-max">/100</span></div>
-                            <div id="stu-subtask-summary" style="margin-top:14px"></div>
-                            <table class="oj-results-table" style="margin-top:12px"><thead><tr><th>#</th><th>Subtask</th><th>Kết quả</th><th>Thời gian</th></tr></thead><tbody id="stu-results-tbody"></tbody></table>
-                        </div>
-                        <p id="no-results-msg" style="color:var(--text-muted);text-align:center;padding:40px">Chưa có kết quả. Nộp bài để xem.</p>
-                    </div>
                     <div class="oj-ptab-content" id="ptab-leaderboard">
                         <div id="stu-leaderboard-body"><p style="color:var(--text-muted);text-align:center;padding:40px">Chưa có dữ liệu</p></div>
                     </div>
                 </div>
                 <div class="oj-divider" id="oj-divider"></div>
-                <!-- RIGHT: Code editor -->
+                <!-- RIGHT: Code editor + Console (65%) -->
                 <div class="oj-pane-right" id="oj-pane-right">
-                    <div class="oj-editor-header">
-                        <span class="oj-lang-badge">🐍 Python 3</span>
-                        <span id="auto-save-indicator" class="auto-save-indicator"></span>
-                        <div style="display:none"><button class="oj-btn-test" id="btn-stu-run">🧪 Chạy thử</button><button class="oj-btn-run" id="btn-stu-submit">▶ Nộp Bài</button></div>
-                    </div>
-                    <div id="stu-editor-wrap" class="oj-editor-wrap"></div>
-                    <!-- Custom input area for testing -->
-                    <div id="oj-custom-input-area" class="oj-custom-input-area hidden">
-                        <div class="oj-custom-input-header">
-                            <span>📥 Input thử nghiệm</span>
-                            <button class="btn-sm btn-ghost" id="btn-use-sample-input">📋 Dùng ví dụ</button>
+                    <!-- Editor Section (top) -->
+                    <div class="oj-editor-section" id="oj-editor-section">
+                        <div class="oj-editor-header">
+                            <span class="oj-lang-badge">🐍 Python 3</span>
+                            <span id="auto-save-indicator" class="auto-save-indicator"></span>
+                            <div class="oj-editor-actions">
+                                <button class="oj-btn-test" id="btn-stu-run">🧪 Chạy thử</button>
+                                <button class="oj-btn-run" id="btn-stu-submit">▶ Nộp Bài</button>
+                            </div>
                         </div>
-                        <textarea id="oj-custom-input" class="oj-custom-input" placeholder="Nhập dữ liệu đầu vào tại đây..." rows="3"></textarea>
+                        <div id="stu-editor-wrap" class="oj-editor-wrap"></div>
                     </div>
-                    <div class="oj-console" id="oj-console">
-                        <div class="oj-console-header"><span>Console</span><span id="stu-submit-status" class="oj-console-status"></span></div>
-                        <div id="oj-console-output" class="oj-console-body">Nhấn "🧪 Chạy thử" để test code hoặc "▶ Nộp Bài" để chấm điểm</div>
+                    <!-- Horizontal Divider (drag to resize editor/console) -->
+                    <div class="oj-h-divider" id="oj-h-divider">
+                        <div class="oj-h-divider-grip"></div>
+                    </div>
+                    <!-- Console Section (bottom) — integrated results + input + console -->
+                    <div class="oj-console-section" id="oj-console-section">
+                        <div class="oj-console-tabs">
+                            <button class="oj-ctab active" data-ctab="results">📊 Kết quả</button>
+                            <button class="oj-ctab" data-ctab="testinput">📥 Input thử</button>
+                            <button class="oj-ctab" data-ctab="console">📜 Console</button>
+                            <span id="stu-submit-status" class="oj-console-status-inline"></span>
+                        </div>
+                        <!-- Tab: Kết quả (grading results) -->
+                        <div class="oj-ctab-content active" id="ctab-results">
+                            <div id="stu-results-card" class="hidden">
+                                <div id="stu-best-score-banner" class="oj-best-score-banner hidden"></div>
+                                <div class="oj-score-box"><span class="oj-score-label">Điểm</span><span class="oj-score-value" id="stu-score">0</span><span class="oj-score-max">/100</span></div>
+                                <div id="stu-subtask-summary" style="margin-top:8px"></div>
+                                <table class="oj-results-table" style="margin-top:8px"><thead><tr><th>#</th><th>Subtask</th><th>Kết quả</th><th>Thời gian</th></tr></thead><tbody id="stu-results-tbody"></tbody></table>
+                            </div>
+                            <p id="no-results-msg" style="color:var(--text-muted);text-align:center;padding:32px 16px;font-size:.88rem">📝 Nhấn <strong>▶ Nộp Bài</strong> để chấm điểm và xem kết quả tại đây</p>
+                        </div>
+                        <!-- Tab: Input thử (custom test input) -->
+                        <div class="oj-ctab-content" id="ctab-testinput">
+                            <div class="oj-testinput-area">
+                                <div class="oj-testinput-header">
+                                    <span>📥 Nhập dữ liệu đầu vào:</span>
+                                    <button class="btn-sm btn-ghost" id="btn-use-sample-input">📋 Dùng ví dụ</button>
+                                </div>
+                                <textarea id="oj-custom-input" class="oj-custom-input" placeholder="Nhập input tại đây rồi nhấn 🧪 Chạy thử..." rows="4"></textarea>
+                                <div class="oj-testinput-output">
+                                    <div class="oj-testinput-output-header">📤 Output:</div>
+                                    <div id="oj-test-output" class="oj-test-output-body">Chưa có output. Nhấn 🧪 Chạy thử.</div>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Tab: Console (raw output) -->
+                        <div class="oj-ctab-content" id="ctab-console">
+                            <div id="oj-console-output" class="oj-console-body">Nhấn "🧪 Chạy thử" để test code hoặc "▶ Nộp Bài" để chấm điểm</div>
+                        </div>
                     </div>
                 </div>
-            </div>
-            <!-- Floating action bar: always visible -->
-            <div id="oj-floating-bar" class="oj-floating-bar">
-                <span id="oj-float-status" class="oj-float-status"></span>
-                <button class="oj-btn-test oj-float-btn" id="btn-float-run" onclick="document.getElementById('btn-stu-run').click()">🧪 Chạy thử</button>
-                <button class="oj-btn-run oj-float-btn" id="btn-float-submit" onclick="document.getElementById('btn-stu-submit').click()">▶ Nộp Bài</button>
             </div>
         </div>
 
