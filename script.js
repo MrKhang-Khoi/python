@@ -2859,7 +2859,7 @@ bellBtn.appendChild(badge)}}}
 
 _markNotifRead(id){
 const key=`themis_read_notifs_${this.studentName}`;
-const read=JSON.parse(localStorage.getItem(key)||'{}');
+let read={};try{read=JSON.parse(localStorage.getItem(key)||'{}')}catch(e){read={}}
 read[id]=true;
 localStorage.setItem(key,JSON.stringify(read));
 this._renderStudentNotifs()}
@@ -2867,7 +2867,7 @@ this._renderStudentNotifs()}
 _markAllNotifsRead(){
 const key=`themis_read_notifs_${this.studentName}`;
 const notifs=this._studentNotifs||{};
-const read=JSON.parse(localStorage.getItem(key)||'{}');
+let read={};try{read=JSON.parse(localStorage.getItem(key)||'{}')}catch(e){read={}}
 Object.keys(notifs).forEach(id=>read[id]=true);
 localStorage.setItem(key,JSON.stringify(read));
 this._renderStudentNotifs();
