@@ -1,0 +1,93 @@
+﻿diff --git a/script.js b/script.js
+index 38d9bc1..e653ac6 100644
+--- a/script.js
++++ b/script.js
+@@ -1474,10 +1474,87 @@ this._showStudentEndedScreen(code,info);
+ 
+ _loadExerciseStatuses(exs){this._renderExerciseList(exs);this._renderStudentRanking();this._renderStudentStats()}
+ 
++// ===== STUDENT BADGE / TITLE SYSTEM =====
++_computeStudentBadges(stats){
++// stats: {done, total, perfect, avg, totalScore, rank, totalStudents}
++const {done,total,perfect,avg,totalScore,rank,totalStudents}=stats;
++const pct=total>0?Math.round(done/total*100):0;
++const perfectPct=total>0?Math.round(perfect/total*100):0;
++
++// === MAIN TITLE (tier-based) ===
++let tier,tierIcon,tierName,tierClass,tierNext;
++if(perfect>=total&&total>=10){
++  tier=5;tierIcon='≡ƒÅå';tierName='Huyß╗ün Thoß║íi';tierClass='legend';tierNext='─É├ú ─æß║ít cß║Ñp cao nhß║Ñt!'}
++else if(perfectPct>=80&&avg>=95){
++  tier=4;tierIcon='≡ƒÆÄ';tierName='Kim C╞░╞íng';tierClass='diamond';tierNext=`Ho├án th├ánh 100% b├ái ΓåÆ Huyß╗ün Thoß║íi`}
++else if(perfectPct>=50&&avg>=80){
++  tier=3;tierIcon='≡ƒÑç';tierName='V├áng';tierClass='gold';tierNext=`${80-perfectPct>0?80-perfectPct+'% b├ái 100─æ nß╗»a':'─ÉTB ΓëÑ95'} ΓåÆ Kim C╞░╞íng`}
++else if(pct>=50&&avg>=60){
++  tier=2;tierIcon='≡ƒÑê';tierName='Bß║íc';tierClass='silver';tierNext=`${50-perfectPct>0?'50% b├ái 100─æ':'─ÉTB ΓëÑ80'} ΓåÆ V├áng`}
++else if(done>=3){
++  tier=1;tierIcon='≡ƒÑë';tierName='─Éß╗ông';tierClass='bronze';tierNext=`L├ám 50% b├ái + ─ÉTB ΓëÑ60 ΓåÆ Bß║íc`}
++else{
++  tier=0;tierIcon='≡ƒî▒';tierName='Tß║¡p Sß╗▒';tierClass='bronze';tierNext=`Ho├án th├ánh 3 b├ái ΓåÆ ─Éß╗ông`}
++
++// === ACHIEVEMENT BADGES ===
++const badges=[];
++
++// Progress milestones
++if(done>=1)badges.push({emoji:'≡ƒÄ»',name:'Khß╗ƒi ─Éß║ºu',desc:'Ho├án th├ánh b├ái ─æß║ºu ti├¬n',tier:'bronze',earned:true});
++else badges.push({emoji:'≡ƒÄ»',name:'Khß╗ƒi ─Éß║ºu',desc:'Ho├án th├ánh b├ái ─æß║ºu ti├¬n',tier:'bronze',earned:false});
++
++if(done>=5)badges.push({emoji:'≡ƒôÜ',name:'Ch─âm Chß╗ë',desc:'Ho├án th├ánh 5 b├ái',tier:'bronze',earned:true});
++else if(done>=1)badges.push({emoji:'≡ƒôÜ',name:'Ch─âm Chß╗ë',desc:`Ho├án th├ánh 5 b├ái (${done}/5)`,tier:'bronze',earned:false});
++
++if(done>=10)badges.push({emoji:'≡ƒöÑ',name:'Ki├¬n Tr├¼',desc:'Ho├án th├ánh 10 b├ái',tier:'silver',earned:true});
++else if(done>=3)badges.push({emoji:'≡ƒöÑ',name:'Ki├¬n Tr├¼',desc:`Ho├án th├ánh 10 b├ái (${done}/10)`,tier:'silver',earned:false});
++
++if(pct>=100)badges.push({emoji:'≡ƒÅà',name:'Ho├án Tß║Ñt',desc:'L├ám hß║┐t tß║Ñt cß║ú b├ái tß║¡p',tier:'gold',earned:true});
++else if(done>=5)badges.push({emoji:'≡ƒÅà',name:'Ho├án Tß║Ñt',desc:`L├ám hß║┐t b├ái tß║¡p (${pct}%)`,tier:'gold',earned:false});
++
++// Score milestones
++if(perfect>=1)badges.push({emoji:'≡ƒÆ»',name:'Ho├án Hß║úo',desc:'─Éß║ít 100 ─æiß╗âm b├ái ─æß║ºu ti├¬n',tier:'bronze',earned:true});
++else if(done>=1)badges.push({emoji:'≡ƒÆ»',name:'Ho├án Hß║úo',desc:'─Éß║ít 100 ─æiß╗âm 1 b├ái',tier:'bronze',earned:false});
++
++if(perfect>=5)badges.push({emoji:'Γ¡É',name:'Ng├┤i Sao',desc:'5 b├ái 100 ─æiß╗âm',tier:'silver',earned:true});
++else if(perfect>=1)badges.push({emoji:'Γ¡É',name:'Ng├┤i Sao',desc:`5 b├ái 100─æ (${perfect}/5)`,tier:'silver',earned:false});
++
++if(perfect>=10)badges.push({emoji:'≡ƒîƒ',name:'Si├¬u Sao',desc:'10 b├ái 100 ─æiß╗âm',tier:'gold',earned:true});
++else if(perfect>=3)badges.push({emoji:'≡ƒîƒ',name:'Si├¬u Sao',desc:`10 b├ái 100─æ (${perfect}/10)`,tier:'gold',earned:false});
++
++if(perfectPct>=100&&total>=5)badges.push({emoji:'≡ƒææ',name:'Bß║Ñt Bß║íi',desc:'100% b├ái ─æß║ít 100 ─æiß╗âm',tier:'special',earned:true});
++
++// Average score
++if(avg>=90)badges.push({emoji:'≡ƒºá',name:'Thi├¬n T├ái',desc:'─Éiß╗âm trung b├¼nh ΓëÑ 90',tier:'gold',earned:true});
++else if(avg>=70&&done>=3)badges.push({emoji:'≡ƒºá',name:'Thi├¬n T├ái',desc:`─ÉTB ΓëÑ 90 (hiß╗çn: ${avg})`,tier:'gold',earned:false});
++
++if(avg>=80&&done>=5)badges.push({emoji:'≡ƒôè',name:'ß╗ön ─Éß╗ïnh',desc:'─ÉTB ΓëÑ 80 vß╗¢i ΓëÑ 5 b├ái',tier:'silver',earned:true});
++
++// Ranking
++if(rank===1&&totalStudents>=3)badges.push({emoji:'≡ƒÅå',name:'Qu├ín Qu├ón',desc:'Xß║┐p hß║íng #1',tier:'special',earned:true});
++else if(rank<=3&&totalStudents>=5)badges.push({emoji:'≡ƒÄû∩╕Å',name:'Top 3',desc:'Xß║┐p hß║íng Top 3',tier:'gold',earned:true});
++
++// Total score milestones
++if(totalScore>=1000)badges.push({emoji:'≡ƒÆ░',name:'Ngh├¼n ─Éiß╗âm',desc:'Tß╗òng ΓëÑ 1000 ─æiß╗âm',tier:'silver',earned:true});
++if(totalScore>=5000)badges.push({emoji:'≡ƒÆÄ',name:'N─âm Ngh├¼n',desc:'Tß╗òng ΓëÑ 5000 ─æiß╗âm',tier:'gold',earned:true});
++
++return{tier,tierIcon,tierName,tierClass,tierNext,badges:badges.filter(b=>b.earned||done>=1)};}
++
++
+ _renderStudentStats(){const el=document.getElementById('stu-stats-bar');if(!el)return;const exs=this._cachedExercises||{};const res=this._exerciseResults||{};const total=Object.keys(exs).length;if(!total||!this.studentName){el.innerHTML='';return}
+ let done=0,totalScore=0,perfect=0;Object.keys(exs).forEach(k=>{const r=res[k]&&res[k][this.studentName];if(r){done++;totalScore+=r.score||0;if(r.score>=100)perfect++}});
+ const notDone=total-done;const avg=done>0?Math.round(totalScore/done):0;const pct=total>0?Math.round(done/total*100):0;
+-el.innerHTML=`<div class="oj-stat-item"><span class="oj-stat-value">${total}</span><span class="oj-stat-label">Tß╗òng b├ái</span></div><div class="oj-stat-item"><span class="oj-stat-value">${done}</span><span class="oj-stat-label">─É├ú l├ám</span></div><div class="oj-stat-item"><span class="oj-stat-value oj-stat-notdone">${notDone}</span><span class="oj-stat-label">Ch╞░a l├ám</span></div><div class="oj-stat-item"><span class="oj-stat-value" style="color:var(--success)">${perfect}</span><span class="oj-stat-label">100 ─æiß╗âm</span></div><div class="oj-stat-item"><span class="oj-stat-value" style="color:${avg>=80?'var(--success)':avg>=50?'var(--warning)':'var(--text-muted)'}">${avg}</span><span class="oj-stat-label">─Éiß╗âm TB</span></div><div class="oj-progress-wrap"><div class="oj-progress-fill" style="width:${pct}%"></div><span class="oj-progress-text">${pct}% ho├án th├ánh (${done}/${total})</span></div>`}
++// Compute rank for badge system
++const exKeys2=Object.keys(exs);const stuSet2=new Set();exKeys2.forEach(k=>{if(res[k])Object.keys(res[k]).forEach(n=>stuSet2.add(n))});
++const allStu2=[...stuSet2].map(n=>{let ts=0,pc=0;exKeys2.forEach(k=>{const r=res[k]&&res[k][n];if(r){ts+=r.score||0;if(r.score>=100)pc++}});return{name:n,ts,pc}}).sort((a,b)=>b.pc-a.pc||b.ts-a.ts);
++const myRank=allStu2.findIndex(s=>s.name===this.studentName)+1;
++const b=this._computeStudentBadges({done,total,perfect,avg,totalScore,rank:myRank||999,totalStudents:allStu2.length});
++const earnedB=b.badges.filter(x=>x.earned);const lockedB=b.badges.filter(x=>!x.earned);
++let chips2=earnedB.map(x=>`<span class="stu-badge-chip earned-${x.tier}" data-tooltip="${this._esc(x.desc)}"><span class="badge-emoji">${x.emoji}</span><span class="badge-name">${this._esc(x.name)}</span></span>`).join('');
++chips2+=lockedB.map(x=>`<span class="stu-badge-chip locked" data-tooltip="${this._esc(x.desc)}"><span class="badge-emoji">${x.emoji}</span><span class="badge-name">${this._esc(x.name)}</span></span>`).join('');
++el.innerHTML=`<div class="stu-badge-card badge-tier-${b.tierClass}"><span class="stu-badge-icon">${b.tierIcon}</span><div class="stu-badge-info"><span class="stu-badge-title">${b.tierName}</span><span class="stu-badge-subtitle">${this._esc(b.tierNext)}</span></div></div><div class="oj-stat-item"><span class="oj-stat-value">${total}</span><span class="oj-stat-label">Tß╗òng b├ái</span></div><div class="oj-stat-item"><span class="oj-stat-value">${done}</span><span class="oj-stat-label">─É├ú l├ám</span></div><div class="oj-stat-item"><span class="oj-stat-value oj-stat-notdone">${notDone}</span><span class="oj-stat-label">Ch╞░a l├ám</span></div><div class="oj-stat-item"><span class="oj-stat-value" style="color:var(--success)">${perfect}</span><span class="oj-stat-label">100 ─æiß╗âm</span></div><div class="oj-stat-item"><span class="oj-stat-value" style="color:${avg>=80?'var(--success)':avg>=50?'var(--warning)':'var(--text-muted)'}">${avg}</span><span class="oj-stat-label">─Éiß╗âm TB</span></div><div class="oj-progress-wrap"><div class="oj-progress-fill" style="width:${pct}%"></div><span class="oj-progress-text">${pct}% ho├án th├ánh (${done}/${total})</span></div>`;
++const badgeCollEl=document.getElementById('stu-badge-collection');
++if(badgeCollEl)badgeCollEl.innerHTML=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:.78rem;font-weight:700;color:var(--text-secondary)">≡ƒÄû∩╕Å Th├ánh t├¡ch (${earnedB.length}/${b.badges.length})</span></div><div class="stu-badges-grid">${chips2}</div>`}
+ 
+ _renderStudentRanking(){const el=document.getElementById('stu-ranking');if(!el)return;const exs=this._cachedExercises||{};const res=this._exerciseResults||{};const exKeys=Object.keys(exs);
+ if(!exKeys.length){el.innerHTML='<p style="color:var(--text-muted);text-align:center;padding:20px">Ch╞░a c├│ b├ái tß║¡p</p>';return}

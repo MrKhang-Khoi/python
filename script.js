@@ -93,9 +93,10 @@ async endContest(roomCode){await this._ref(`rooms/${roomCode}/info`).update({sta
 async joinRoom(roomCode,name){const snap=await this._ref(`rooms/${roomCode}/info`).once('value');if(!snap.exists())throw new Error('Mã phòng không tồn tại');await this._ref(`rooms/${roomCode}/students/${name}`).update({joinedAt:Date.now()});return snap.val()}
 async getProblems(roomCode){const snap=await this._ref(`rooms/${roomCode}/problems`).once('value');return snap.val()||[]}
 async submitResult(roomCode,name,probIdx,result){await this._ref(`rooms/${roomCode}/students/${name}/submissions/${probIdx}`).set({score:result.score,submittedAt:Date.now(),details:result.details,code:result.code});const lbRef=this._ref(`rooms/${roomCode}/leaderboard/${name}`);await lbRef.transaction(cur=>{if(!cur)cur={name,totalScore:0,problems:{},lastSubmit:0};const old=cur.problems&&cur.problems[probIdx]||0;if(result.score>old){cur.totalScore=(cur.totalScore||0)-old+result.score;if(!cur.problems)cur.problems={};cur.problems[probIdx]=result.score}cur.lastSubmit=Date.now();return cur})}
-listenRoomInfo(roomCode,cb){const ref=this._ref(`rooms/${roomCode}/info`);ref.on('value',s=>cb(s.val()));this._listeners.push(()=>ref.off())}
-listenLeaderboard(roomCode,cb){const ref=this._ref(`rooms/${roomCode}/leaderboard`);ref.on('value',s=>cb(s.val()));this._listeners.push(()=>ref.off())}
-listenStudents(roomCode,cb){const ref=this._ref(`rooms/${roomCode}/students`);ref.on('value',s=>cb(s.val()));this._listeners.push(()=>ref.off())}
+// BUG-L01 FIX: Use ref.off('value',wrappedCb) instead of ref.off() to avoid killing unrelated listeners on the same path
+listenRoomInfo(roomCode,cb){const ref=this._ref(`rooms/${roomCode}/info`);const w=s=>cb(s.val());ref.on('value',w);this._listeners.push(()=>ref.off('value',w))}
+listenLeaderboard(roomCode,cb){const ref=this._ref(`rooms/${roomCode}/leaderboard`);const w=s=>cb(s.val());ref.on('value',w);this._listeners.push(()=>ref.off('value',w))}
+listenStudents(roomCode,cb){const ref=this._ref(`rooms/${roomCode}/students`);const w=s=>cb(s.val());ref.on('value',w);this._listeners.push(()=>ref.off('value',w))}
 cleanup(){this._listeners.forEach(fn=>fn());this._listeners=[]}
 cleanupExercise(){this._exerciseListeners.forEach(fn=>fn());this._exerciseListeners=[]}
 cleanupStudentDash(){this._studentDashListeners.forEach(fn=>fn());this._studentDashListeners=[]}
@@ -104,12 +105,12 @@ async createAccount(username,password){const h=await _hashSHA256(password);await
 async createAccountsBulk(list){for(const item of list){const h=await _hashSHA256(item.pass);await this._ref(`accounts/${item.name}`).set({passwordHash:h,createdAt:Date.now()})}}
 async deleteAccount(username){await this._ref(`accounts/${username}`).remove()}
 async verifyStudent(username,password){const snap=await this._ref(`accounts/${username}`).once('value');if(!snap.exists())throw new Error('Tài khoản không tồn tại!');const acct=snap.val();const inputHash=await _hashSHA256(password);if(acct.passwordHash){if(acct.passwordHash!==inputHash)throw new Error('Sai mật khẩu!');return true}if(acct.password){if(acct.password!==password)throw new Error('Sai mật khẩu!');await this._ref(`accounts/${username}`).update({passwordHash:inputHash,password:null});return true}throw new Error('Tài khoản lỗi!')}
-listenAccounts(cb){const ref=this._ref('accounts');ref.on('value',s=>cb(s.val()||{}));this._listeners.push(()=>ref.off())}
+listenAccounts(cb){const ref=this._ref('accounts');const w=s=>cb(s.val()||{});ref.on('value',w);this._listeners.push(()=>ref.off('value',w))}
 // Exercise management
 async publishExercise(data){const id=Date.now().toString(36);await this._ref(`exercises/${id}`).set({...data,createdAt:Date.now()});return id}
 async updateExercise(id,updates){await this._ref(`exercises/${id}`).update(updates)}
 async deleteExercise(id){await this._ref(`exercises/${id}`).remove();await this._ref(`exerciseResults/${id}`).remove()}
-listenExercises(cb,group){const ref=this._ref('exercises');ref.on('value',s=>cb(s.val()||{}));const offFn=()=>ref.off();if(group==='student')this._studentDashListeners.push(offFn);else this._listeners.push(offFn)}
+listenExercises(cb,group){const ref=this._ref('exercises');const w=s=>cb(s.val()||{});ref.on('value',w);const offFn=()=>ref.off('value',w);if(group==='student')this._studentDashListeners.push(offFn);else this._listeners.push(offFn)}
 async submitExerciseResult(exId,username,result){
 // BUG-C02+RT01 FIX: Use transaction for atomic best-score + update() to preserve attempts
 const newScore=result.score||0;
@@ -124,7 +125,9 @@ return {kept:true,bestScore:oldScore}}
 await ref.update({score:newScore,submittedAt:Date.now(),details:result.details,code:result.code||'',bestScore:Math.max(newScore,oldScore||0)});
 return {kept:false,bestScore:Math.max(newScore,oldScore||0)}}
 async getExerciseResults(exId,username){const snap=await this._ref(`exerciseResults/${exId}/${username}`).once('value');return snap.val()}
-listenAllExerciseResults(cb,group){const ref=this._ref('exerciseResults');ref.on('value',s=>cb(s.val()||{}));const offFn=()=>ref.off();if(group==='student')this._studentDashListeners.push(offFn);else if(group==='exercise')this._exerciseListeners.push(offFn);else this._listeners.push(offFn)}
+// BUG-L01 CRITICAL FIX: ref.off() without callback kills ALL listeners on 'exerciseResults' path
+// including the student dashboard listener. Use ref.off('value',wrappedCb) to only remove the specific callback.
+listenAllExerciseResults(cb,group){const ref=this._ref('exerciseResults');const w=s=>cb(s.val()||{});ref.on('value',w);const offFn=()=>ref.off('value',w);if(group==='student')this._studentDashListeners.push(offFn);else if(group==='exercise')this._exerciseListeners.push(offFn);else this._listeners.push(offFn)}
 async exportCSV(roomCode){const infoSnap=await this._ref(`rooms/${roomCode}/info`).once('value');const info=infoSnap.val();const lbSnap=await this._ref(`rooms/${roomCode}/leaderboard`).once('value');const lb=lbSnap.val();if(!lb)return'';const pCount=info.problemCount||1;let csv='Hạng,Họ tên,Tổng điểm';for(let i=0;i<pCount;i++)csv+=`,Bài ${i+1}`;csv+='\n';const sorted=Object.values(lb).sort((a,b)=>b.totalScore-a.totalScore||(a.lastSubmit-b.lastSubmit));sorted.forEach((s,i)=>{csv+=`${i+1},${s.name},${s.totalScore}`;for(let j=0;j<pCount;j++)csv+=`,${s.problems&&s.problems[j]||0}`;csv+='\n'});return csv}}
 
 // ============ STUDENT GRADER ============
@@ -180,9 +183,9 @@ this.fb.listenAccounts(accts=>{this._cachedAccounts=accts;this._renderAccountLis
 this.fb.listenExercises(exs=>{this._teacherExercises=exs;this._renderTeacherExerciseList(exs);this._renderProgress();this._renderTopicStats()});
 this.fb.listenAllExerciseResults(res=>{this._teacherExResults=res;this._renderTeacherExerciseList(this._teacherExercises||{});this._renderProgress();this._renderTopicStats()});
 // Theory listener
-const thRef=this.fb.db.ref('theories');thRef.on('value',s=>{this._cachedTheories=s.val()||{};this._renderTheoryList(this._cachedTheories,'t-theory-list',true)});this.fb._listeners.push(()=>thRef.off());
+const thRef=this.fb.db.ref('theories');const _thCb=s=>{this._cachedTheories=s.val()||{};this._renderTheoryList(this._cachedTheories,'t-theory-list',true)};thRef.on('value',_thCb);this.fb._listeners.push(()=>thRef.off('value',_thCb));
 // Room history listener
-const roomRef=this.fb.db.ref('rooms');roomRef.on('value',s=>{this._allRooms=s.val()||{};this._renderRoomHistory()});this.fb._listeners.push(()=>roomRef.off());
+const roomRef=this.fb.db.ref('rooms');const _rmCb=s=>{this._allRooms=s.val()||{};this._renderRoomHistory()};roomRef.on('value',_rmCb);this.fb._listeners.push(()=>roomRef.off('value',_rmCb));
 // Restore active room from localStorage (BUG-E fix)
 this._restoreActiveRoom();this._initTeacherNotifListener();this._initCCFilters()}
 
@@ -1101,8 +1104,8 @@ this.fb.cleanup();
 this.fb.listenAccounts(accts=>{this._cachedAccounts=accts;this._renderAccountList(accts);this._renderProgress();this._renderTopicStats()});
 this.fb.listenExercises(exs=>{this._teacherExercises=exs;this._renderTeacherExerciseList(exs);this._renderProgress();this._renderTopicStats()});
 this.fb.listenAllExerciseResults(res=>{this._teacherExResults=res;this._renderTeacherExerciseList(this._teacherExercises||{});this._renderProgress();this._renderTopicStats()});
-const _thRef2=this.fb.db.ref('theories');_thRef2.on('value',s=>{this._cachedTheories=s.val()||{};this._renderTheoryList(this._cachedTheories,'t-theory-list',true)});this.fb._listeners.push(()=>_thRef2.off());
-const _roomRef2=this.fb.db.ref('rooms');_roomRef2.on('value',s=>{this._allRooms=s.val()||{};this._renderRoomHistory()});this.fb._listeners.push(()=>_roomRef2.off());
+const _thRef2=this.fb.db.ref('theories');const _thCb2=s=>{this._cachedTheories=s.val()||{};this._renderTheoryList(this._cachedTheories,'t-theory-list',true)};_thRef2.on('value',_thCb2);this.fb._listeners.push(()=>_thRef2.off('value',_thCb2));
+const _roomRef2=this.fb.db.ref('rooms');const _rmCb2=s=>{this._allRooms=s.val()||{};this._renderRoomHistory()};_roomRef2.on('value',_rmCb2);this.fb._listeners.push(()=>_roomRef2.off('value',_rmCb2));
 this._initTeacherNotifListener();
 // Reload all rooms data then open the ended room's detail view
 try{const roomsSnap=await this.fb.db.ref('rooms').once('value');this._allRooms=roomsSnap.val()||{};
@@ -1354,7 +1357,7 @@ this._exerciseResults={};this._prevExCount=0;
 this.fb.listenExercises(exs=>{// Filter out exam-only exercises (topic='Đề Thi') from student view
 const filtered={};Object.keys(exs).forEach(k=>{const t=(exs[k].topic||'').trim().toLowerCase();if(t!=='đề thi'&&t!=='de thi')filtered[k]=exs[k]});this._cachedExercises=filtered;this._loadExerciseStatuses(filtered);this._checkNewExerciseNotification(filtered)},'student');
 this.fb.listenAllExerciseResults(res=>{this._exerciseResults=res;if(this._cachedExercises){this._renderExerciseList(this._cachedExercises);this._renderStudentRanking();this._renderStudentStats()}},'student');
-const thRef2=this.fb.db.ref('theories');thRef2.on('value',s=>{this._stuTheories=s.val()||{};this._renderTheoryList(this._stuTheories,'stu-theory-list',false)});this.fb._studentDashListeners.push(()=>thRef2.off());
+const thRef2=this.fb.db.ref('theories');const _sthCb=s=>{this._stuTheories=s.val()||{};this._renderTheoryList(this._stuTheories,'stu-theory-list',false)};thRef2.on('value',_sthCb);this.fb._studentDashListeners.push(()=>thRef2.off('value',_sthCb));
 // Listen for notifications
 this._listenStudentNotifications();
 // Load contest history for student
@@ -1368,8 +1371,9 @@ const allRooms=snap.val()||{};
 this._processStudentContests(allRooms);
 // Real-time listener
 const roomRef=this.fb.db.ref('rooms');
-roomRef.on('value',s=>{const rooms=s.val()||{};this._processStudentContests(rooms)});
-this.fb._studentDashListeners.push(()=>roomRef.off());
+const _srmCb=s=>{const rooms=s.val()||{};this._processStudentContests(rooms)};
+roomRef.on('value',_srmCb);
+this.fb._studentDashListeners.push(()=>roomRef.off('value',_srmCb));
 }catch(e){console.error('Load contest history:',e);el.innerHTML='<p style="color:var(--text-muted);text-align:center;padding:20px">Lỗi tải lịch sử</p>'}}
 
 _processStudentContests(allRooms){
@@ -1474,10 +1478,87 @@ this._showStudentEndedScreen(code,info);
 
 _loadExerciseStatuses(exs){this._renderExerciseList(exs);this._renderStudentRanking();this._renderStudentStats()}
 
+// ===== STUDENT BADGE / TITLE SYSTEM =====
+_computeStudentBadges(stats){
+// stats: {done, total, perfect, avg, totalScore, rank, totalStudents}
+const {done,total,perfect,avg,totalScore,rank,totalStudents}=stats;
+const pct=total>0?Math.round(done/total*100):0;
+const perfectPct=total>0?Math.round(perfect/total*100):0;
+
+// === MAIN TITLE (tier-based) ===
+let tier,tierIcon,tierName,tierClass,tierNext;
+if(perfect>=total&&total>=10){
+  tier=5;tierIcon='🏆';tierName='Huyền Thoại';tierClass='legend';tierNext='Đã đạt cấp cao nhất!'}
+else if(perfectPct>=80&&avg>=95){
+  tier=4;tierIcon='💎';tierName='Kim Cương';tierClass='diamond';tierNext=`Hoàn thành 100% bài → Huyền Thoại`}
+else if(perfectPct>=50&&avg>=80){
+  tier=3;tierIcon='🥇';tierName='Vàng';tierClass='gold';tierNext=`${80-perfectPct>0?80-perfectPct+'% bài 100đ nữa':'ĐTB ≥95'} → Kim Cương`}
+else if(pct>=50&&avg>=60){
+  tier=2;tierIcon='🥈';tierName='Bạc';tierClass='silver';tierNext=`${50-perfectPct>0?'50% bài 100đ':'ĐTB ≥80'} → Vàng`}
+else if(done>=3){
+  tier=1;tierIcon='🥉';tierName='Đồng';tierClass='bronze';tierNext=`Làm 50% bài + ĐTB ≥60 → Bạc`}
+else{
+  tier=0;tierIcon='🌱';tierName='Tập Sự';tierClass='bronze';tierNext=`Hoàn thành 3 bài → Đồng`}
+
+// === ACHIEVEMENT BADGES ===
+const badges=[];
+
+// Progress milestones
+if(done>=1)badges.push({emoji:'🎯',name:'Khởi Đầu',desc:'Hoàn thành bài đầu tiên',tier:'bronze',earned:true});
+else badges.push({emoji:'🎯',name:'Khởi Đầu',desc:'Hoàn thành bài đầu tiên',tier:'bronze',earned:false});
+
+if(done>=5)badges.push({emoji:'📚',name:'Chăm Chỉ',desc:'Hoàn thành 5 bài',tier:'bronze',earned:true});
+else if(done>=1)badges.push({emoji:'📚',name:'Chăm Chỉ',desc:`Hoàn thành 5 bài (${done}/5)`,tier:'bronze',earned:false});
+
+if(done>=10)badges.push({emoji:'🔥',name:'Kiên Trì',desc:'Hoàn thành 10 bài',tier:'silver',earned:true});
+else if(done>=3)badges.push({emoji:'🔥',name:'Kiên Trì',desc:`Hoàn thành 10 bài (${done}/10)`,tier:'silver',earned:false});
+
+if(pct>=100)badges.push({emoji:'🏅',name:'Hoàn Tất',desc:'Làm hết tất cả bài tập',tier:'gold',earned:true});
+else if(done>=5)badges.push({emoji:'🏅',name:'Hoàn Tất',desc:`Làm hết bài tập (${pct}%)`,tier:'gold',earned:false});
+
+// Score milestones
+if(perfect>=1)badges.push({emoji:'💯',name:'Hoàn Hảo',desc:'Đạt 100 điểm bài đầu tiên',tier:'bronze',earned:true});
+else if(done>=1)badges.push({emoji:'💯',name:'Hoàn Hảo',desc:'Đạt 100 điểm 1 bài',tier:'bronze',earned:false});
+
+if(perfect>=5)badges.push({emoji:'⭐',name:'Ngôi Sao',desc:'5 bài 100 điểm',tier:'silver',earned:true});
+else if(perfect>=1)badges.push({emoji:'⭐',name:'Ngôi Sao',desc:`5 bài 100đ (${perfect}/5)`,tier:'silver',earned:false});
+
+if(perfect>=10)badges.push({emoji:'🌟',name:'Siêu Sao',desc:'10 bài 100 điểm',tier:'gold',earned:true});
+else if(perfect>=3)badges.push({emoji:'🌟',name:'Siêu Sao',desc:`10 bài 100đ (${perfect}/10)`,tier:'gold',earned:false});
+
+if(perfectPct>=100&&total>=5)badges.push({emoji:'👑',name:'Bất Bại',desc:'100% bài đạt 100 điểm',tier:'special',earned:true});
+
+// Average score
+if(avg>=90)badges.push({emoji:'🧠',name:'Thiên Tài',desc:'Điểm trung bình ≥ 90',tier:'gold',earned:true});
+else if(avg>=70&&done>=3)badges.push({emoji:'🧠',name:'Thiên Tài',desc:`ĐTB ≥ 90 (hiện: ${avg})`,tier:'gold',earned:false});
+
+if(avg>=80&&done>=5)badges.push({emoji:'📊',name:'Ổn Định',desc:'ĐTB ≥ 80 với ≥ 5 bài',tier:'silver',earned:true});
+
+// Ranking
+if(rank===1&&totalStudents>=3)badges.push({emoji:'🏆',name:'Quán Quân',desc:'Xếp hạng #1',tier:'special',earned:true});
+else if(rank<=3&&totalStudents>=5)badges.push({emoji:'🎖️',name:'Top 3',desc:'Xếp hạng Top 3',tier:'gold',earned:true});
+
+// Total score milestones
+if(totalScore>=1000)badges.push({emoji:'💰',name:'Nghìn Điểm',desc:'Tổng ≥ 1000 điểm',tier:'silver',earned:true});
+if(totalScore>=5000)badges.push({emoji:'💎',name:'Năm Nghìn',desc:'Tổng ≥ 5000 điểm',tier:'gold',earned:true});
+
+return{tier,tierIcon,tierName,tierClass,tierNext,badges:badges.filter(b=>b.earned||done>=1)};}
+
+
 _renderStudentStats(){const el=document.getElementById('stu-stats-bar');if(!el)return;const exs=this._cachedExercises||{};const res=this._exerciseResults||{};const total=Object.keys(exs).length;if(!total||!this.studentName){el.innerHTML='';return}
 let done=0,totalScore=0,perfect=0;Object.keys(exs).forEach(k=>{const r=res[k]&&res[k][this.studentName];if(r){done++;totalScore+=r.score||0;if(r.score>=100)perfect++}});
 const notDone=total-done;const avg=done>0?Math.round(totalScore/done):0;const pct=total>0?Math.round(done/total*100):0;
-el.innerHTML=`<div class="oj-stat-item"><span class="oj-stat-value">${total}</span><span class="oj-stat-label">Tổng bài</span></div><div class="oj-stat-item"><span class="oj-stat-value">${done}</span><span class="oj-stat-label">Đã làm</span></div><div class="oj-stat-item"><span class="oj-stat-value oj-stat-notdone">${notDone}</span><span class="oj-stat-label">Chưa làm</span></div><div class="oj-stat-item"><span class="oj-stat-value" style="color:var(--success)">${perfect}</span><span class="oj-stat-label">100 điểm</span></div><div class="oj-stat-item"><span class="oj-stat-value" style="color:${avg>=80?'var(--success)':avg>=50?'var(--warning)':'var(--text-muted)'}">${avg}</span><span class="oj-stat-label">Điểm TB</span></div><div class="oj-progress-wrap"><div class="oj-progress-fill" style="width:${pct}%"></div><span class="oj-progress-text">${pct}% hoàn thành (${done}/${total})</span></div>`}
+// Compute rank for badge system
+const exKeys2=Object.keys(exs);const stuSet2=new Set();exKeys2.forEach(k=>{if(res[k])Object.keys(res[k]).forEach(n=>stuSet2.add(n))});
+const allStu2=[...stuSet2].map(n=>{let ts=0,pc=0;exKeys2.forEach(k=>{const r=res[k]&&res[k][n];if(r){ts+=r.score||0;if(r.score>=100)pc++}});return{name:n,ts,pc}}).sort((a,b)=>b.pc-a.pc||b.ts-a.ts);
+const myRank=allStu2.findIndex(s=>s.name===this.studentName)+1;
+const b=this._computeStudentBadges({done,total,perfect,avg,totalScore,rank:myRank||999,totalStudents:allStu2.length});
+const earnedB=b.badges.filter(x=>x.earned);const lockedB=b.badges.filter(x=>!x.earned);
+let chips2=earnedB.map(x=>`<span class="stu-badge-chip earned-${x.tier}" data-tooltip="${this._esc(x.desc)}"><span class="badge-emoji">${x.emoji}</span><span class="badge-name">${this._esc(x.name)}</span></span>`).join('');
+chips2+=lockedB.map(x=>`<span class="stu-badge-chip locked" data-tooltip="${this._esc(x.desc)}"><span class="badge-emoji">${x.emoji}</span><span class="badge-name">${this._esc(x.name)}</span></span>`).join('');
+el.innerHTML=`<div class="stu-badge-card badge-tier-${b.tierClass}"><span class="stu-badge-icon">${b.tierIcon}</span><div class="stu-badge-info"><span class="stu-badge-title">${b.tierName}</span><span class="stu-badge-subtitle">${this._esc(b.tierNext)}</span></div></div><div class="oj-stat-item"><span class="oj-stat-value">${total}</span><span class="oj-stat-label">Tổng bài</span></div><div class="oj-stat-item"><span class="oj-stat-value">${done}</span><span class="oj-stat-label">Đã làm</span></div><div class="oj-stat-item"><span class="oj-stat-value oj-stat-notdone">${notDone}</span><span class="oj-stat-label">Chưa làm</span></div><div class="oj-stat-item"><span class="oj-stat-value" style="color:var(--success)">${perfect}</span><span class="oj-stat-label">100 điểm</span></div><div class="oj-stat-item"><span class="oj-stat-value" style="color:${avg>=80?'var(--success)':avg>=50?'var(--warning)':'var(--text-muted)'}">${avg}</span><span class="oj-stat-label">Điểm TB</span></div><div class="oj-progress-wrap"><div class="oj-progress-fill" style="width:${pct}%"></div><span class="oj-progress-text">${pct}% hoàn thành (${done}/${total})</span></div>`;
+const badgeCollEl=document.getElementById('stu-badge-collection');
+if(badgeCollEl)badgeCollEl.innerHTML=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:.78rem;font-weight:700;color:var(--text-secondary)">🎖️ Thành tích (${earnedB.length}/${b.badges.length})</span></div><div class="stu-badges-grid">${chips2}</div>`}
 
 _renderStudentRanking(){const el=document.getElementById('stu-ranking');if(!el)return;const exs=this._cachedExercises||{};const res=this._exerciseResults||{};const exKeys=Object.keys(exs);
 if(!exKeys.length){el.innerHTML='<p style="color:var(--text-muted);text-align:center;padding:20px">Chưa có bài tập</p>';return}

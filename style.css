@@ -1210,3 +1210,49 @@ textarea.ai-textarea{resize:vertical}
 .upcoming-card-action {margin-top:10px;font-size:.78rem;font-weight:600}
 .upcoming-card.is-active .upcoming-card-action {color:var(--success)}
 .upcoming-card.is-waiting .upcoming-card-action {color:var(--warning,#f59e0b)}
+
+/* ===== STUDENT BADGE / TITLE SYSTEM ===== */
+/* Main badge card in stats bar */
+.stu-badge-card{display:flex;align-items:center;gap:12px;padding:10px 16px;border-radius:var(--radius-md);border:1px solid rgba(255,255,255,.06);background:linear-gradient(135deg,rgba(99,102,241,.08),rgba(139,92,246,.05));position:relative;overflow:hidden;min-width:200px;flex-shrink:0}
+.stu-badge-card::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,transparent 60%,rgba(255,255,255,.03));pointer-events:none}
+.stu-badge-icon{font-size:1.6rem;line-height:1;flex-shrink:0;filter:drop-shadow(0 2px 6px rgba(0,0,0,.3))}
+.stu-badge-info{display:flex;flex-direction:column;gap:1px;min-width:0}
+.stu-badge-title{font-size:.82rem;font-weight:800;letter-spacing:.02em;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stu-badge-subtitle{font-size:.68rem;color:var(--text-muted);line-height:1.2}
+
+/* Tier-specific title colors */
+.badge-tier-bronze .stu-badge-title{color:#cd7f32;text-shadow:0 0 8px rgba(205,127,50,.3)}
+.badge-tier-silver .stu-badge-title{color:#c0c0c0;text-shadow:0 0 8px rgba(192,192,192,.3)}
+.badge-tier-gold .stu-badge-title{color:#ffd700;text-shadow:0 0 10px rgba(255,215,0,.35)}
+.badge-tier-diamond .stu-badge-title{background:linear-gradient(135deg,#60a5fa,#a78bfa,#f472b6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;filter:drop-shadow(0 0 6px rgba(139,92,246,.3))}
+.badge-tier-legend .stu-badge-title{background:linear-gradient(135deg,#f59e0b,#ef4444,#ec4899,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:badgeShimmer 3s ease infinite;background-size:200% 200%}
+
+@keyframes badgeShimmer{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
+
+/* Badge collection grid */
+.stu-badges-grid{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.stu-badge-chip{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:var(--radius-pill);font-size:.72rem;font-weight:600;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.03);cursor:default;transition:all .25s;position:relative}
+.stu-badge-chip:hover{background:rgba(255,255,255,.08);transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,.2)}
+.stu-badge-chip .badge-emoji{font-size:.9rem}
+.stu-badge-chip .badge-name{white-space:nowrap}
+.stu-badge-chip.locked{opacity:.35;filter:grayscale(1)}
+.stu-badge-chip.locked .badge-name{text-decoration:line-through}
+
+/* Badge tooltip */
+.stu-badge-chip::after{content:attr(data-tooltip);position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%) scale(.9);background:var(--bg-primary);border:1px solid var(--border);color:var(--text-secondary);font-size:.68rem;font-weight:400;padding:4px 10px;border-radius:var(--radius-sm);white-space:nowrap;opacity:0;pointer-events:none;transition:all .2s;z-index:50}
+.stu-badge-chip:hover::after{opacity:1;transform:translateX(-50%) scale(1)}
+
+/* Earned badge glow per tier */
+.stu-badge-chip.earned-bronze{border-color:rgba(205,127,50,.3);background:rgba(205,127,50,.08)}
+.stu-badge-chip.earned-silver{border-color:rgba(192,192,192,.3);background:rgba(192,192,192,.06)}
+.stu-badge-chip.earned-gold{border-color:rgba(255,215,0,.3);background:rgba(255,215,0,.06)}
+.stu-badge-chip.earned-special{border-color:rgba(139,92,246,.3);background:rgba(139,92,246,.06)}
+
+/* Badge section in ranking table */
+.rank-badge{display:inline-flex;align-items:center;gap:3px;font-size:.68rem;padding:1px 6px;border-radius:var(--radius-pill);font-weight:600;margin-left:6px;vertical-align:middle}
+.rank-badge.rb-bronze{background:rgba(205,127,50,.12);color:#cd7f32}
+.rank-badge.rb-silver{background:rgba(192,192,192,.12);color:#c0c0c0}
+.rank-badge.rb-gold{background:rgba(255,215,0,.12);color:#ffd700}
+.rank-badge.rb-diamond{background:rgba(139,92,246,.12);color:#a78bfa}
+.rank-badge.rb-legend{background:linear-gradient(135deg,rgba(245,158,11,.12),rgba(236,72,153,.12));color:#f472b6}
+
