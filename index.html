@@ -333,13 +333,13 @@
             </div>
             </div>
 
+
             <!-- ===== TAB: THỐNG KÊ ===== -->
             <div id="t-tab-stats" class="t-tab-panel hidden">
                 <div class="tab-panel-header">
                     <h2 class="tab-panel-title">📊 Tiến Độ Học Sinh</h2>
                     <p class="tab-panel-sub">Bảng tổng hợp điểm theo bài tập và học sinh</p>
                 </div>
-                <!-- Sub-tabs -->
                 <div class="stats-subtabs">
                     <button class="stats-subtab active" data-stab="overview">📋 Tổng Quan</button>
                     <button class="stats-subtab" data-stab="topics">📂 Theo Chủ Đề</button>
@@ -352,94 +352,99 @@
                 </div>
             </div>
 
-            <!-- ===== TAB 5: PHÒNG THI ===== -->
+            <!-- ===== TAB 5: PHÒNG THI — COMMAND CENTER ===== -->
             <div id="t-tab-contest" class="t-tab-panel hidden">
-                <div class="tab-panel-header">
-                    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
-                        <div><h2 class="tab-panel-title">🏆 Phòng Thi & Bảng Xếp Hạng</h2><p class="tab-panel-sub">Quản lý phòng thi và xem kết quả</p></div>
-                        <button class="btn btn-ghost btn-sm" id="btn-export-csv">📥 Xuất CSV</button>
+
+                <!-- ===== VIEW 1: CONTEST LIST (default) ===== -->
+                <div id="cc-list-view">
+                    <div class="tab-panel-header">
+                        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+                            <div><h2 class="tab-panel-title">🏆 Quản Lý Kỳ Thi</h2><p class="tab-panel-sub">Tổ chức, chấm điểm và công bố kết quả</p></div>
+                            <div style="display:flex;gap:8px">
+                                <button class="btn btn-ghost btn-sm" id="btn-export-csv">📥 Xuất CSV</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="cc-filter-bar">
+                        <button class="cc-filter active" data-filter="all">Tất cả</button>
+                        <button class="cc-filter" data-filter="active">🟢 Đang thi</button>
+                        <button class="cc-filter" data-filter="waiting">⏳ Chờ</button>
+                        <button class="cc-filter" data-filter="ended">⏹ Kết thúc</button>
+                        <button class="cc-filter" data-filter="graded">✅ Đã chấm</button>
+                        <button class="cc-filter" data-filter="published">📢 Đã công bố</button>
+                    </div>
+                    <div id="cc-contest-grid" class="cc-contest-grid">
+                        <p style="color:var(--text-muted);text-align:center;padding:40px">Tạo phòng thi và thêm đề bài để bắt đầu.</p>
                     </div>
                 </div>
 
-                <!-- ===== ACTIVE ROOM DASHBOARD (shown when room is active) ===== -->
-                <div id="t-active-room-dashboard" class="hidden">
-                    <!-- Step Indicator -->
-                    <div class="contest-steps">
-                        <div class="contest-step active" id="cstep-1"><span class="cstep-num">1</span><span class="cstep-label">Đề Thi</span></div>
-                        <div class="contest-step-line"></div>
-                        <div class="contest-step" id="cstep-2"><span class="cstep-num">2</span><span class="cstep-label">Phòng Chờ</span></div>
-                        <div class="contest-step-line"></div>
-                        <div class="contest-step" id="cstep-3"><span class="cstep-num">3</span><span class="cstep-label">Đang Thi</span></div>
-                    </div>
-
-                    <!-- Room Info Card -->
-                    <div class="contest-room-info">
-                        <div class="contest-room-header">
-                            <div>
-                                <div class="contest-room-title" id="t-room-title-display">Tên kỳ thi</div>
-                                <div class="contest-room-meta">
-                                    <span>🏷 Mã phòng: <strong id="t-room-code-display">------</strong></span>
-                                    <span>⏱ <span id="t-room-time-display">0</span> phút</span>
-                                    <span class="room-status-badge" id="t-room-status-display">Chờ</span>
-                                </div>
-                            </div>
-                            <div class="contest-room-timer">
-                                <span class="contest-timer-value" id="t-room-timer-display">00:00</span>
+                <!-- ===== VIEW 2: COMMAND CENTER ===== -->
+                <div id="cc-command-center" class="hidden">
+                    <div class="cc-topbar">
+                        <div class="cc-breadcrumb">
+                            <button class="btn btn-ghost btn-sm cc-back-btn" id="cc-back-to-list">← Danh sách</button>
+                            <span class="cc-room-title" id="cc-room-title">Tên kỳ thi</span>
+                        </div>
+                        <div class="cc-status-bar">
+                            <span class="cc-status-item cc-code-badge" id="cc-room-code">#------</span>
+                            <span class="cc-status-item"><span class="cc-timer" id="cc-timer">00:00</span></span>
+                            <span class="cc-status-item">👥 <strong id="cc-student-count">0</strong> HS</span>
+                            <span class="cc-status-item">📝 <strong id="cc-prob-count">0</strong> bài</span>
+                            <span class="room-status-badge" id="cc-status-badge">Chờ</span>
+                            <div class="cc-status-actions">
+                                <button class="btn btn-success btn-sm" id="cc-btn-start">▶️ Bắt đầu</button>
+                                <button class="btn btn-danger-sm btn-sm" id="cc-btn-end" style="display:none">⏹ Kết thúc</button>
                             </div>
                         </div>
                     </div>
-
-                    <!-- Two-column layout: Problems + Student Lobby -->
-                    <div class="contest-main-grid">
-                        <!-- Left: Problems -->
-                        <div class="contest-left-col">
+                    <div class="cc-subtabs">
+                        <button class="cc-subtab active" data-cctab="problems">📋 Đề thi</button>
+                        <button class="cc-subtab" data-cctab="students">👥 Thí sinh</button>
+                        <button class="cc-subtab" data-cctab="grading">📊 Chấm bài</button>
+                        <button class="cc-subtab" data-cctab="leaderboard">🏆 Bảng xếp hạng</button>
+                    </div>
+                    <div class="cc-panel active" id="ccp-problems">
+                        <div class="contest-section-card">
+                            <div class="contest-section-header"><span>📋 Đề Thi</span><span class="contest-section-badge" id="cc-prob-badge">0 bài</span></div>
+                            <div id="t-contest-problem-list"></div>
+                        </div>
+                    </div>
+                    <div class="cc-panel" id="ccp-students">
+                        <div class="contest-main-grid">
                             <div class="contest-section-card">
-                                <div class="contest-section-header">
-                                    <span>📋 Đề Thi Đã Đăng</span>
-                                    <span class="contest-section-badge" id="t-prob-count-badge">0 bài</span>
-                                </div>
-                                <div id="t-contest-problem-list"></div>
+                                <div class="contest-section-header"><span>👥 Học Sinh Tham Gia</span><span class="contest-section-badge" id="t-lobby-count">0 HS</span></div>
+                                <div id="t-student-lobby" class="student-lobby"><p class="lobby-empty">⏳ Đang chờ học sinh tham gia...</p></div>
+                            </div>
+                            <div class="contest-section-card">
+                                <div class="contest-section-header"><span>🛡️ Giám Sát Thi</span><span class="contest-section-badge" id="cc-anticheat-count">0 cảnh báo</span></div>
+                                <div id="cc-anticheat-list" style="padding:12px;min-height:100px"><p class="lobby-empty">Chưa có cảnh báo</p></div>
                             </div>
                         </div>
-
-                        <!-- Right: Student Lobby -->
-                        <div class="contest-right-col">
-                            <div class="contest-section-card">
-                                <div class="contest-section-header">
-                                    <span>👥 Học Sinh Tham Gia</span>
-                                    <span class="contest-section-badge" id="t-lobby-count">0 HS</span>
+                    </div>
+                    <div class="cc-panel" id="ccp-grading">
+                        <div class="contest-section-card">
+                            <div class="contest-section-header"><span>📊 Chấm Bài</span><span class="contest-section-badge" id="cc-grade-status-badge">Chưa chấm</span></div>
+                            <div style="padding:16px">
+                                <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
+                                    <button class="btn btn-accent" id="btn-grade-all" onclick="window._uic._gradeAllStudents()">🔬 Chấm Tất Cả</button>
+                                    <span id="grade-status" style="font-size:.82rem;color:var(--text-muted)"></span>
                                 </div>
-                                <div id="t-student-lobby" class="student-lobby">
-                                    <p class="lobby-empty">⏳ Đang chờ học sinh tham gia...</p>
+                                <div id="grade-progress" class="hidden" style="margin-bottom:12px">
+                                    <div style="height:6px;background:rgba(255,255,255,.08);border-radius:3px;overflow:hidden">
+                                        <div id="grade-bar" style="height:100%;width:0%;background:var(--accent);border-radius:3px;transition:width .3s"></div>
+                                    </div>
                                 </div>
-                            </div>
-
-                            <!-- Action Buttons (contextual) -->
-                            <div class="contest-actions" id="t-contest-actions">
-                                <button class="btn btn-success contest-action-btn" id="btn-start-contest-main">▶️ Bắt Đầu Thi</button>
-                                <button class="btn btn-danger-sm contest-action-btn" id="btn-end-contest-main" style="display:none">⏹ Kết Thúc</button>
+                                <div id="grade-results"></div>
                             </div>
                         </div>
+                    </div>
+                    <div class="cc-panel" id="ccp-leaderboard">
+                        <div id="t-leaderboard-body"><p style="color:var(--text-muted);text-align:center;padding:40px">Chấm bài xong để xem bảng xếp hạng.</p></div>
                     </div>
                 </div>
-
-                <!-- Hidden container for backward compat -->
+                <!-- Hidden compat containers -->
                 <div id="t-contest-problems" class="hidden"></div>
-
-                <!-- Grading Section -->
-                <div id="grading-section" style="margin-bottom:20px">
-                    <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
-                        <button class="btn btn-accent btn-sm" id="btn-grade-all" onclick="window._uic._gradeAllStudents()">🔬 Chấm Tất Cả</button>
-                        <span id="grade-status" style="font-size:.82rem;color:var(--text-muted)"></span>
-                    </div>
-                    <div id="grade-progress" class="hidden" style="margin-bottom:12px">
-                        <div style="height:6px;background:rgba(255,255,255,.08);border-radius:3px;overflow:hidden">
-                            <div id="grade-bar" style="height:100%;width:0%;background:var(--accent);border-radius:3px;transition:width .3s"></div>
-                        </div>
-                    </div>
-                    <div id="grade-results" class="hidden"></div>
-                </div>
-                <div id="t-leaderboard-body"><p style="color:var(--text-muted);text-align:center;padding:40px">Tạo phòng thi và thêm đề bài để bắt đầu.</p></div>
+                <div id="t-active-room-dashboard" class="hidden"></div>
             </div>
         </main>
     </div>
