@@ -2198,6 +2198,60 @@ h+='</tbody></table>';
 container.innerHTML=h}
 
 // ===== AI ANALYSIS (optional) =====
+
+// Shared prompt builder for AI student code review
+_buildAIReviewPrompt(problem, code, score, maxScore, testDetails){
+const title=problem?.title||'Không rõ';
+const desc=problem?.description||'Không có mô tả';
+const pct=maxScore>0?Math.round(score/maxScore*100):0;
+
+// Build test result summary if available
+let testSummary='';
+if(testDetails&&testDetails.length){
+const ac=testDetails.filter(d=>d.verdict==='AC').length;
+const wa=testDetails.filter(d=>d.verdict==='WA').length;
+const tle=testDetails.filter(d=>d.verdict==='TLE').length;
+const rte=testDetails.filter(d=>d.verdict==='RTE').length;
+testSummary=`\nKết quả chấm: ${ac}/${testDetails.length} test đúng (AC)`;
+if(wa>0)testSummary+=`, ${wa} sai (WA)`;
+if(tle>0)testSummary+=`, ${tle} quá thời gian (TLE)`;
+if(rte>0)testSummary+=`, ${rte} lỗi runtime (RTE)`;
+// Show which tests failed
+const failedTests=testDetails.map((d,i)=>d.verdict!=='AC'?`Test ${i+1}(${d.verdict},ST${d.subtaskId||1})`:null).filter(Boolean);
+if(failedTests.length&&failedTests.length<=10)testSummary+=`\nTest sai: ${failedTests.join(', ')}`;
+}
+
+return `Bạn là một giáo viên lập trình Python dạy học sinh cấp 2-3 (THCS-THPT). Hãy nhận xét bài làm của học sinh một cách xây dựng, khuyến khích, nhưng chính xác.
+
+## ĐỀ BÀI: "${title}"
+${desc}
+
+## KẾT QUẢ
+Điểm: ${score}/${maxScore} (${pct}%)${testSummary}
+
+## CODE CỦA HỌC SINH
+\`\`\`python
+${code}
+\`\`\`
+
+## YÊU CẦU PHÂN TÍCH
+Hãy nhận xét theo cấu trúc sau:
+
+**📊 Tổng quan**: Đánh giá ngắn gọn bài làm (1-2 câu).
+
+**${score>=maxScore?'✅':'❌'} Phân tích${score<maxScore?' lỗi':''}**: ${score>=maxScore?'Giải thích tại sao cách giải đúng, thuật toán phù hợp.':'Chỉ ra lỗi logic cụ thể khiến test sai. Nêu trường hợp input nào sẽ cho kết quả sai và tại sao.'}
+
+**💡 Điểm mạnh**: Nêu 1-2 điểm tốt trong code (nếu có: cách đặt tên biến, cấu trúc, ý tưởng...).
+
+**🔧 Gợi ý cải thiện**: ${score>=maxScore?'Gợi ý tối ưu hoá (nếu thuật toán chưa tối ưu) hoặc cải thiện phong cách code.':'Hướng dẫn cách sửa lỗi cụ thể (KHÔNG cho code hoàn chỉnh, chỉ gợi ý hướng suy nghĩ).'}
+
+## QUY TẮC
+- Trả lời bằng tiếng Việt
+- Tối đa 250 từ
+- KHÔNG cho lời giải hoàn chỉnh, chỉ gợi ý hướng suy nghĩ
+- Giọng văn thân thiện, khuyến khích học sinh cố gắng
+- Nếu code đúng hết, hãy khen ngợi và gợi ý nâng cao`;}
+
 async _aiAnalyzeAll(){if(!this._gradeResults||!this._gradeProblems){this._toast('Chấm bài trước','error');return}
 const rc=this._viewingRoomCode||this.roomCode;
 if(!rc){this._toast('Không có phòng thi','error');return}
@@ -2215,8 +2269,8 @@ const r=this._gradeResults[name]?.[pi];if(!r||!r.code)continue;
 count++;if(statusEl)statusEl.textContent=`AI phân tích: ${name} — Bài ${pi+1} (${count})`;
 try{
 const p=this._gradeProblems[pi];
-const prompt=`Phân tích code Python của học sinh cho bài "${p.title||'?'}".\nĐề bài: ${p.description||'N/A'}\nĐiểm: ${r.score}/100\n\nCode:\n\`\`\`python\n${r.code}\n\`\`\`\n\nHãy:\n1. Nêu lỗi logic chính (nếu có)\n2. Đánh giá phong cách code\n3. Gợi ý cải thiện ngắn gọn\n\nTrả lời bằng tiếng Việt, tối đa 150 từ.`;
-const resp=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${k}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:0.2,maxOutputTokens:300}})});
+const prompt=this._buildAIReviewPrompt(p,r.code,r.score,r.maxScore||p.maxScore||100,r.details);
+const resp=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${k}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:0.3,maxOutputTokens:500}})});
 const d=await resp.json();const analysis=d.candidates?.[0]?.content?.parts?.[0]?.text||'Không phân tích được';
 await this.fb.db.ref(`rooms/${rc}/gradeResults/${name}/${pi}/aiAnalysis`).set(analysis);
 if(this._gradeResults[name]?.[pi])this._gradeResults[name][pi].aiAnalysis=analysis;
@@ -2297,9 +2351,9 @@ const g=gradeSnap.val();if(!g)continue;
 const codeSnap=await this.fb.db.ref(`rooms/${rc}/students/${name}/finalCode/${pi}`).once('value');
 const code=codeSnap.val();if(!code)continue;
 const p=probs[pi]||{};
-const prompt=`Phân tích code Python của học sinh cho bài "${p.title||'?'}".\nĐề bài: ${p.description||'N/A'}\nĐiểm: ${g.score}/${g.maxScore||100}\n\nCode:\n\`\`\`python\n${code}\n\`\`\`\n\nHãy:\n1. Nêu lỗi logic chính (nếu có)\n2. Đánh giá phong cách code\n3. Gợi ý cải thiện ngắn gọn\n\nTrả lời bằng tiếng Việt, tối đa 150 từ.`;
+const prompt=this._buildAIReviewPrompt(p,code,g.score,g.maxScore||100,g.details);
 try{
-const resp=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${k}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:0.2,maxOutputTokens:300}})});
+const resp=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${k}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:0.3,maxOutputTokens:500}})});
 const d=await resp.json();const analysis=d.candidates?.[0]?.content?.parts?.[0]?.text||'Không phân tích được';
 await this.fb.db.ref(`rooms/${rc}/gradeResults/${name}/${pi}/aiAnalysis`).set(analysis);
 // Update UI inline
