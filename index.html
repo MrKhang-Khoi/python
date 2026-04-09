@@ -365,7 +365,8 @@
                 <!-- Form tạo bộ đề -->
                 <div class="card" style="margin-bottom:16px">
                     <div class="card-header"><div class="card-title"><h2>✍️ Tạo / Chỉnh Sửa Bộ Đề</h2></div>
-                        <div style="display:flex;gap:6px">
+                        <div style="display:flex;gap:6px;flex-wrap:wrap">
+                            <button class="btn btn-ghost btn-sm" id="btn-quiz-ai-gen" title="AI tạo câu hỏi tự động">🤖 AI Tạo đề</button>
                             <button class="btn btn-ghost btn-sm" id="btn-quiz-import-excel" title="Import từ file Excel">📥 Import Excel</button>
                             <input type="file" id="quiz-excel-file" accept=".xlsx,.xls,.csv" hidden>
                         </div>
@@ -384,6 +385,39 @@
                                     <option value="immediate">Ngay khi trả lời</option>
                                     <option value="never">Không hiện</option>
                                 </select>
+                            </div>
+                        </div>
+                        <!-- AI Generation Config -->
+                        <div id="quiz-ai-config" class="quiz-ai-config hidden">
+                            <div class="quiz-ai-config-header">
+                                <span>🤖 Cấu hình AI tạo câu hỏi</span>
+                                <button class="btn-danger-sm" id="btn-quiz-ai-close">✕</button>
+                            </div>
+                            <div class="quiz-ai-config-body">
+                                <div class="form-group" style="margin-bottom:8px"><label>📝 Chủ đề / Nội dung để AI tạo câu hỏi</label>
+                                    <textarea id="quiz-ai-topic" rows="2" class="ai-textarea" placeholder="VD: Lập trình Python cơ bản (biến, vòng lặp, hàm)..."></textarea>
+                                </div>
+                                <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+                                    <div class="form-group" style="margin-bottom:0;flex:1;min-width:100px"><label>Số câu</label>
+                                        <select id="quiz-ai-count" class="preset-dropdown" style="width:100%">
+                                            <option value="5">5 câu</option>
+                                            <option value="10" selected>10 câu</option>
+                                            <option value="15">15 câu</option>
+                                            <option value="20">20 câu</option>
+                                            <option value="30">30 câu</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group" style="margin-bottom:0;flex:1;min-width:100px"><label>Độ khó</label>
+                                        <select id="quiz-ai-difficulty" class="preset-dropdown" style="width:100%">
+                                            <option value="easy">Dễ</option>
+                                            <option value="medium" selected>Trung bình</option>
+                                            <option value="hard">Khó</option>
+                                        </select>
+                                    </div>
+                                    <button class="btn btn-accent" id="btn-quiz-ai-run" style="min-width:140px">
+                                        <span id="quiz-ai-run-text">🚀 Tạo câu hỏi</span>
+                                    </button>
+                                </div>
                             </div>
                         </div>
                         <div class="form-group" style="margin-bottom:10px"><label>📋 Mô tả (tùy chọn)</label><textarea id="quiz-description" rows="2" class="ai-textarea" placeholder="Ghi chú..."></textarea></div>

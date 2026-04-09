@@ -50,7 +50,39 @@ prompt+=`\n## YÊU CẦU:\n- I/O: ${io}\n- CHỈ trả về code Python, KHÔNG 
 const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${this.apiKey}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:ctx.brute?0.1:0.3}})});
 if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e.error?.message||'API Error')}
 const d=await r.json();const t=d.candidates?.[0]?.content?.parts?.[0]?.text||'';
-const m=t.match(/```python\n([\s\S]*?)```/);return m?m[1].trim():t.trim()}}
+const m=t.match(/```python\n([\s\S]*?)```/);return m?m[1].trim():t.trim()}
+// AI Quiz Generation
+async generateQuiz(topic,numQ=5,difficulty='medium'){if(!this.apiKey)throw new Error('Nhập Gemini API Key');
+const model='gemini-2.5-flash';
+const diffLabel={easy:'dễ, kiến thức cơ bản',medium:'trung bình, có câu lý thuyết và vận dụng',hard:'khó, yêu cầu tư duy và phân tích sâu'}[difficulty]||'trung bình';
+const prompt=`Bạn là chuyên gia giáo dục, tạo bộ câu hỏi trắc nghiệm 4 lựa chọn.
+
+## YÊU CẦU:
+- Chủ đề: ${topic}
+- Số câu: ${numQ}
+- Độ khó: ${diffLabel}
+- Mỗi câu phải có 4 đáp án A, B, C, D
+- Chỉ có 1 đáp án đúng
+- Viết bằng tiếng Việt
+- QUAN TRỌNG: Trả về ĐÚNG format JSON sau, KHÔNG viết gì thêm:
+
+\`\`\`json
+[
+  {
+    "content": "Nội dung câu hỏi?",
+    "options": ["Đáp án A", "Đáp án B", "Đáp án C", "Đáp án D"],
+    "correctIndex": 0,
+    "explanation": "Giải thích ngắn gọn"
+  }
+]
+\`\`\``;
+const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${this.apiKey}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:0.7}})});
+if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e.error?.message||'API Error')}
+const d2=await r.json();const t2=d2.candidates?.[0]?.content?.parts?.[0]?.text||'';
+const jsonMatch=t2.match(/```json\s*([\s\S]*?)```/)||t2.match(/\[\s*\{[\s\S]*\}\s*\]/);
+if(!jsonMatch)throw new Error('AI không trả về đúng format');
+const raw=jsonMatch[1]||jsonMatch[0];
+return JSON.parse(raw)}}
 
 class StressTester{constructor(e){this.engine=e}
 async run(cfg,main,brute,cnt,maxV,cb){await this.engine.init();const g=new DataGenerator({inputLines:cfg.inputLines,subtasks:[{id:cfg.subtasks[0]?.id||1,name:'S',percent:100}],totalTests:cnt,maxOverride:maxV});const ins=g.generateAllInputs();const fio=cfg.fileIO,tn=cfg.taskName||'B',up=cfg.uppercase;const inp=(up?tn.toUpperCase():tn.toLowerCase())+(up?'.INP':'.inp'),outp=(up?tn.toUpperCase():tn.toLowerCase())+(up?'.OUT':'.out');let pass=0,fail=0,errs=0,ff=null;for(let i=0;i<ins.length;i++){cb&&cb(i+1,ins.length);let mo,bo;try{mo=fio?await this.engine.runFileIO(main,ins[i].input,inp,outp):await this.engine.runStdio(main,ins[i].input)}catch(e){errs++;if(!ff)ff={index:i+1,input:ins[i].input,error:'Code chính: '+e.message};continue}try{bo=fio?await this.engine.runFileIO(brute,ins[i].input,inp,outp):await this.engine.runStdio(brute,ins[i].input)}catch(e){errs++;if(!ff)ff={index:i+1,input:ins[i].input,error:'Brute: '+e.message};continue}if(mo.trim()===bo.trim())pass++;else{fail++;if(!ff)ff={index:i+1,input:ins[i].input,mainOutput:mo,bruteOutput:bo}}await new Promise(r=>setTimeout(r,5))}return{passed:pass,failed:fail,errors:errs,total:ins.length,firstFail:ff}}}
@@ -3021,6 +3053,14 @@ $('btn-quiz-publish').onclick=()=>this._saveQuiz('published');
 $('btn-quiz-cancel-edit').onclick=()=>this._cancelQuizEdit();
 $('btn-quiz-import-excel').onclick=()=>$('quiz-excel-file').click();
 $('quiz-excel-file').onchange=e=>{if(e.target.files[0])this._importQuizFromExcel(e.target.files[0]);e.target.value=''};
+// AI Quiz Generation
+$('btn-quiz-ai-gen').onclick=()=>{
+const cfg=$('quiz-ai-config');cfg.classList.toggle('hidden');
+// Auto-fill topic from quiz-topic field
+const topicVal=$('quiz-topic')?.value;
+if(topicVal&&!$('quiz-ai-topic').value)$('quiz-ai-topic').value=topicVal};
+$('btn-quiz-ai-close').onclick=()=>$('quiz-ai-config').classList.add('hidden');
+$('btn-quiz-ai-run').onclick=()=>this._generateQuizWithAI();
 }
 
 _addQuizQuestion(content='',options=['','','',''],correctIndex=0,explanation=''){
@@ -3216,6 +3256,33 @@ const modal=document.createElement('div');modal.className='modal-content';modal.
 overlay.appendChild(modal);document.body.appendChild(overlay);
 modal.querySelector('#btn-close-quiz-stats').onclick=()=>overlay.remove();
 overlay.onclick=e=>{if(e.target===overlay)overlay.remove()}}
+
+async _generateQuizWithAI(){
+const topic=document.getElementById('quiz-ai-topic')?.value.trim();
+if(!topic){this._toast('Nhập chủ đề để AI tạo câu hỏi','error');return}
+const numQ=parseInt(document.getElementById('quiz-ai-count')?.value)||10;
+const difficulty=document.getElementById('quiz-ai-difficulty')?.value||'medium';
+const runBtn=document.getElementById('btn-quiz-ai-run');
+const runText=document.getElementById('quiz-ai-run-text');
+// Check API key
+if(!this.gemini||!this.gemini.getApiKey()){this._toast('Cần nhập Gemini API Key (tab Soạn Đề → cài đặt AI)','error');return}
+// Loading state
+runBtn.disabled=true;runText.textContent='⏳ Đang tạo...';
+try{
+const questions=await this.gemini.generateQuiz(topic,numQ,difficulty);
+if(!questions||!questions.length){this._toast('AI không trả về câu hỏi nào','error');return}
+// Populate questions
+questions.forEach(q=>{
+const opts=q.options||['','','',''];
+const ci=typeof q.correctIndex==='number'?q.correctIndex:0;
+this._addQuizQuestion(q.content||'',opts,ci,q.explanation||'')});
+// Auto-fill form topic if empty
+const topicField=document.getElementById('quiz-topic');
+if(!topicField.value)topicField.value=topic;
+this._toast(`🤖 AI đã tạo ${questions.length} câu hỏi!`,'success');
+document.getElementById('quiz-ai-config').classList.add('hidden');
+}catch(e){this._toast('AI lỗi: '+e.message,'error')}
+finally{runBtn.disabled=false;runText.textContent='🚀 Tạo câu hỏi'}}
 
 // ============ QUIZ MODULE — STUDENT ============
 _renderStudentQuizList(){
