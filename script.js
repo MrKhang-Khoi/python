@@ -53,41 +53,28 @@ const d=await r.json();const t=d.candidates?.[0]?.content?.parts?.[0]?.text||'';
 const m=t.match(/```python\n([\s\S]*?)```/);return m?m[1].trim():t.trim()}
 // AI Quiz Generation
 async generateQuiz(topic,numQ=5,difficulty='medium'){if(!this.apiKey)throw new Error('Nhập Gemini API Key');
-const model='gemini-2.5-flash';
-const diffLabel={easy:'dễ, kiến thức cơ bản',medium:'trung bình, có câu lý thuyết và vận dụng',hard:'khó, yêu cầu tư duy và phân tích sâu'}[difficulty]||'trung bình';
+const models=['gemini-2.0-flash','gemini-1.5-flash'];
+const diffLabel={easy:'dễ',medium:'trung bình',hard:'khó'}[difficulty]||'trung bình';
 const prompt=`Bạn là chuyên gia giáo dục. Tạo bộ ${numQ} câu hỏi trắc nghiệm 4 lựa chọn.
-
-CHỦ ĐỀ: ${topic}
-ĐỘ KHÓ: ${diffLabel}
-
-QUY TẮC:
-- Mỗi câu có đúng 4 đáp án
-- Chỉ 1 đáp án đúng (correctIndex: 0-3)
-- Viết tiếng Việt
-- KHÔNG giải thích gì thêm, CHỈ trả về JSON array
-
-FORMAT (trả về ĐÚNG cấu trúc này):
-[{"content":"Câu hỏi?","options":["A","B","C","D"],"correctIndex":0,"explanation":"Giải thích"}]`;
+Chủ đề: ${topic}
+Độ khó: ${diffLabel}
+QUY TẮC: Mỗi câu 4 đáp án, chỉ 1 đúng (correctIndex:0-3), viết tiếng Việt, CHỈ trả JSON array.
+Format: [{"content":"Câu hỏi?","options":["A","B","C","D"],"correctIndex":0,"explanation":"Giải thích"}]`;
+let lastErr=null;
+for(const model of models){
+try{
 const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${this.apiKey}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:0.7,maxOutputTokens:8192}})});
-if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e.error?.message||`API Error ${r.status}`)}
-const d2=await r.json();
-// Handle thinking mode: filter out thought parts, get last text part
-const parts=d2.candidates?.[0]?.content?.parts||[];
-const textParts=parts.filter(p=>!p.thought&&p.text);
-const t2=textParts.length?textParts[textParts.length-1].text:'';
-if(!t2)throw new Error('AI trả về rỗng');
-console.log('[AI Quiz] Raw response length:',t2.length);
-// Robust JSON extraction: try multiple strategies
-let jsonStr='';
-const fenced=t2.match(/```(?:json)?\s*([\s\S]*?)```/);
-if(fenced){jsonStr=fenced[1].trim()}
-else{const arrMatch=t2.match(/\[\s*\{[\s\S]*\}\s*\]/);if(arrMatch)jsonStr=arrMatch[0];else jsonStr=t2.trim()}
-try{const result=JSON.parse(jsonStr);
-if(!Array.isArray(result))throw new Error('Expected array');
-console.log('[AI Quiz] Parsed',result.length,'questions');
-return result}catch(pe){console.error('[AI Quiz] Parse error:',pe.message,'\nRaw:',jsonStr.substring(0,200));throw new Error('AI trả về JSON không hợp lệ. Thử lại.')}}}
-
-
+if(!r.ok){const e=await r.json().catch(()=>({}));const msg=e.error?.message||'API Error '+r.status;if(r.status===404){lastErr=msg;continue}throw new Error(msg)}
+const d2=await r.json();const parts=d2.candidates?.[0]?.content?.parts||[];
+const textParts=parts.filter(p=>!p.thought&&p.text);const t2=textParts.length?textParts[textParts.length-1].text:'';
+if(!t2){lastErr='AI trả về rỗng';continue}
+console.log('[AI Quiz] Response from',model,':',t2.length,'chars');
+let jsonStr='';const fenced=t2.match(/```(?:json)?\s*([\s\S]*?)```/);
+if(fenced)jsonStr=fenced[1].trim();else{const am=t2.match(/\[\s*\{[\s\S]*\}\s*\]/);jsonStr=am?am[0]:t2.trim()}
+const result=JSON.parse(jsonStr);if(!Array.isArray(result))throw new Error('Not array');
+console.log('[AI Quiz] Parsed',result.length,'questions');return result
+}catch(e){console.warn('[AI Quiz]',model,'error:',e.message);lastErr=e.message;continue}}
+throw new Error(lastErr||'Không có model AI khả dụng')}}
 class StressTester{constructor(e){this.engine=e}
 async run(cfg,main,brute,cnt,maxV,cb){await this.engine.init();const g=new DataGenerator({inputLines:cfg.inputLines,subtasks:[{id:cfg.subtasks[0]?.id||1,name:'S',percent:100}],totalTests:cnt,maxOverride:maxV});const ins=g.generateAllInputs();const fio=cfg.fileIO,tn=cfg.taskName||'B',up=cfg.uppercase;const inp=(up?tn.toUpperCase():tn.toLowerCase())+(up?'.INP':'.inp'),outp=(up?tn.toUpperCase():tn.toLowerCase())+(up?'.OUT':'.out');let pass=0,fail=0,errs=0,ff=null;for(let i=0;i<ins.length;i++){cb&&cb(i+1,ins.length);let mo,bo;try{mo=fio?await this.engine.runFileIO(main,ins[i].input,inp,outp):await this.engine.runStdio(main,ins[i].input)}catch(e){errs++;if(!ff)ff={index:i+1,input:ins[i].input,error:'Code chính: '+e.message};continue}try{bo=fio?await this.engine.runFileIO(brute,ins[i].input,inp,outp):await this.engine.runStdio(brute,ins[i].input)}catch(e){errs++;if(!ff)ff={index:i+1,input:ins[i].input,error:'Brute: '+e.message};continue}if(mo.trim()===bo.trim())pass++;else{fail++;if(!ff)ff={index:i+1,input:ins[i].input,mainOutput:mo,bruteOutput:bo}}await new Promise(r=>setTimeout(r,5))}return{passed:pass,failed:fail,errors:errs,total:ins.length,firstFail:ff}}}
 
@@ -3273,8 +3260,15 @@ const numQ=parseInt(document.getElementById('quiz-ai-count')?.value)||10;
 const difficulty=document.getElementById('quiz-ai-difficulty')?.value||'medium';
 const runBtn=document.getElementById('btn-quiz-ai-run');
 const runText=document.getElementById('quiz-ai-run-text');
-// Check API key
-if(!this.gemini||!this.gemini.getApiKey()){this._toast('Cần nhập Gemini API Key (tab Soạn Đề → ⚙️ cài đặt AI)','error');return}
+// Sync API key from input in case it wasn't saved via onchange
+const keyInput=document.getElementById('ai-api-key');
+if(keyInput&&keyInput.value.trim()&&!this.gemini.getApiKey()){this.gemini.setApiKey(keyInput.value.trim())}
+// If still no key, prompt user to enter one
+if(!this.gemini||!this.gemini.getApiKey()){
+const userKey=prompt('Nhập Gemini API Key để AI tạo câu hỏi.\n(Lấy key miễn phí tại: aistudio.google.com/apikey)');
+if(!userKey||!userKey.trim()){this._toast('Cần Gemini API Key để sử dụng AI','error');return}
+this.gemini.setApiKey(userKey.trim());
+if(keyInput)keyInput.value=userKey.trim()}
 // Check if existing questions — confirm before clearing
 const container=document.getElementById('quiz-questions-container');
 if(container.children.length>0){
