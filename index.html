@@ -12,6 +12,7 @@
     <script src="https://cdn.jsdelivr.net/pyodide/v0.25.0/full/pyodide.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
@@ -84,6 +85,7 @@
                 <button class="t-tab" data-ttab="exercises">📚 Bài Tập</button>
                 <button class="t-tab" data-ttab="theory">📖 Lý Thuyết</button>
                 <button class="t-tab" data-ttab="students">👥 Học Sinh</button>
+                <button class="t-tab" data-ttab="quiz">📝 Trắc Nghiệm</button>
                 <button class="t-tab" data-ttab="stats">📊 Thống Kê</button>
                 <button class="t-tab" data-ttab="contest">🏆 Phòng Thi</button>
             </div>
@@ -352,6 +354,55 @@
                 </div>
             </div>
 
+            <!-- ===== TAB: TRẮC NGHIỆM ===== -->
+            <div id="t-tab-quiz" class="t-tab-panel hidden">
+                <div class="tab-panel-header">
+                    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+                        <div><h2 class="tab-panel-title">📝 Ngân Hàng Trắc Nghiệm</h2><p class="tab-panel-sub">Tạo bộ đề, import từ Excel/Google Sheet, giao bài cho học sinh</p></div>
+                        <input type="text" id="t-quiz-search" class="search-input" placeholder="🔍 Tìm theo tên hoặc chủ đề...">
+                    </div>
+                </div>
+                <!-- Form tạo bộ đề -->
+                <div class="card" style="margin-bottom:16px">
+                    <div class="card-header"><div class="card-title"><h2>✍️ Tạo / Chỉnh Sửa Bộ Đề</h2></div>
+                        <div style="display:flex;gap:6px">
+                            <button class="btn btn-ghost btn-sm" id="btn-quiz-import-excel" title="Import từ file Excel">📥 Import Excel</button>
+                            <input type="file" id="quiz-excel-file" accept=".xlsx,.xls,.csv" hidden>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <input type="hidden" id="quiz-edit-id" value="">
+                        <div class="grid-2col" style="margin-bottom:10px">
+                            <div class="form-group" style="margin-bottom:0"><label>Tên bộ đề</label><input type="text" id="quiz-title" placeholder="VD: Kiểm tra Python cơ bản"></div>
+                            <div class="form-group" style="margin-bottom:0"><label>Chủ đề</label><input type="text" id="quiz-topic" placeholder="VD: Python, Thuật toán..."></div>
+                        </div>
+                        <div class="grid-2col" style="margin-bottom:10px">
+                            <div class="form-group" style="margin-bottom:0"><label>⏱ Thời gian (phút, 0=không giới hạn)</label><input type="number" id="quiz-time-limit" value="15" min="0" max="180"></div>
+                            <div class="form-group" style="margin-bottom:0"><label>Hiện kết quả</label>
+                                <select id="quiz-show-result" class="preset-dropdown" style="width:100%">
+                                    <option value="after_submit">Sau khi nộp bài</option>
+                                    <option value="immediate">Ngay khi trả lời</option>
+                                    <option value="never">Không hiện</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group" style="margin-bottom:10px"><label>📋 Mô tả (tùy chọn)</label><textarea id="quiz-description" rows="2" class="ai-textarea" placeholder="Ghi chú..."></textarea></div>
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+                            <label style="font-weight:700;font-size:.92rem">📝 Câu hỏi (<span id="quiz-q-count">0</span> câu)</label>
+                            <button class="btn btn-sm btn-accent" id="btn-quiz-add-q">＋ Thêm câu</button>
+                        </div>
+                        <div id="quiz-questions-container" class="quiz-q-container"></div>
+                        <div style="display:flex;gap:8px;margin-top:12px">
+                            <button class="btn btn-accent" id="btn-quiz-save">💾 Lưu bộ đề (Nháp)</button>
+                            <button class="btn btn-success" id="btn-quiz-publish">📢 Lưu & Đăng</button>
+                            <button class="btn btn-ghost btn-sm" id="btn-quiz-cancel-edit" style="display:none">Hủy sửa</button>
+                        </div>
+                    </div>
+                </div>
+                <!-- Danh sách bộ đề -->
+                <div id="t-quiz-list"><p style="color:var(--text-muted);text-align:center;padding:40px">Chưa có bộ đề. Nhấn "+ Thêm câu" để tạo mới.</p></div>
+            </div>
+
             <!-- ===== TAB 5: PHÒNG THI — COMMAND CENTER ===== -->
             <div id="t-tab-contest" class="t-tab-panel hidden">
 
@@ -472,6 +523,7 @@
                     <span class="oj-nav-logo">⚡</span>
                     <span class="oj-nav-title">Themis OJ</span>
                     <button class="oj-nav-tab active" id="nav-tab-exercises" data-tab="exercises">📚 Bài Tập <span id="stu-notif-badge" class="notif-badge hidden">0</span></button>
+                    <button class="oj-nav-tab" id="nav-tab-quiz" data-tab="quiz">📝 Trắc Nghiệm</button>
                     <button class="oj-nav-tab" id="nav-tab-theory" data-tab="theory">📖 Lý Thuyết</button>
                     <button class="oj-nav-tab" id="nav-tab-contest" data-tab="contest">🏆 Kỳ Thi <span id="stu-contest-badge" class="notif-badge hidden">0</span></button>
                 </div>
@@ -537,6 +589,21 @@
                         <input type="text" id="stu-theory-search" class="search-input" placeholder="🔍 Tìm lý thuyết...">
                     </div>
                     <div id="stu-theory-list"><p style="color:var(--text-muted);text-align:center;padding:40px">Đang tải...</p></div>
+                </div>
+                <!-- TAB: Trắc Nghiệm -->
+                <div id="tab-panel-quiz" class="oj-tab-panel hidden">
+                    <div class="oj-page-header">
+                        <div><h2 class="oj-page-title">📝 Bài Tập Trắc Nghiệm</h2><p class="oj-page-sub">Trả lời câu hỏi trắc nghiệm theo chủ đề</p></div>
+                        <div class="search-with-count">
+                            <input type="text" id="stu-quiz-search" class="search-input" placeholder="🔍 Tìm bộ đề...">
+                            <select id="stu-quiz-filter" class="stu-status-select">
+                                <option value="all">📋 Tất cả</option>
+                                <option value="notdone">❌ Chưa làm</option>
+                                <option value="done">✅ Đã làm</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="stu-quiz-list"><p style="color:var(--text-muted);text-align:center;padding:40px">Đang tải...</p></div>
                 </div>
             </div>
         </div>
@@ -661,6 +728,46 @@
                 <h2 style="margin:16px 0 6px">Đang chờ bắt đầu...</h2>
                 <p class="splash-sub" id="stu-waiting-info">Phòng: ------</p>
                 <p class="splash-sub">Giáo viên sẽ bắt đầu cuộc thi sớm thôi!</p>
+            </div>
+        </div>
+
+        <!-- STEP 4: QUIZ TAKING SCREEN -->
+        <div id="stu-quiz-taking" class="stu-screen hidden">
+            <nav class="oj-navbar">
+                <div class="oj-nav-left">
+                    <span class="oj-nav-logo">📝</span>
+                    <span class="oj-nav-title" id="stu-quiz-title">Trắc Nghiệm</span>
+                </div>
+                <div class="oj-nav-right">
+                    <div class="oj-timer-box"><span class="oj-timer" id="stu-quiz-timer">∞</span><span class="oj-timer-label">Thời gian</span></div>
+                    <span class="oj-nav-user" id="stu-quiz-player">---</span>
+                    <button class="oj-nav-btn" id="btn-quiz-back-dash">✕ Thoát</button>
+                </div>
+            </nav>
+            <div class="quiz-taking-layout">
+                <div class="quiz-taking-main" id="quiz-taking-main">
+                    <!-- Questions rendered here -->
+                </div>
+                <div class="quiz-taking-sidebar">
+                    <div class="quiz-nav-panel">
+                        <h4 class="quiz-nav-title">Câu hỏi</h4>
+                        <div class="quiz-nav-grid" id="quiz-nav-grid"></div>
+                        <div class="quiz-nav-legend">
+                            <span><span class="qnav-dot current"></span> Đang xem</span>
+                            <span><span class="qnav-dot answered"></span> Đã trả lời</span>
+                            <span><span class="qnav-dot unanswered"></span> Chưa trả lời</span>
+                        </div>
+                    </div>
+                    <button class="btn btn-accent quiz-submit-btn" id="btn-quiz-submit">📤 Nộp bài</button>
+                </div>
+            </div>
+            <!-- Quiz Result Overlay -->
+            <div id="quiz-result-overlay" class="quiz-result-overlay hidden">
+                <div class="quiz-result-card">
+                    <div class="quiz-result-header" id="quiz-result-header"></div>
+                    <div class="quiz-result-body" id="quiz-result-body"></div>
+                    <button class="btn btn-accent" id="btn-quiz-result-close" style="width:100%;justify-content:center;margin-top:16px">✕ Đóng</button>
+                </div>
             </div>
         </div>
         <!-- ENDED -->

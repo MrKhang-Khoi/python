@@ -128,6 +128,14 @@ async getExerciseResults(exId,username){const snap=await this._ref(`exerciseResu
 // BUG-L01 CRITICAL FIX: ref.off() without callback kills ALL listeners on 'exerciseResults' path
 // including the student dashboard listener. Use ref.off('value',wrappedCb) to only remove the specific callback.
 listenAllExerciseResults(cb,group){const ref=this._ref('exerciseResults');const w=s=>cb(s.val()||{});ref.on('value',w);const offFn=()=>ref.off('value',w);if(group==='student')this._studentDashListeners.push(offFn);else if(group==='exercise')this._exerciseListeners.push(offFn);else this._listeners.push(offFn)}
+// ===== QUIZ BANK =====
+async createQuiz(data){const id=Date.now().toString(36);await this._ref(`quizBanks/${id}`).set({...data,createdAt:Date.now()});return id}
+async updateQuiz(id,updates){await this._ref(`quizBanks/${id}`).update(updates)}
+async deleteQuiz(id){await this._ref(`quizBanks/${id}`).remove();await this._ref(`quizResults/${id}`).remove()}
+listenQuizBanks(cb,group){const ref=this._ref('quizBanks');const w=s=>cb(s.val()||{});ref.on('value',w);const offFn=()=>ref.off('value',w);if(group==='student')this._studentDashListeners.push(offFn);else this._listeners.push(offFn)}
+async submitQuizResult(quizId,studentName,result){await this._ref(`quizResults/${quizId}/${studentName}`).set({...result,submittedAt:Date.now()})}
+async getQuizResult(quizId,studentName){const snap=await this._ref(`quizResults/${quizId}/${studentName}`).once('value');return snap.val()}
+listenAllQuizResults(cb,group){const ref=this._ref('quizResults');const w=s=>cb(s.val()||{});ref.on('value',w);const offFn=()=>ref.off('value',w);if(group==='student')this._studentDashListeners.push(offFn);else this._listeners.push(offFn)}
 async exportCSV(roomCode){const infoSnap=await this._ref(`rooms/${roomCode}/info`).once('value');const info=infoSnap.val();const lbSnap=await this._ref(`rooms/${roomCode}/leaderboard`).once('value');const lb=lbSnap.val();if(!lb)return'';const pCount=info.problemCount||1;let csv='Hạng,Họ tên,Tổng điểm';for(let i=0;i<pCount;i++)csv+=`,Bài ${i+1}`;csv+='\n';const sorted=Object.values(lb).sort((a,b)=>b.totalScore-a.totalScore||(a.lastSubmit-b.lastSubmit));sorted.forEach((s,i)=>{csv+=`${i+1},${s.name},${s.totalScore}`;for(let j=0;j<pCount;j++)csv+=`,${s.problems&&s.problems[j]||0}`;csv+='\n'});return csv}}
 
 // ============ STUDENT GRADER ============
@@ -187,7 +195,12 @@ const thRef=this.fb.db.ref('theories');const _thCb=s=>{this._cachedTheories=s.va
 // Room history listener
 const roomRef=this.fb.db.ref('rooms');const _rmCb=s=>{this._allRooms=s.val()||{};this._renderRoomHistory()};roomRef.on('value',_rmCb);this.fb._listeners.push(()=>roomRef.off('value',_rmCb));
 // Restore active room from localStorage (BUG-E fix)
-this._restoreActiveRoom();this._initTeacherNotifListener();this._initCCFilters()}
+this._restoreActiveRoom();this._initTeacherNotifListener();this._initCCFilters();
+// Quiz bank listeners
+this.fb.listenQuizBanks(quizzes=>{this._teacherQuizzes=quizzes;this._renderTeacherQuizList(quizzes)});
+this.fb.listenAllQuizResults(res=>{this._teacherQuizResults=res;this._renderTeacherQuizList(this._teacherQuizzes||{})});
+this._initTeacherQuiz();
+const tqSearch=document.getElementById('t-quiz-search');if(tqSearch)tqSearch.oninput=()=>this._renderTeacherQuizList(this._teacherQuizzes||{})}
 
 _bindTeacherTabs(){const self=this;document.querySelectorAll('.t-tab[data-ttab]').forEach(btn=>{btn.onclick=()=>{document.querySelectorAll('.t-tab').forEach(b=>b.classList.remove('active'));btn.classList.add('active');document.querySelectorAll('.t-tab-panel').forEach(p=>p.classList.add('hidden'));const panel=document.getElementById('t-tab-'+btn.dataset.ttab);if(panel)panel.classList.remove('hidden');if(btn.dataset.ttab==='compose')setTimeout(()=>{self.cmMain&&self.cmMain.refresh();self.cmBrute&&self.cmBrute.refresh();self.cmAiPreview&&self.cmAiPreview.refresh()},50)}})}
 
@@ -1346,7 +1359,12 @@ this._initHDivider();
 // Search bindings
 const stuExSearch=$('stu-exercise-search');if(stuExSearch)stuExSearch.oninput=()=>{this._exPage=1;this._renderExerciseList(this._cachedExercises||{})};
 const stuStatusFilter=$('stu-status-filter');if(stuStatusFilter)stuStatusFilter.onchange=()=>{this._exPage=1;this._renderExerciseList(this._cachedExercises||{})};
-const stuThSearch=$('stu-theory-search');if(stuThSearch)stuThSearch.oninput=()=>this._renderTheoryList(this._stuTheories||{},'stu-theory-list',false)}
+const stuThSearch=$('stu-theory-search');if(stuThSearch)stuThSearch.oninput=()=>this._renderTheoryList(this._stuTheories||{},'stu-theory-list',false);
+// Quiz search/filter
+const stuQSearch=$('stu-quiz-search');if(stuQSearch)stuQSearch.oninput=()=>this._renderStudentQuizList();
+const stuQFilter=$('stu-quiz-filter');if(stuQFilter)stuQFilter.onchange=()=>this._renderStudentQuizList();
+// Quiz taking back button
+const quizBackBtn=$('btn-quiz-back-dash');if(quizBackBtn)quizBackBtn.onclick=()=>this._exitQuizTaking()}
 
 // Register Firebase listeners for exercises, results, theories
 // Called ONLY after successful login when studentName is set
@@ -1361,7 +1379,10 @@ const thRef2=this.fb.db.ref('theories');const _sthCb=s=>{this._stuTheories=s.val
 // Listen for notifications
 this._listenStudentNotifications();
 // Load contest history for student
-this._loadStudentContestHistory()}
+this._loadStudentContestHistory();
+// Quiz listeners
+this.fb.listenQuizBanks(quizzes=>{this._stuQuizzes=quizzes;this._renderStudentQuizList()},'student');
+this.fb.listenAllQuizResults(res=>{this._stuQuizResults=res;this._renderStudentQuizList()},'student')}
 
 async _loadStudentContestHistory(){
 const el=document.getElementById('stu-contest-history');if(!el||!this.studentName)return;
@@ -2989,6 +3010,384 @@ h=h.replace(/<ul>([\s\S]*?)<\/ul>/g,(m,i)=>'<ul>'+i.replace(/<br>/g,'')+'</ul>')
 return h}
 
 _escAI(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+
+// ============ QUIZ MODULE — TEACHER ============
+_quizQCounter=0;
+_initTeacherQuiz(){
+const $=id=>document.getElementById(id);
+$('btn-quiz-add-q').onclick=()=>{this._addQuizQuestion();this._updateQuizQCount()};
+$('btn-quiz-save').onclick=()=>this._saveQuiz('draft');
+$('btn-quiz-publish').onclick=()=>this._saveQuiz('published');
+$('btn-quiz-cancel-edit').onclick=()=>this._cancelQuizEdit();
+$('btn-quiz-import-excel').onclick=()=>$('quiz-excel-file').click();
+$('quiz-excel-file').onchange=e=>{if(e.target.files[0])this._importQuizFromExcel(e.target.files[0]);e.target.value=''};
+}
+
+_addQuizQuestion(content='',options=['','','',''],correctIndex=0,explanation=''){
+this._quizQCounter++;const idx=this._quizQCounter;
+const container=document.getElementById('quiz-questions-container');
+const card=document.createElement('div');card.className='quiz-q-card';card.dataset.qIdx=idx;
+const labels=['A','B','C','D'];
+let optHtml='';labels.forEach((l,i)=>{
+const checked=i===correctIndex?'checked':'';
+const correctClass=i===correctIndex?'correct':'';
+optHtml+=`<div class="quiz-option-row ${correctClass}" data-oi="${i}">
+<span class="quiz-option-label">${l}</span>
+<input type="text" class="quiz-option-input" placeholder="Đáp án ${l}..." value="${this._esc(options[i]||'')}">
+<input type="radio" name="quiz-correct-${idx}" class="quiz-correct-radio" value="${i}" ${checked} title="Đáp án đúng">
+</div>`});
+card.innerHTML=`<div class="quiz-q-card-header"><span class="quiz-q-num">Câu ${idx}</span><button class="btn-danger-sm" title="Xóa câu">✕</button></div>
+<div class="quiz-q-card-body">
+<div class="form-group"><textarea class="quiz-q-content" rows="2" placeholder="Nội dung câu hỏi...">${this._esc(content)}</textarea></div>
+${optHtml}
+<div class="quiz-q-explain"><input type="text" class="quiz-q-explain-input" placeholder="💡 Giải thích đáp án (tùy chọn)..." value="${this._esc(explanation)}"></div>
+</div>`;
+// Wire events
+card.querySelector('.btn-danger-sm').onclick=()=>{card.remove();this._updateQuizQCount()};
+card.querySelectorAll('.quiz-correct-radio').forEach(r=>{r.onchange=()=>{
+card.querySelectorAll('.quiz-option-row').forEach(row=>row.classList.remove('correct'));
+card.querySelector(`.quiz-option-row[data-oi="${r.value}"]`).classList.add('correct')}});
+container.appendChild(card);this._updateQuizQCount()}
+
+_updateQuizQCount(){const n=document.querySelectorAll('#quiz-questions-container .quiz-q-card').length;document.getElementById('quiz-q-count').textContent=n}
+
+_collectQuizQuestions(){
+const cards=document.querySelectorAll('#quiz-questions-container .quiz-q-card');
+return[...cards].map(card=>{
+const content=card.querySelector('.quiz-q-content').value.trim();
+const options=[...card.querySelectorAll('.quiz-option-input')].map(i=>i.value.trim());
+const correctRadio=card.querySelector('.quiz-correct-radio:checked');
+const correctIndex=correctRadio?parseInt(correctRadio.value):0;
+const explanation=card.querySelector('.quiz-q-explain-input')?.value.trim()||'';
+return{content,options,correctIndex,explanation}}).filter(q=>q.content)}
+
+async _saveQuiz(status){
+const title=document.getElementById('quiz-title').value.trim();
+const topic=document.getElementById('quiz-topic').value.trim()||'Chung';
+const timeLimit=parseInt(document.getElementById('quiz-time-limit').value)||0;
+const showResult=document.getElementById('quiz-show-result').value;
+const description=document.getElementById('quiz-description').value.trim();
+const questions=this._collectQuizQuestions();
+if(!title){this._toast('Nhập tên bộ đề','error');return}
+if(questions.length<1){this._toast('Thêm ít nhất 1 câu hỏi','error');return}
+// Validate all questions have content and at least 2 options
+for(let i=0;i<questions.length;i++){
+const q=questions[i];const filled=q.options.filter(o=>o);
+if(filled.length<2){this._toast(`Câu ${i+1}: Cần ít nhất 2 đáp án`,'error');return}
+if(!q.options[q.correctIndex]){this._toast(`Câu ${i+1}: Đáp án đúng không được trống`,'error');return}}
+const data={title,topic,timeLimit,showResult,description,status,questions};
+const editId=document.getElementById('quiz-edit-id').value;
+try{
+if(editId){await this.fb.updateQuiz(editId,data);this._toast('✅ Đã cập nhật bộ đề!','success')}
+else{await this.fb.createQuiz(data);this._toast('✅ Đã tạo bộ đề!','success')}
+this._resetQuizForm();
+}catch(e){this._toast('Lỗi: '+e.message,'error')}}
+
+_resetQuizForm(){
+document.getElementById('quiz-edit-id').value='';
+document.getElementById('quiz-title').value='';
+document.getElementById('quiz-topic').value='';
+document.getElementById('quiz-time-limit').value='15';
+document.getElementById('quiz-show-result').value='after_submit';
+document.getElementById('quiz-description').value='';
+document.getElementById('quiz-questions-container').innerHTML='';
+document.getElementById('btn-quiz-cancel-edit').style.display='none';
+this._quizQCounter=0;this._updateQuizQCount()}
+
+_cancelQuizEdit(){this._resetQuizForm();this._toast('Đã hủy chỉnh sửa','info')}
+
+_editQuiz(id){
+const quiz=(this._teacherQuizzes||{})[id];if(!quiz)return;
+document.getElementById('quiz-edit-id').value=id;
+document.getElementById('quiz-title').value=quiz.title||'';
+document.getElementById('quiz-topic').value=quiz.topic||'';
+document.getElementById('quiz-time-limit').value=quiz.timeLimit||0;
+document.getElementById('quiz-show-result').value=quiz.showResult||'after_submit';
+document.getElementById('quiz-description').value=quiz.description||'';
+document.getElementById('btn-quiz-cancel-edit').style.display='';
+// Populate questions
+document.getElementById('quiz-questions-container').innerHTML='';
+this._quizQCounter=0;
+if(quiz.questions){quiz.questions.forEach(q=>this._addQuizQuestion(q.content,q.options,q.correctIndex,q.explanation))}
+// Scroll to form
+document.getElementById('t-tab-quiz').scrollTo({top:0,behavior:'smooth'});
+this._toast('✏️ Đang sửa bộ đề','info')}
+
+async _deleteQuiz(id){
+const quiz=(this._teacherQuizzes||{})[id];const name=quiz?quiz.title:'bộ đề';
+const ok=await this._confirmDialog('🗑️ Xóa bộ đề',`Xóa <strong>${this._esc(name)}</strong>? Kết quả HS sẽ bị xóa.`,'Xóa','btn-danger');
+if(!ok)return;try{await this.fb.deleteQuiz(id);this._toast('Đã xóa bộ đề!','success')}catch(e){this._toast('Lỗi: '+e.message,'error')}}
+
+async _toggleQuizStatus(id){
+const quiz=(this._teacherQuizzes||{})[id];if(!quiz)return;
+const newStatus=quiz.status==='published'?'draft':'published';
+try{await this.fb.updateQuiz(id,{status:newStatus});
+this._toast(newStatus==='published'?'📢 Đã đăng!':'📝 Chuyển về nháp','success')}catch(e){this._toast('Lỗi: '+e.message,'error')}}
+
+_renderTeacherQuizList(quizzes){
+const c=document.getElementById('t-quiz-list');if(!c)return;
+const keys=Object.keys(quizzes||{});
+const search=(document.getElementById('t-quiz-search')?.value||'').toLowerCase();
+const filtered=keys.filter(k=>{const q=quizzes[k];
+return(!search||(q.title||'').toLowerCase().includes(search)||(q.topic||'').toLowerCase().includes(search))});
+if(!filtered.length){c.innerHTML='<p style="color:var(--text-muted);text-align:center;padding:40px">Chưa có bộ đề.</p>';return}
+const results=this._teacherQuizResults||{};
+let h='<div class="quiz-bank-grid">';
+filtered.sort((a,b)=>(quizzes[b].createdAt||0)-(quizzes[a].createdAt||0)).forEach(k=>{
+const q=quizzes[k];const qCount=q.questions?q.questions.length:0;
+const stuCount=results[k]?Object.keys(results[k]).length:0;
+const statusCls=q.status==='published'?'published':'draft';
+const statusTxt=q.status==='published'?'Đã đăng':'Nháp';
+const time=q.timeLimit?q.timeLimit+' phút':'∞';
+h+=`<div class="quiz-bank-card">
+<div class="quiz-bank-card-header">
+<h3 class="quiz-bank-card-title">${this._esc(q.title)}</h3>
+<span class="quiz-bank-card-status ${statusCls}">${statusTxt}</span>
+</div>
+<div class="quiz-bank-card-meta">
+<span>📂 ${this._esc(q.topic||'Chung')}</span>
+<span>📝 ${qCount} câu</span>
+<span>⏱ ${time}</span>
+<span>👥 ${stuCount} HS</span>
+</div>
+${q.description?'<div class="quiz-bank-card-desc">'+this._esc(q.description)+'</div>':''}
+<div class="quiz-bank-card-actions">
+<button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();window._uic._editQuiz('${k}')">✏️ Sửa</button>
+<button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();window._uic._toggleQuizStatus('${k}')">${q.status==='published'?'📝 Nháp':'📢 Đăng'}</button>
+<button class="btn-danger-sm" onclick="event.stopPropagation();window._uic._deleteQuiz('${k}')">🗑</button>
+${stuCount>0?`<button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();window._uic._showQuizStats('${k}')">📊</button>`:''}
+</div>
+</div>`});
+h+='</div>';c.innerHTML=h}
+
+async _importQuizFromExcel(file){
+try{const data=await file.arrayBuffer();
+const wb=XLSX.read(data);const ws=wb.Sheets[wb.SheetNames[0]];
+const rows=XLSX.utils.sheet_to_json(ws,{header:1});
+if(rows.length<2){this._toast('File rỗng hoặc không đúng format','error');return}
+// Skip header row
+const container=document.getElementById('quiz-questions-container');
+let imported=0;
+for(let i=1;i<rows.length;i++){
+const row=rows[i];if(!row||!row[0])continue;
+const content=String(row[0]||'').trim();
+const options=[String(row[1]||''),String(row[2]||''),String(row[3]||''),String(row[4]||'')];
+const answerRaw=String(row[5]||'A').toUpperCase().trim();
+const correctMap={A:0,B:1,C:2,D:3};
+const correctIndex=correctMap[answerRaw]!==undefined?correctMap[answerRaw]:0;
+const explanation=String(row[6]||'').trim();
+this._addQuizQuestion(content,options,correctIndex,explanation);imported++}
+this._toast(`✅ Đã import ${imported} câu hỏi!`,'success');
+}catch(e){this._toast('Lỗi đọc file: '+e.message,'error')}}
+
+_showQuizStats(quizId){
+const quiz=(this._teacherQuizzes||{})[quizId];if(!quiz)return;
+const results=(this._teacherQuizResults||{})[quizId]||{};
+const stuNames=Object.keys(results);
+if(!stuNames.length){this._toast('Chưa có HS nào làm bài','info');return}
+let h=`<h3 style="font-size:1rem;font-weight:700;margin-bottom:12px">📊 Thống kê: ${this._esc(quiz.title)}</h3>`;
+h+=`<div style="margin-bottom:12px;font-size:.82rem;color:var(--text-secondary)">
+<span>👥 ${stuNames.length} HS</span> • <span>📝 ${quiz.questions?quiz.questions.length:0} câu</span></div>`;
+h+='<table class="quiz-stats-table"><thead><tr><th>#</th><th>Họ tên</th><th>Điểm</th><th>Đúng</th><th>Thời gian</th><th>Nộp lúc</th></tr></thead><tbody>';
+stuNames.sort((a,b)=>(results[b].score||0)-(results[a].score||0)).forEach((name,i)=>{
+const r=results[name];const pct=Math.round((r.score||0));
+const cls=pct>=80?'score-perfect':pct>=50?'score-pass':'score-fail';
+const timeStr=r.timeSpent?Math.floor(r.timeSpent/60)+'p'+String(r.timeSpent%60).padStart(2,'0')+'s':'—';
+const dateStr=r.submittedAt?new Date(r.submittedAt).toLocaleString('vi',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'—';
+h+=`<tr><td>${i+1}</td><td style="font-weight:600">${this._esc(name)}</td><td><span class="progress-score ${cls}">${pct}</span></td><td>${r.correct||0}/${r.total||0}</td><td>${timeStr}</td><td>${dateStr}</td></tr>`});
+h+='</tbody></table>';
+// Per-question stats
+if(quiz.questions&&quiz.questions.length){
+h+=`<h4 style="margin-top:16px;font-size:.88rem;font-weight:700">📋 Tỉ lệ đúng từng câu</h4>`;
+h+='<div style="display:flex;flex-direction:column;gap:4px;margin-top:8px">';
+quiz.questions.forEach((q,qi)=>{
+let correctCount=0;stuNames.forEach(name=>{const r=results[name];
+if(r.answers&&r.answers[qi]===q.correctIndex)correctCount++});
+const pct=stuNames.length?Math.round(correctCount/stuNames.length*100):0;
+const barColor=pct>=70?'var(--success)':pct>=40?'var(--warning)':'var(--error)';
+h+=`<div style="display:flex;align-items:center;gap:8px;font-size:.78rem">
+<span style="min-width:50px;font-weight:600">Câu ${qi+1}</span>
+<div style="flex:1;height:6px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${barColor};border-radius:3px"></div></div>
+<span style="min-width:40px;text-align:right;font-weight:700;color:${barColor}">${pct}%</span>
+</div>`});h+='</div>'}
+// Show as a modal-like overlay
+const overlay=document.createElement('div');overlay.className='modal-overlay';overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;z-index:500';
+const modal=document.createElement('div');modal.className='modal-content';modal.style.cssText='max-width:700px;max-height:85vh;overflow-y:auto';modal.innerHTML=h+'<div style="text-align:right;margin-top:16px"><button class="btn btn-ghost btn-sm" id="btn-close-quiz-stats">Đóng</button></div>';
+overlay.appendChild(modal);document.body.appendChild(overlay);
+modal.querySelector('#btn-close-quiz-stats').onclick=()=>overlay.remove();
+overlay.onclick=e=>{if(e.target===overlay)overlay.remove()}}
+
+// ============ QUIZ MODULE — STUDENT ============
+_renderStudentQuizList(){
+const c=document.getElementById('stu-quiz-list');if(!c)return;
+const quizzes=this._stuQuizzes||{};const results=this._stuQuizResults||{};
+const keys=Object.keys(quizzes).filter(k=>quizzes[k].status==='published');
+const search=(document.getElementById('stu-quiz-search')?.value||'').toLowerCase();
+const filter=document.getElementById('stu-quiz-filter')?.value||'all';
+const filtered=keys.filter(k=>{
+const q=quizzes[k];const r=results[k]?results[k][this.studentName]:null;
+const matchSearch=!search||(q.title||'').toLowerCase().includes(search)||(q.topic||'').toLowerCase().includes(search);
+const isDone=!!r;
+const matchFilter=filter==='all'||(filter==='done'&&isDone)||(filter==='notdone'&&!isDone);
+return matchSearch&&matchFilter});
+if(!filtered.length){c.innerHTML='<p style="color:var(--text-muted);text-align:center;padding:40px">Không có bộ đề nào.</p>';return}
+let h='<div class="stu-quiz-grid">';
+filtered.sort((a,b)=>(quizzes[b].createdAt||0)-(quizzes[a].createdAt||0)).forEach(k=>{
+const q=quizzes[k];const myResult=results[k]?results[k][this.studentName]:null;
+const isDone=!!myResult;const qCount=q.questions?q.questions.length:0;
+const time=q.timeLimit?q.timeLimit+' phút':'∞';
+let scoreHtml='';
+if(isDone){const pct=myResult.score||0;const cls=pct>=80?'perfect':pct>=50?'partial':'low';
+scoreHtml=`<span class="stu-quiz-card-score ${cls}">${pct}%</span>`}
+else{scoreHtml='<span class="stu-quiz-card-score notdone">Chưa làm</span>'}
+h+=`<div class="stu-quiz-card ${isDone?'done':'notdone'}" onclick="window._uic._openStudentQuiz('${k}')">
+${scoreHtml}
+<div class="stu-quiz-card-title">${this._esc(q.title)}</div>
+<span class="stu-quiz-card-topic">${this._esc(q.topic||'Chung')}</span>
+<div class="stu-quiz-card-meta">
+<span>📝 ${qCount} câu</span>
+<span>⏱ ${time}</span>
+${isDone?'<span>✅ Đã làm</span>':''}
+</div>
+</div>`});
+h+='</div>';c.innerHTML=h}
+
+_quizStartTime=0;_quizTimerInterval=null;_quizCurrentIdx=0;_quizAnswers=[];_currentQuizId=null;_currentQuizData=null;
+
+_openStudentQuiz(quizId){
+const quizzes=this._stuQuizzes||{};const quiz=quizzes[quizId];if(!quiz)return;
+this._currentQuizId=quizId;this._currentQuizData=quiz;
+const questions=quiz.questions||[];
+this._quizAnswers=new Array(questions.length).fill(-1);
+this._quizCurrentIdx=0;this._quizStartTime=Date.now();
+// Switch screens
+document.getElementById('stu-dashboard').classList.add('hidden');
+document.getElementById('stu-quiz-taking').classList.remove('hidden');
+document.getElementById('stu-quiz-title').textContent=quiz.title;
+document.getElementById('stu-quiz-player').textContent=this.studentName;
+// Render questions
+this._renderQuizTakingQuestions(questions);
+this._renderQuizNavGrid(questions);
+this._scrollToQuizQuestion(0);
+// Timer
+if(this._quizTimerInterval){clearInterval(this._quizTimerInterval);this._quizTimerInterval=null}
+if(quiz.timeLimit&&quiz.timeLimit>0){
+const totalSec=quiz.timeLimit*60;
+const timerEl=document.getElementById('stu-quiz-timer');
+this._quizTimerInterval=setInterval(()=>{
+const elapsed=Math.floor((Date.now()-this._quizStartTime)/1000);
+const remain=Math.max(0,totalSec-elapsed);
+const m=Math.floor(remain/60);const s=remain%60;
+timerEl.textContent=String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+if(remain<=60)timerEl.classList.add('critical');
+if(remain<=0){clearInterval(this._quizTimerInterval);this._quizTimerInterval=null;this._submitQuiz()}},1000)}
+else{document.getElementById('stu-quiz-timer').textContent='∞'}
+// Submit button
+document.getElementById('btn-quiz-submit').onclick=()=>this._submitQuiz();
+document.getElementById('btn-quiz-result-close').onclick=()=>this._exitQuizTaking()}
+
+_renderQuizTakingQuestions(questions){
+const main=document.getElementById('quiz-taking-main');
+let h='';questions.forEach((q,i)=>{
+const labels=['A','B','C','D'];
+h+=`<div class="quiz-take-q" id="quiz-take-q-${i}">
+<div class="quiz-take-q-header">
+<span class="quiz-take-q-num">Câu ${i+1}. Chọn đáp án đúng nhất</span>
+</div>
+<div class="quiz-take-q-content">${this._esc(q.content)}</div>`;
+q.options.forEach((opt,oi)=>{if(!opt)return;
+h+=`<div class="quiz-take-option" data-qi="${i}" data-oi="${oi}" onclick="window._uic._selectQuizOption(${i},${oi})">
+<div class="quiz-take-radio"></div>
+<span class="quiz-take-option-text">${labels[oi]}. ${this._esc(opt)}</span>
+</div>`});
+h+='</div>'});
+main.innerHTML=h}
+
+_selectQuizOption(qi,oi){
+this._quizAnswers[qi]=oi;
+// Update visual
+document.querySelectorAll(`.quiz-take-option[data-qi="${qi}"]`).forEach(el=>{el.classList.remove('selected')});
+const sel=document.querySelector(`.quiz-take-option[data-qi="${qi}"][data-oi="${oi}"]`);if(sel)sel.classList.add('selected');
+// Update nav grid
+this._updateQuizNavBtn(qi)}
+
+_renderQuizNavGrid(questions){
+const grid=document.getElementById('quiz-nav-grid');
+let h='';questions.forEach((q,i)=>{
+h+=`<button class="quiz-nav-btn${i===0?' current':''}" data-qi="${i}" onclick="window._uic._scrollToQuizQuestion(${i})">${i+1}</button>`});
+grid.innerHTML=h}
+
+_updateQuizNavBtn(qi){
+const btn=document.querySelector(`.quiz-nav-btn[data-qi="${qi}"]`);
+if(btn&&this._quizAnswers[qi]>=0)btn.classList.add('answered')}
+
+_scrollToQuizQuestion(qi){
+const el=document.getElementById(`quiz-take-q-${qi}`);
+if(el)el.scrollIntoView({behavior:'smooth',block:'start'});
+// Update current in nav
+document.querySelectorAll('.quiz-nav-btn').forEach(b=>b.classList.remove('current'));
+const btn=document.querySelector(`.quiz-nav-btn[data-qi="${qi}"]`);if(btn)btn.classList.add('current');
+this._quizCurrentIdx=qi}
+
+async _submitQuiz(){
+if(this._quizTimerInterval){clearInterval(this._quizTimerInterval);this._quizTimerInterval=null}
+const quiz=this._currentQuizData;if(!quiz)return;
+const questions=quiz.questions||[];const answers=this._quizAnswers;
+const unanswered=answers.filter(a=>a<0).length;
+if(unanswered>0){
+const ok=await this._confirmDialog('📤 Nộp bài',`Bạn còn ${unanswered} câu chưa trả lời. Nộp bài?`,'Nộp','btn-accent');
+if(!ok)return}
+// Grade
+let correct=0;answers.forEach((a,i)=>{if(questions[i]&&a===questions[i].correctIndex)correct++});
+const total=questions.length;const score=total>0?Math.round(correct/total*100):0;
+const timeSpent=Math.floor((Date.now()-this._quizStartTime)/1000);
+const result={score,correct,total,timeSpent,answers};
+// Save to Firebase
+try{await this.fb.submitQuizResult(this._currentQuizId,this.studentName,result);
+this._toast('✅ Đã nộp bài!','success')}catch(e){this._toast('Lỗi: '+e.message,'error')}
+// Show result
+this._showQuizResult(quiz,result)}
+
+_showQuizResult(quiz,result){
+const overlay=document.getElementById('quiz-result-overlay');
+const headerEl=document.getElementById('quiz-result-header');
+const bodyEl=document.getElementById('quiz-result-body');
+const scoreCls=result.score>=80?'perfect':result.score>=50?'partial':'low';
+const emoji=result.score>=80?'🎉':result.score>=50?'👍':'😔';
+const timeStr=result.timeSpent?Math.floor(result.timeSpent/60)+'p'+String(result.timeSpent%60).padStart(2,'0')+'s':'—';
+headerEl.innerHTML=`<div style="font-size:1.5rem">${emoji}</div>
+<div class="quiz-result-score ${scoreCls}">${result.score}%</div>
+<div class="quiz-result-stats">
+<span>✅ ${result.correct}/${result.total} câu đúng</span>
+<span>⏱ ${timeStr}</span>
+</div>`;
+// Detail review
+const questions=quiz.questions||[];
+const showResult=quiz.showResult||'after_submit';
+if(showResult==='never'){bodyEl.innerHTML='<p style="text-align:center;color:var(--text-muted);padding:20px">Giáo viên đã tắt hiển thị đáp án.</p>'}
+else{
+let h='';questions.forEach((q,i)=>{
+const userAns=result.answers[i];const isCorrect=userAns===q.correctIndex;
+const labels=['A','B','C','D'];
+const userLabel=userAns>=0?labels[userAns]:'—';
+const correctLabel=labels[q.correctIndex];
+h+=`<div class="quiz-review-item">
+<div class="quiz-review-q">${i+1}. ${this._esc(q.content)}</div>
+<div class="quiz-review-answer ${isCorrect?'correct':'wrong'}">
+${isCorrect?'✅':'❌'} Bạn chọn: ${userLabel}${!isCorrect?' → Đáp án đúng: '+correctLabel:''}
+</div>
+${q.explanation?'<div class="quiz-review-explain">💡 '+this._esc(q.explanation)+'</div>':''}
+</div>`});
+bodyEl.innerHTML=h}
+overlay.classList.remove('hidden')}
+
+_exitQuizTaking(){
+if(this._quizTimerInterval){clearInterval(this._quizTimerInterval);this._quizTimerInterval=null}
+document.getElementById('stu-quiz-taking').classList.add('hidden');
+document.getElementById('quiz-result-overlay').classList.add('hidden');
+document.getElementById('stu-dashboard').classList.remove('hidden');
+this._currentQuizId=null;this._currentQuizData=null;
+this._renderStudentQuizList()}
 }
 
 document.addEventListener('DOMContentLoaded',()=>{const uic=new UIController();window._uic=uic;uic.init()});

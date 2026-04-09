@@ -20,6 +20,7 @@
   "homepage": "https://github.com/MrKhang-Khoi/python#readme",
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.59.1",
     "eslint": "^10.2.0",
     "jshint": "^2.13.6"
   }
