@@ -69,10 +69,10 @@ const d2=await r.json();const parts=d2.candidates?.[0]?.content?.parts||[];
 const textParts=parts.filter(p=>!p.thought&&p.text);const t2=textParts.length?textParts[textParts.length-1].text:'';
 if(!t2){lastErr='AI trả về rỗng';continue}
 console.log('[AI Quiz] Response from',model,':',t2.length,'chars');
-let jsonStr='';const fenced=t2.match(/```(?:json)?\s*([\s\S]*?)```/);
+let jsonStr='';const fenced=t2.match(/```(?:json)?\s*([\s\S]*)```/);
 if(fenced)jsonStr=fenced[1].trim();else{const am=t2.match(/\[\s*\{[\s\S]*\}\s*\]/);jsonStr=am?am[0]:t2.trim()}
 const result=JSON.parse(jsonStr);if(!Array.isArray(result))throw new Error('Not array');
-console.log('[AI Quiz] Parsed',result.length,'questions');return result
+console.log('[AI Quiz] Parsed',result.length,'questions. First Q keys:',result[0]?Object.keys(result[0]):'none');return result
 }catch(e){console.warn('[AI Quiz]',model,'error:',e.message);lastErr=e.message;continue}}
 throw new Error(lastErr||'Không có model AI khả dụng')}}
 class StressTester{constructor(e){this.engine=e}
@@ -3290,11 +3290,11 @@ if(!questions||!questions.length){this._toast('AI không trả về câu hỏi n
 // Validate and populate questions
 let added=0;
 questions.forEach((q,i)=>{
-const content=String(q.content||'').trim();
+const content=String(q.content||q.question||q.text||q.cauHoi||'').trim();
 if(!content){console.warn(`[AI Quiz] Câu ${i+1} trống content, bỏ qua`);return}
-const opts=Array.isArray(q.options)?q.options.map(o=>String(o||'')):['','','',''];
+const opts=Array.isArray(q.options||q.answers||q.choices)?((q.options||q.answers||q.choices)).map(o=>String(o||'')):['','','',''];
 while(opts.length<4)opts.push('');
-const ci=typeof q.correctIndex==='number'?Math.min(Math.max(q.correctIndex,0),3):0;
+let ci=0;if(typeof q.correctIndex==='number')ci=q.correctIndex;else if(typeof q.correct==='number')ci=q.correct;else if(typeof q.answer==='number')ci=q.answer;else if(typeof q.correctAnswer==='number')ci=q.correctAnswer;ci=Math.min(Math.max(ci,0),3);
 const explain=String(q.explanation||'');
 this._addQuizQuestion(content,opts,ci,explain);
 added++});

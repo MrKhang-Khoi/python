@@ -1303,7 +1303,7 @@ textarea.ai-textarea{resize:vertical}
 
 /* Teacher: Quiz question container */
 .quiz-q-container{display:flex;flex-direction:column;gap:14px;max-height:600px;overflow-y:auto;padding-right:4px}
-.quiz-q-card{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;overflow:hidden;transition:all .25s}
+.quiz-q-card{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;transition:border-color .25s, box-shadow .25s}
 .quiz-q-card:hover{border-color:rgba(99,102,241,.3);box-shadow:0 4px 16px rgba(0,0,0,.12)}
 .quiz-q-card-header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:linear-gradient(135deg,rgba(99,102,241,.06),rgba(139,92,246,.03));border-bottom:1px solid var(--border)}
 .quiz-q-card-header .quiz-q-num{font-weight:700;font-size:.88rem;color:var(--accent-light);display:flex;align-items:center;gap:8px}
