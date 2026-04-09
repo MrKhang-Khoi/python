@@ -53,9 +53,9 @@ const d=await r.json();const t=d.candidates?.[0]?.content?.parts?.[0]?.text||'';
 const m=t.match(/```python\n([\s\S]*?)```/);return m?m[1].trim():t.trim()}
 // AI Quiz Generation
 async generateQuiz(topic,numQ=5,difficulty='medium'){if(!this.apiKey)throw new Error('Nhập Gemini API Key');
-const models=['gemini-2.0-flash','gemini-1.5-flash'];
+const models=['gemini-2.5-flash','gemini-2.0-flash'];
 const diffLabel={easy:'dễ',medium:'trung bình',hard:'khó'}[difficulty]||'trung bình';
-const prompt=`Bạn là chuyên gia giáo dục. Tạo bộ ${numQ} câu hỏi trắc nghiệm 4 lựa chọn.
+const prompt=`Bạn là chuyên gia giáo dục Việt Nam. Tạo CHÍNH XÁC ${numQ} câu hỏi trắc nghiệm 4 lựa chọn.
 Chủ đề: ${topic}
 Độ khó: ${diffLabel}
 QUY TẮC: Mỗi câu 4 đáp án, chỉ 1 đúng (correctIndex:0-3), viết tiếng Việt, CHỈ trả JSON array.
@@ -3049,9 +3049,15 @@ $('btn-quiz-ai-gen').onclick=()=>{
 const cfg=$('quiz-ai-config');cfg.classList.toggle('hidden');
 // Auto-fill topic from quiz-topic field
 const topicVal=$('quiz-topic')?.value;
-if(topicVal&&!$('quiz-ai-topic').value)$('quiz-ai-topic').value=topicVal};
+if(topicVal&&!$('quiz-ai-topic').value)$('quiz-ai-topic').value=topicVal;
+// Auto-fill API key from localStorage or compose tab
+const qk=$('quiz-ai-key');
+if(qk&&!qk.value){const saved=this.gemini.getApiKey()||$('ai-api-key')?.value||'';if(saved)qk.value=saved}};
 $('btn-quiz-ai-close').onclick=()=>$('quiz-ai-config').classList.add('hidden');
 $('btn-quiz-ai-run').onclick=()=>this._generateQuizWithAI();
+// Sync quiz-ai-key to gemini helper and compose tab on change
+const qkEl=$('quiz-ai-key');
+if(qkEl)qkEl.onchange=()=>{const v=qkEl.value.trim();if(v){this.gemini.setApiKey(v);const ck=$('ai-api-key');if(ck)ck.value=v}};
 }
 
 _addQuizQuestion(content='',options=['','','',''],correctIndex=0,explanation=''){
@@ -3260,15 +3266,17 @@ const numQ=parseInt(document.getElementById('quiz-ai-count')?.value)||10;
 const difficulty=document.getElementById('quiz-ai-difficulty')?.value||'medium';
 const runBtn=document.getElementById('btn-quiz-ai-run');
 const runText=document.getElementById('quiz-ai-run-text');
-// Sync API key from input in case it wasn't saved via onchange
-const keyInput=document.getElementById('ai-api-key');
-if(keyInput&&keyInput.value.trim()&&!this.gemini.getApiKey()){this.gemini.setApiKey(keyInput.value.trim())}
-// If still no key, prompt user to enter one
+// Sync API key from quiz-ai-key (quiz tab) or ai-api-key (compose tab)
+const quizKeyInput=document.getElementById('quiz-ai-key');
+const composeKeyInput=document.getElementById('ai-api-key');
+// Priority: quiz tab key > compose tab key > localStorage
+if(quizKeyInput&&quizKeyInput.value.trim()){this.gemini.setApiKey(quizKeyInput.value.trim());if(composeKeyInput)composeKeyInput.value=quizKeyInput.value.trim()}
+else if(composeKeyInput&&composeKeyInput.value.trim()&&!this.gemini.getApiKey()){this.gemini.setApiKey(composeKeyInput.value.trim());if(quizKeyInput)quizKeyInput.value=composeKeyInput.value.trim()}
+// If still no key, show inline error with guidance
 if(!this.gemini||!this.gemini.getApiKey()){
-const userKey=prompt('Nhập Gemini API Key để AI tạo câu hỏi.\n(Lấy key miễn phí tại: aistudio.google.com/apikey)');
-if(!userKey||!userKey.trim()){this._toast('Cần Gemini API Key để sử dụng AI','error');return}
-this.gemini.setApiKey(userKey.trim());
-if(keyInput)keyInput.value=userKey.trim()}
+this._toast('⚠️ Nhập Gemini API Key ở ô phía trên để AI tạo câu hỏi','error');
+if(quizKeyInput){quizKeyInput.focus();quizKeyInput.style.borderColor='var(--danger)';setTimeout(()=>{quizKeyInput.style.borderColor=''},3000)}
+return}
 // Check if existing questions — confirm before clearing
 const container=document.getElementById('quiz-questions-container');
 if(container.children.length>0){
