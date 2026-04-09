@@ -55,34 +55,38 @@ const m=t.match(/```python\n([\s\S]*?)```/);return m?m[1].trim():t.trim()}
 async generateQuiz(topic,numQ=5,difficulty='medium'){if(!this.apiKey)throw new Error('Nhập Gemini API Key');
 const model='gemini-2.5-flash';
 const diffLabel={easy:'dễ, kiến thức cơ bản',medium:'trung bình, có câu lý thuyết và vận dụng',hard:'khó, yêu cầu tư duy và phân tích sâu'}[difficulty]||'trung bình';
-const prompt=`Bạn là chuyên gia giáo dục, tạo bộ câu hỏi trắc nghiệm 4 lựa chọn.
+const prompt=`Bạn là chuyên gia giáo dục. Tạo bộ ${numQ} câu hỏi trắc nghiệm 4 lựa chọn.
 
-## YÊU CẦU:
-- Chủ đề: ${topic}
-- Số câu: ${numQ}
-- Độ khó: ${diffLabel}
-- Mỗi câu phải có 4 đáp án A, B, C, D
-- Chỉ có 1 đáp án đúng
-- Viết bằng tiếng Việt
-- QUAN TRỌNG: Trả về ĐÚNG format JSON sau, KHÔNG viết gì thêm:
+CHỦ ĐỀ: ${topic}
+ĐỘ KHÓ: ${diffLabel}
 
-\`\`\`json
-[
-  {
-    "content": "Nội dung câu hỏi?",
-    "options": ["Đáp án A", "Đáp án B", "Đáp án C", "Đáp án D"],
-    "correctIndex": 0,
-    "explanation": "Giải thích ngắn gọn"
-  }
-]
-\`\`\``;
-const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${this.apiKey}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:0.7}})});
-if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e.error?.message||'API Error')}
-const d2=await r.json();const t2=d2.candidates?.[0]?.content?.parts?.[0]?.text||'';
-const jsonMatch=t2.match(/```json\s*([\s\S]*?)```/)||t2.match(/\[\s*\{[\s\S]*\}\s*\]/);
-if(!jsonMatch)throw new Error('AI không trả về đúng format');
-const raw=jsonMatch[1]||jsonMatch[0];
-return JSON.parse(raw)}}
+QUY TẮC:
+- Mỗi câu có đúng 4 đáp án
+- Chỉ 1 đáp án đúng (correctIndex: 0-3)
+- Viết tiếng Việt
+- KHÔNG giải thích gì thêm, CHỈ trả về JSON array
+
+FORMAT (trả về ĐÚNG cấu trúc này):
+[{"content":"Câu hỏi?","options":["A","B","C","D"],"correctIndex":0,"explanation":"Giải thích"}]`;
+const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${this.apiKey}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:0.7,maxOutputTokens:8192}})});
+if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e.error?.message||`API Error ${r.status}`)}
+const d2=await r.json();
+// Handle thinking mode: filter out thought parts, get last text part
+const parts=d2.candidates?.[0]?.content?.parts||[];
+const textParts=parts.filter(p=>!p.thought&&p.text);
+const t2=textParts.length?textParts[textParts.length-1].text:'';
+if(!t2)throw new Error('AI trả về rỗng');
+console.log('[AI Quiz] Raw response length:',t2.length);
+// Robust JSON extraction: try multiple strategies
+let jsonStr='';
+const fenced=t2.match(/```(?:json)?\s*([\s\S]*?)```/);
+if(fenced){jsonStr=fenced[1].trim()}
+else{const arrMatch=t2.match(/\[\s*\{[\s\S]*\}\s*\]/);if(arrMatch)jsonStr=arrMatch[0];else jsonStr=t2.trim()}
+try{const result=JSON.parse(jsonStr);
+if(!Array.isArray(result))throw new Error('Expected array');
+console.log('[AI Quiz] Parsed',result.length,'questions');
+return result}catch(pe){console.error('[AI Quiz] Parse error:',pe.message,'\nRaw:',jsonStr.substring(0,200));throw new Error('AI trả về JSON không hợp lệ. Thử lại.')}}}
+
 
 class StressTester{constructor(e){this.engine=e}
 async run(cfg,main,brute,cnt,maxV,cb){await this.engine.init();const g=new DataGenerator({inputLines:cfg.inputLines,subtasks:[{id:cfg.subtasks[0]?.id||1,name:'S',percent:100}],totalTests:cnt,maxOverride:maxV});const ins=g.generateAllInputs();const fio=cfg.fileIO,tn=cfg.taskName||'B',up=cfg.uppercase;const inp=(up?tn.toUpperCase():tn.toLowerCase())+(up?'.INP':'.inp'),outp=(up?tn.toUpperCase():tn.toLowerCase())+(up?'.OUT':'.out');let pass=0,fail=0,errs=0,ff=null;for(let i=0;i<ins.length;i++){cb&&cb(i+1,ins.length);let mo,bo;try{mo=fio?await this.engine.runFileIO(main,ins[i].input,inp,outp):await this.engine.runStdio(main,ins[i].input)}catch(e){errs++;if(!ff)ff={index:i+1,input:ins[i].input,error:'Code chính: '+e.message};continue}try{bo=fio?await this.engine.runFileIO(brute,ins[i].input,inp,outp):await this.engine.runStdio(brute,ins[i].input)}catch(e){errs++;if(!ff)ff={index:i+1,input:ins[i].input,error:'Brute: '+e.message};continue}if(mo.trim()===bo.trim())pass++;else{fail++;if(!ff)ff={index:i+1,input:ins[i].input,mainOutput:mo,bruteOutput:bo}}await new Promise(r=>setTimeout(r,5))}return{passed:pass,failed:fail,errors:errs,total:ins.length,firstFail:ff}}}
@@ -2617,7 +2621,7 @@ ov.onclick=e=>{if(e.target===ov){ov.remove();resolve(false)}}})}
 
 _copyText(text){navigator.clipboard.writeText(text).then(()=>this._toast('📋 Đã copy!','success')).catch(()=>{const t=document.createElement('textarea');t.value=text;t.style.position='fixed';t.style.opacity='0';document.body.appendChild(t);t.select();document.execCommand('copy');document.body.removeChild(t);this._toast('📋 Đã copy!','success')})}
 _toast(m,t='info'){const c=document.getElementById('toast-container');const el=document.createElement('div');el.className='toast '+t;el.textContent=m;c.appendChild(el);setTimeout(()=>el.remove(),4500)}
-_esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
+_esc(s){if(s==null)return '';const d=document.createElement('div');d.textContent=String(s);return d.innerHTML.replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
 
 // ============ DRAFT AUTO-SAVE SYSTEM ============
 _draftSaveTimer=null;
@@ -3270,23 +3274,37 @@ const difficulty=document.getElementById('quiz-ai-difficulty')?.value||'medium';
 const runBtn=document.getElementById('btn-quiz-ai-run');
 const runText=document.getElementById('quiz-ai-run-text');
 // Check API key
-if(!this.gemini||!this.gemini.getApiKey()){this._toast('Cần nhập Gemini API Key (tab Soạn Đề → cài đặt AI)','error');return}
+if(!this.gemini||!this.gemini.getApiKey()){this._toast('Cần nhập Gemini API Key (tab Soạn Đề → ⚙️ cài đặt AI)','error');return}
+// Check if existing questions — confirm before clearing
+const container=document.getElementById('quiz-questions-container');
+if(container.children.length>0){
+if(!confirm(`Đã có ${container.children.length} câu hỏi. Xóa hết và tạo mới bằng AI?`))return;
+container.innerHTML='';this._quizQCounter=0;this._updateQuizQCount()}
 // Loading state
-runBtn.disabled=true;runText.textContent='⏳ Đang tạo...';
+runBtn.disabled=true;runText.textContent='⏳ AI đang tạo đề...';
 try{
 const questions=await this.gemini.generateQuiz(topic,numQ,difficulty);
 if(!questions||!questions.length){this._toast('AI không trả về câu hỏi nào','error');return}
-// Populate questions
-questions.forEach(q=>{
-const opts=q.options||['','','',''];
-const ci=typeof q.correctIndex==='number'?q.correctIndex:0;
-this._addQuizQuestion(q.content||'',opts,ci,q.explanation||'')});
-// Auto-fill form topic if empty
+// Validate and populate questions
+let added=0;
+questions.forEach((q,i)=>{
+const content=String(q.content||'').trim();
+if(!content){console.warn(`[AI Quiz] Câu ${i+1} trống content, bỏ qua`);return}
+const opts=Array.isArray(q.options)?q.options.map(o=>String(o||'')):['','','',''];
+while(opts.length<4)opts.push('');
+const ci=typeof q.correctIndex==='number'?Math.min(Math.max(q.correctIndex,0),3):0;
+const explain=String(q.explanation||'');
+this._addQuizQuestion(content,opts,ci,explain);
+added++});
+if(added===0){this._toast('AI tạo câu hỏi nhưng nội dung trống. Thử lại.','error');return}
+// Auto-fill form fields if empty
 const topicField=document.getElementById('quiz-topic');
 if(!topicField.value)topicField.value=topic;
-this._toast(`🤖 AI đã tạo ${questions.length} câu hỏi!`,'success');
+const titleField=document.getElementById('quiz-title');
+if(!titleField.value)titleField.value=`Trắc nghiệm: ${topic}`;
+this._toast(`🤖 AI đã tạo ${added} câu hỏi thành công!`,'success');
 document.getElementById('quiz-ai-config').classList.add('hidden');
-}catch(e){this._toast('AI lỗi: '+e.message,'error')}
+}catch(e){console.error('[AI Quiz] Error:',e);this._toast('AI lỗi: '+e.message,'error')}
 finally{runBtn.disabled=false;runText.textContent='🚀 Tạo câu hỏi'}}
 
 // ============ QUIZ MODULE — STUDENT ============
