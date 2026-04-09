@@ -767,24 +767,30 @@
 
         <!-- STEP 4: QUIZ TAKING SCREEN -->
         <div id="stu-quiz-taking" class="stu-screen hidden">
-            <nav class="oj-navbar">
-                <div class="oj-nav-left">
-                    <span class="oj-nav-logo">📝</span>
-                    <span class="oj-nav-title" id="stu-quiz-title">Trắc Nghiệm</span>
+            <!-- Top header bar -->
+            <div class="quiz-header-bar">
+                <div class="quiz-header-left">
+                    <button class="quiz-header-back" id="btn-quiz-back-dash" title="Thoát">← Thoát</button>
+                    <div class="quiz-header-info">
+                        <h3 class="quiz-header-title" id="stu-quiz-title">Trắc Nghiệm</h3>
+                        <span class="quiz-header-student" id="stu-quiz-player">---</span>
+                    </div>
                 </div>
-                <div class="oj-nav-right">
-                    <div class="oj-timer-box"><span class="oj-timer" id="stu-quiz-timer">∞</span><span class="oj-timer-label">Thời gian</span></div>
-                    <span class="oj-nav-user" id="stu-quiz-player">---</span>
-                    <button class="oj-nav-btn" id="btn-quiz-back-dash">✕ Thoát</button>
+                <div class="quiz-header-right">
+                    <div class="quiz-timer-display">
+                        <span class="quiz-timer-icon">⏱</span>
+                        <span class="quiz-timer-value" id="stu-quiz-timer">∞</span>
+                    </div>
                 </div>
-            </nav>
+            </div>
+            <!-- Main content -->
             <div class="quiz-taking-layout">
                 <div class="quiz-taking-main" id="quiz-taking-main">
-                    <!-- Questions rendered here -->
+                    <!-- Questions rendered here by JS -->
                 </div>
                 <div class="quiz-taking-sidebar">
                     <div class="quiz-nav-panel">
-                        <h4 class="quiz-nav-title">Câu hỏi</h4>
+                        <h4 class="quiz-nav-title">📋 Câu hỏi</h4>
                         <div class="quiz-nav-grid" id="quiz-nav-grid"></div>
                         <div class="quiz-nav-legend">
                             <span><span class="qnav-dot current"></span> Đang xem</span>
@@ -792,7 +798,7 @@
                             <span><span class="qnav-dot unanswered"></span> Chưa trả lời</span>
                         </div>
                     </div>
-                    <button class="btn btn-accent quiz-submit-btn" id="btn-quiz-submit">📤 Nộp bài</button>
+                    <button class="quiz-submit-btn" id="btn-quiz-submit">📤 Nộp bài</button>
                 </div>
             </div>
             <!-- Quiz Result Overlay -->
@@ -800,7 +806,7 @@
                 <div class="quiz-result-card">
                     <div class="quiz-result-header" id="quiz-result-header"></div>
                     <div class="quiz-result-body" id="quiz-result-body"></div>
-                    <button class="btn btn-accent" id="btn-quiz-result-close" style="width:100%;justify-content:center;margin-top:16px">✕ Đóng</button>
+                    <button class="btn btn-accent" id="btn-quiz-result-close" style="width:100%;justify-content:center;margin-top:16px;padding:14px;border-radius:10px">✕ Đóng & Quay lại</button>
                 </div>
             </div>
         </div>

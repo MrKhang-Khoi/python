@@ -3074,12 +3074,17 @@ const correctClass=i===correctIndex?'correct':'';
 optHtml+=`<div class="quiz-option-row ${correctClass}" data-oi="${i}">
 <span class="quiz-option-label">${l}</span>
 <input type="text" class="quiz-option-input" placeholder="Đáp án ${l}..." value="${this._esc(options[i]||'')}">
-<input type="radio" name="quiz-correct-${idx}" class="quiz-correct-radio" value="${i}" ${checked} title="Đáp án đúng">
+<input type="radio" name="quiz-correct-${idx}" class="quiz-correct-radio" value="${i}" ${checked} title="Đánh dấu đáp án đúng">
 </div>`});
-card.innerHTML=`<div class="quiz-q-card-header"><span class="quiz-q-num">Câu ${idx}</span><button class="btn-danger-sm" title="Xóa câu">✕</button></div>
+card.innerHTML=`<div class="quiz-q-card-header">
+<span class="quiz-q-num"><span class="quiz-q-num-badge">${idx}</span> Câu ${idx}</span>
+<button class="btn-danger-sm" title="Xóa câu hỏi này">✕</button>
+</div>
 <div class="quiz-q-card-body">
-<div class="form-group"><textarea class="quiz-q-content" rows="2" placeholder="Nội dung câu hỏi...">${this._esc(content)}</textarea></div>
-${optHtml}
+<div class="form-group"><label style="font-size:.8rem;color:var(--text-muted)">📝 Nội dung câu hỏi</label>
+<textarea class="quiz-q-content" rows="3" placeholder="Nhập nội dung câu hỏi tại đây...">${this._esc(content)}</textarea></div>
+<div class="quiz-options-group"><label style="font-size:.8rem;color:var(--text-muted);margin-bottom:6px;display:block">📋 Các lựa chọn (chọn radio = đáp án đúng)</label>
+${optHtml}</div>
 <div class="quiz-q-explain"><input type="text" class="quiz-q-explain-input" placeholder="💡 Giải thích đáp án (tùy chọn)..." value="${this._esc(explanation)}"></div>
 </div>`;
 // Wire events
@@ -3359,15 +3364,17 @@ let h='';questions.forEach((q,i)=>{
 const labels=['A','B','C','D'];
 h+=`<div class="quiz-take-q" id="quiz-take-q-${i}">
 <div class="quiz-take-q-header">
+<span class="quiz-take-q-badge">${i+1}</span>
 <span class="quiz-take-q-num">Câu ${i+1}. Chọn đáp án đúng nhất</span>
 </div>
-<div class="quiz-take-q-content">${this._esc(q.content)}</div>`;
+<div class="quiz-take-q-content">${this._esc(q.content)}</div>
+<div class="quiz-take-options">`;
 q.options.forEach((opt,oi)=>{if(!opt)return;
 h+=`<div class="quiz-take-option" data-qi="${i}" data-oi="${oi}" onclick="window._uic._selectQuizOption(${i},${oi})">
-<div class="quiz-take-radio"></div>
-<span class="quiz-take-option-text">${labels[oi]}. ${this._esc(opt)}</span>
+<span class="quiz-take-option-letter">${labels[oi]}</span>
+<span class="quiz-take-option-text">${this._esc(opt)}</span>
 </div>`});
-h+='</div>'});
+h+='</div></div>'});
 main.innerHTML=h}
 
 _selectQuizOption(qi,oi){
