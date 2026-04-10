@@ -159,6 +159,9 @@ listenQuizBanks(cb,group){const ref=this._ref('quizBanks');const w=s=>cb(s.val()
 async submitQuizResult(quizId,studentName,result){await this._ref(`quizResults/${quizId}/${studentName}`).set({...result,submittedAt:Date.now()})}
 async getQuizResult(quizId,studentName){const snap=await this._ref(`quizResults/${quizId}/${studentName}`).once('value');return snap.val()}
 listenAllQuizResults(cb,group){const ref=this._ref('quizResults');const w=s=>cb(s.val()||{});ref.on('value',w);const offFn=()=>ref.off('value',w);if(group==='student')this._studentDashListeners.push(offFn);else this._listeners.push(offFn)}
+async saveTip(data){const id=data.id||Date.now().toString(36);await this._ref('tips/'+id).set({...data,id,updatedAt:Date.now()});return id}
+async deleteTip(id){await this._ref('tips/'+id).remove()}
+listenTips(cb,group){const ref=this._ref('tips');const w=s=>cb(s.val()||{});ref.on('value',w);const offFn=()=>ref.off('value',w);if(group==='student')this._studentDashListeners.push(offFn);else this._listeners.push(offFn)}
 async exportCSV(roomCode){const infoSnap=await this._ref(`rooms/${roomCode}/info`).once('value');const info=infoSnap.val();const lbSnap=await this._ref(`rooms/${roomCode}/leaderboard`).once('value');const lb=lbSnap.val();if(!lb)return'';const pCount=info.problemCount||1;let csv='Hạng,Họ tên,Tổng điểm';for(let i=0;i<pCount;i++)csv+=`,Bài ${i+1}`;csv+='\n';const sorted=Object.values(lb).sort((a,b)=>b.totalScore-a.totalScore||(a.lastSubmit-b.lastSubmit));sorted.forEach((s,i)=>{csv+=`${i+1},${s.name},${s.totalScore}`;for(let j=0;j<pCount;j++)csv+=`,${s.problems&&s.problems[j]||0}`;csv+='\n'});return csv}}
 
 // ============ STUDENT GRADER ============
@@ -179,6 +182,16 @@ _calcScore(details,subtasks,testCases){let total=0;for(const st of subtasks){con
 // ============ UI CONTROLLER ============
 class UIController{
 constructor(){this.pyEngine=new PyodideEngine();this.themis=new ThemisManager();this.gemini=new GeminiHelper();this.stress=new StressTester(this.pyEngine);this.fb=new FirebaseManager();this.drive=new DriveHelper(APPS_SCRIPT_URL);this.grader=new StudentGrader(this.pyEngine);this.role=null;this.roomCode=null;this.studentName=null;this.problems=[];this.currentProbIdx=0;this.timerInterval=null;this.subtaskCounter=0;this.lineCounter=0;this.varCounter=0;this.cmMain=null;this.cmBrute=null;this.cmAiPreview=null;this.cmStudent=null;this.isGenerating=false;this.publishedCount=0;this._teacherInited=false;this._studentInited=false;this._pendingFiles=[]}
+
+_showModal(title,html){
+let m=document.getElementById('generic-modal');if(m)m.remove();
+m=document.createElement('div');m.id='generic-modal';m.className='modal-overlay';
+m.innerHTML='<div class="generic-modal-box"><div class="generic-modal-header"><h3>'+title+'</h3><button class="btn btn-ghost btn-sm generic-modal-close">&times;</button></div><div class="generic-modal-body">'+html+'</div></div>';
+document.body.appendChild(m);
+m.querySelector('.generic-modal-close').onclick=()=>this._closeModal();
+m.onclick=(e)=>{if(e.target===m)this._closeModal()};
+setTimeout(()=>m.classList.add('active'),10)}
+_closeModal(){const m=document.getElementById('generic-modal');if(m){m.classList.remove('active');setTimeout(()=>m.remove(),200)}}
 
 init(){const $=id=>document.getElementById(id);
 // Teacher role → show login panel
@@ -212,6 +225,7 @@ document.querySelectorAll('.stats-subtab').forEach(btn=>{btn.onclick=()=>{docume
 this._restoreDraft();
 this.fb.listenAccounts(accts=>{this._cachedAccounts=accts;this._renderAccountList(accts);this._renderProgress();this._renderTopicStats()});
 this.fb.listenExercises(exs=>{this._teacherExercises=exs;this._renderTeacherExerciseList(exs);this._renderProgress();this._renderTopicStats()});
+this._initTeacherTips();
 this.fb.listenAllExerciseResults(res=>{this._teacherExResults=res;this._renderTeacherExerciseList(this._teacherExercises||{});this._renderProgress();this._renderTopicStats()});
 // Theory listener
 const thRef=this.fb.db.ref('theories');const _thCb=s=>{this._cachedTheories=s.val()||{};this._renderTheoryList(this._cachedTheories,'t-theory-list',true)};thRef.on('value',_thCb);this.fb._listeners.push(()=>thRef.off('value',_thCb));
@@ -1731,7 +1745,7 @@ document.addEventListener('mouseup',()=>{if(hDragging){hDragging=false;hDiv.clas
 async _stuLogin(){const name=document.getElementById('stu-name').value.trim();const pass=document.getElementById('stu-password').value;const errEl=document.getElementById('stu-login-error');errEl.textContent='';if(!name||!pass){errEl.textContent='⚠️ Nhập đầy đủ tên và mật khẩu';return}try{await this.fb.verifyStudent(name,pass);this.studentName=name;document.getElementById('stu-login').classList.add('hidden');document.getElementById('stu-dashboard').classList.remove('hidden');document.getElementById('stu-welcome-name').textContent=name;
 // Re-register Firebase listeners (destroyed on previous logout)
 this._registerStudentListeners();
-this._toast(`Xin chào ${name}!`,'success');this._initTipsTicker()}catch(e){errEl.textContent='❌ '+e.message}}
+this._toast(`Xin chào ${name}!`,'success');this._loadTipsForStudent()}catch(e){errEl.textContent='❌ '+e.message}}
 
 // BUG-1 FIX: Removed duplicate _stuLogout — see canonical version at L1142
 
@@ -3483,63 +3497,93 @@ document.getElementById('stu-dashboard').classList.remove('hidden');
 this._currentQuizId=null;this._currentQuizData=null;
 this._renderStudentQuizList()}
 
-// ============ PROGRAMMING TIPS TICKER ============
-_PROG_TIPS=[
-{emoji:'🐍',title:'Hoán đổi 2 biến',short:'Python: a, b = b, a',detail:'Trong Python, hoán đổi giá trị 2 biến:\na, b = b, a\nKhông cần biến tạm!',cat:'python'},
-{emoji:'📝',title:'List Comprehension',short:'[x**2 for x in range(10)]',detail:'squares = [x**2 for x in range(10)]\n# [0,1,4,9,16,25,36,49,64,81]\nevens = [x for x in range(20) if x%2==0]',cat:'python'},
-{emoji:'⚡',title:'f-string formatting',short:'f"Xin chào {name}"',detail:'name = "An"\nprint(f"Tên: {name}")\nprint(f"Pi = {3.14159:.2f}")  # 3.14',cat:'python'},
-{emoji:'🔢',title:'Công thức tổng 1→N',short:'Tổng = N×(N+1)/2',detail:'Gauss: 1+2+...+N = N×(N+1)/2\nVD: 1+...+100 = 5050\nCode: n*(n+1)//2',cat:'formula'},
-{emoji:'📐',title:'Số Fibonacci',short:'F(n) = F(n-1) + F(n-2)',detail:'0, 1, 1, 2, 3, 5, 8, 13, 21...\ndef fib(n):\n    a,b = 0,1\n    for _ in range(n): a,b = b,a+b\n    return a',cat:'formula'},
-{emoji:'🎯',title:'Kiểm tra số nguyên tố',short:'Chỉ cần kiểm tra đến √N',detail:'def is_prime(n):\n    if n<2: return False\n    for i in range(2,int(n**0.5)+1):\n        if n%i==0: return False\n    return True\nĐộ phức tạp: O(√N)',cat:'algo'},
-{emoji:'🔄',title:'Đảo ngược chuỗi/list',short:'s[::-1] đảo ngược chuỗi',detail:'"Hello"[::-1] → "olleH"\n[1,2,3][::-1] → [3,2,1]\nPalindrome: s == s[::-1]',cat:'trick'},
-{emoji:'⚠️',title:'Cẩn thận chia số nguyên',short:'/ cho float, // cho int',detail:'10/3 = 3.333 (thực)\n10//3 = 3 (nguyên)\n10%3 = 1 (dư)\n⚠️ Dùng // khi cần số nguyên!',cat:'warning'},
-{emoji:'📊',title:'sorted() vs .sort()',short:'sorted() giữ nguyên, .sort() thay đổi',detail:'sorted(a) → list mới\na.sort() → đổi a tại chỗ\nGiảm: sorted(a, reverse=True)',cat:'python'},
-{emoji:'🧮',title:'UCLN và BCNN',short:'math.gcd(a,b) | a*b//gcd(a,b)',detail:'import math\nmath.gcd(12,8) = 4\nlcm = a*b//math.gcd(a,b)\nlcm(12,8) = 24',cat:'formula'},
-{emoji:'💡',title:'enumerate() tiện lợi',short:'for i, val in enumerate(list)',detail:'Thay range(len(arr)):\nfor i, val in enumerate(arr):\n    print(i, val)\nNgắn hơn, Pythonic hơn!',cat:'trick'},
-{emoji:'🔍',title:'Tìm kiếm nhị phân',short:'O(log N) — 1 triệu PT ~20 bước!',detail:'def bsearch(arr, t):\n    lo,hi = 0,len(arr)-1\n    while lo<=hi:\n        mid=(lo+hi)//2\n        if arr[mid]==t: return mid\n        elif arr[mid]<t: lo=mid+1\n        else: hi=mid-1\n    return -1',cat:'algo'},
-{emoji:'📏',title:'Hàm len()',short:'len("hello")=5 | len([1,2,3])=3',detail:'len("Python") = 6 ký tự\nlen([1,2,3]) = 3 phần tử\n⚠️ Index: 0 đến len-1!',cat:'python'},
-{emoji:'🎲',title:'Random',short:'random.randint(1, 100)',detail:'import random\nrandom.randint(1,100) # int 1-100\nrandom.choice([1,2,3]) # chọn ngẫu nhiên\nrandom.shuffle(list) # xáo trộn',cat:'python'},
-{emoji:'⚠️',title:'IndexError',short:'list index out of range',detail:'a=[10,20,30]\na[3] → IndexError!\nList 3 PT → index 0,1,2\n✅ if i<len(a): print(a[i])',cat:'warning'},
-{emoji:'🔗',title:'Nối chuỗi hiệu quả',short:'join() nhanh hơn + gấp 100x',detail:'❌ result += word (chậm)\n✅ result = " ".join(words)\nNhanh gấp 100x với list lớn!',cat:'trick'},
-{emoji:'📐',title:'Diện tích tam giác Heron',short:'S = √(p(p-a)(p-b)(p-c))',detail:'p = (a+b+c)/2\nS = √(p×(p-a)×(p-b)×(p-c))\nimport math\ndef area(a,b,c):\n    p=(a+b+c)/2\n    return math.sqrt(p*(p-a)*(p-b)*(p-c))',cat:'formula'},
-{emoji:'🧊',title:'Set loại bỏ trùng lặp',short:'set([1,2,2,3]) → {1,2,3}',detail:'unique = list(set([1,2,2,3,3]))\nlen(set(a)) # đếm không trùng\n3 in {1,2,3} → True, O(1)!',cat:'trick'},
-{emoji:'📊',title:'Counter đếm phần tử',short:'Counter("aabbc") → {a:2,b:2,c:1}',detail:'from collections import Counter\nc = Counter("aabbccc")\nc.most_common(2) # [(c,3),(a,2)]',cat:'python'},
-{emoji:'⚡',title:'Lũy thừa modulo',short:'pow(base, exp, mod)',detail:'pow(2, 100, 10**9+7)\n= (2^100) mod 1000000007\nKhông tràn số! O(log n)',cat:'algo'},
-{emoji:'📝',title:'Đọc input nhanh',short:'a,b = map(int, input().split())',detail:'n = int(input())\na,b = map(int, input().split())\narr = list(map(int, input().split()))',cat:'python'},
-{emoji:'🔄',title:'while True + break',short:'Lặp đến khi thỏa điều kiện',detail:'while True:\n    n = int(input("Nhập số dương: "))\n    if n > 0: break\n    print("Nhập lại!")',cat:'trick'},
-{emoji:'🧮',title:'Chuyển đổi hệ cơ số',short:'bin(10)="0b1010" | int("1010",2)=10',detail:'bin(10) → "0b1010"\noct(10) → "0o12"\nhex(255) → "0xff"\nint("1010",2) → 10',cat:'formula'},
-{emoji:'⚠️',title:'Mutable default bug',short:'def f(a=[]): ← List dùng chung!',detail:'❌ def add(x, lst=[]):\n    lst.append(x)\nadd(1) → [1]\nadd(2) → [1,2] BUG!\n✅ Dùng lst=None rồi if None: lst=[]',cat:'warning'},
-{emoji:'💡',title:'Toán tử 3 ngôi',short:'x = a if điều_kiện else b',detail:'r = "Đạt" if score>=5 else "Trượt"\nprint("Chẵn" if n%2==0 else "Lẻ")\nGọn hơn if-else 4 dòng!',cat:'trick'}
-]
+// ============ PROGRAMMING TIPS TICKER (Firebase-backed) ============
+_tipsData={}
+_tipsArr=[]
 
 _initTipsTicker(){
 const bar=document.getElementById('tips-ticker-bar');const track=document.getElementById('tips-ticker-content');
 if(!bar||!track)return;
-const tips=this._PROG_TIPS;
-const buildItems=(arr)=>arr.map((t,i)=>`<div class="tip-item" data-tip-idx="${i}"><span class="tip-emoji">${t.emoji}</span><span class="tip-text">${t.short}</span><span class="tip-tag ${t.cat}">${t.cat}</span></div>`).join('');
+const tips=this._tipsArr;
+if(!tips.length){bar.style.display='none';return}
+bar.style.display='';
+const buildItems=(arr)=>arr.map((t,i)=>'<div class="tip-item" data-tip-idx="'+i+'"><span class="tip-emoji">'+(t.emoji||'\u{1F4A1}')+'</span><span class="tip-text">'+this._esc(t.short||t.title)+'</span><span class="tip-tag '+(t.cat||'python')+'">'+(t.cat||'python')+'</span></div>').join('');
 track.innerHTML=buildItems(tips)+buildItems(tips);
-const dur=Math.max(40,tips.length*3.5);track.style.setProperty('--tip-duration',dur+'s');
-track.addEventListener('click',(e)=>{const item=e.target.closest('.tip-item');if(!item)return;const idx=parseInt(item.dataset.tipIdx);const tip=tips[idx];if(tip)this._showTipDetail(tip)});
+const dur=Math.max(35,tips.length*3);track.style.setProperty('--tip-duration',dur+'s');
+track.onclick=(e)=>{const item=e.target.closest('.tip-item');if(!item)return;const idx=parseInt(item.dataset.tipIdx);const tip=tips[idx];if(tip)this._showTipDetail(tip)};
 const pauseBtn=document.getElementById('btn-tips-pause');
-if(pauseBtn){let paused=false;pauseBtn.onclick=()=>{paused=!paused;bar.classList.toggle('paused',paused);pauseBtn.textContent=paused?'▶':'⏸';pauseBtn.title=paused?'Tiếp tục':'Tạm dừng'}}
+if(pauseBtn){let p=false;pauseBtn.onclick=()=>{p=!p;bar.classList.toggle('paused',p);pauseBtn.textContent=p?'\u25B6':'\u23F8'}}
 const allBtn=document.getElementById('btn-tips-all');
 if(allBtn)allBtn.onclick=()=>this._showAllTips()}
 
+_loadTipsForStudent(){
+this.fb.listenTips((data)=>{
+this._tipsData=data;this._tipsArr=Object.values(data).sort((a,b)=>(a.order||0)-(b.order||0));
+this._initTipsTicker()},'student')}
+
 _showTipDetail(tip){
 const cats={python:'Python',algo:'Thuật toán',trick:'Thủ thuật',formula:'Công thức',warning:'Cảnh báo'};
-const h='<div style="max-width:560px"><div class="tip-card-full cat-'+tip.cat+'" style="border:none;box-shadow:none"><div class="tip-card-header"><span class="tip-card-emoji">'+tip.emoji+'</span><span class="tip-card-title">'+tip.title+'</span><span class="tip-card-tag tip-tag '+tip.cat+'">'+(cats[tip.cat]||tip.cat)+'</span></div><div class="tip-card-body">'+this._fmtTip(tip.detail)+'</div></div></div>';
-this._showModal('💡 '+tip.title,h)}
+const catLabel=cats[tip.cat]||tip.cat||'Tips';
+const h='<div class="tip-detail-view"><div class="tip-detail-header"><span class="tip-detail-emoji">'+(tip.emoji||'\u{1F4A1}')+'</span><div><h3 class="tip-detail-title">'+this._esc(tip.title)+'</h3><span class="tip-card-tag tip-tag '+(tip.cat||'python')+'">'+catLabel+'</span></div></div><div class="tip-detail-body">'+this._renderTipContent(tip.detail||'')+'</div></div>';
+this._showModal('\u{1F4A1} '+this._esc(tip.title),h)}
 
 _showAllTips(filterCat){
 if(!filterCat)filterCat='all';
 const cats={all:'Tất cả',python:'Python',algo:'Thuật toán',trick:'Thủ thuật',formula:'Công thức',warning:'Cảnh báo'};
-const tips=this._PROG_TIPS;const filtered=filterCat==='all'?tips:tips.filter(t=>t.cat===filterCat);
-let filterHtml='';Object.keys(cats).forEach(c=>{filterHtml+='<button class="tips-filter-btn '+(c===filterCat?'active':'')+'" onclick="window._uic._showAllTips(\''+c+'\')">'+cats[c]+' ('+(c==='all'?tips.length:tips.filter(t=>t.cat===c).length)+')</button>'});
-let cardsHtml='';filtered.forEach(t=>{cardsHtml+='<div class="tip-card-full cat-'+t.cat+'"><div class="tip-card-header"><span class="tip-card-emoji">'+t.emoji+'</span><span class="tip-card-title">'+t.title+'</span><span class="tip-card-tag tip-tag '+t.cat+'">'+(cats[t.cat]||t.cat)+'</span></div><div class="tip-card-body">'+this._fmtTip(t.detail)+'</div></div>'});
-const h='<div class="tips-modal-body"><div class="tips-filter-bar">'+filterHtml+'</div><div class="tips-modal-grid">'+cardsHtml+'</div></div>';
-this._showModal('💡 Mẹo Lập Trình ('+filtered.length+' tips)',h)}
+const tips=this._tipsArr;const filtered=filterCat==='all'?tips:tips.filter(t=>t.cat===filterCat);
+let filterHtml='<div class="tips-filter-bar">';
+Object.keys(cats).forEach(c=>{const cnt=c==='all'?tips.length:tips.filter(t=>t.cat===c).length;
+filterHtml+='<button class="tips-filter-btn '+(c===filterCat?'active':'')+'" onclick="window._uic._showAllTips(\''+c+'\')">'+cats[c]+' ('+cnt+')</button>'});
+filterHtml+='</div>';
+let cardsHtml='<div class="tips-modal-grid">';
+filtered.forEach((t,i)=>{
+cardsHtml+='<div class="tip-card-full cat-'+(t.cat||'python')+'" data-tipid="'+t.id+'"><div class="tip-card-header"><span class="tip-card-emoji">'+(t.emoji||'\u{1F4A1}')+'</span><span class="tip-card-title">'+this._esc(t.title)+'</span><span class="tip-card-tag tip-tag '+(t.cat||'python')+'">'+(cats[t.cat]||t.cat||'')+'</span></div><div class="tip-card-body">'+this._renderTipContent((t.detail||'').substring(0,200)+((t.detail||'').length>200?'...':''))+'</div></div>'});
+cardsHtml+='</div>';
+const h='<div class="tips-modal-body">'+filterHtml+cardsHtml+'</div>';
+this._showModal('\u{1F4A1} Mẹo Lập Trình ('+filtered.length+' tips)',h);
+// Add click handlers after modal renders
+setTimeout(()=>{document.querySelectorAll('.tip-card-full[data-tipid]').forEach(el=>{el.onclick=()=>{const tip=this._tipsArr.find(t=>t.id===el.dataset.tipid);if(tip)this._showTipDetail(tip)}})},100)}
 
-_fmtTip(t){return String(t).replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>')}
+_renderTipContent(text){if(!text)return'';return this._esc(text).replace(/\n/g,'<br>')}
+
+// ===== TEACHER TIPS MANAGEMENT =====
+_initTeacherTips(){
+const addBtn=document.getElementById('btn-add-tip');
+if(addBtn)addBtn.onclick=()=>this._showTipEditor();
+this.fb.listenTips((data)=>{this._tipsData=data;this._tipsArr=Object.values(data).sort((a,b)=>(a.order||0)-(b.order||0));this._renderTeacherTipsList()})}
+
+_renderTeacherTipsList(){
+const c=document.getElementById('tips-teacher-list');if(!c)return;
+const tips=this._tipsArr;
+const stats=document.getElementById('tips-teacher-stats');
+if(stats){const cc={python:0,algo:0,trick:0,formula:0,warning:0};tips.forEach(t=>{if(cc[t.cat]!==undefined)cc[t.cat]++});
+stats.innerHTML='<div class="tips-stats-bar"><div class="tips-stat-item"><span class="tips-stat-num">'+tips.length+'</span><span class="tips-stat-label">Tổng</span></div><div class="tips-stat-item"><span class="tips-stat-num" style="color:#60a5fa">'+cc.python+'</span><span class="tips-stat-label">Python</span></div><div class="tips-stat-item"><span class="tips-stat-num" style="color:#a78bfa">'+cc.algo+'</span><span class="tips-stat-label">Thuật toán</span></div><div class="tips-stat-item"><span class="tips-stat-num" style="color:#34d399">'+cc.trick+'</span><span class="tips-stat-label">Thủ thuật</span></div><div class="tips-stat-item"><span class="tips-stat-num" style="color:#fbbf24">'+cc.formula+'</span><span class="tips-stat-label">Công thức</span></div><div class="tips-stat-item"><span class="tips-stat-num" style="color:#f87171">'+cc.warning+'</span><span class="tips-stat-label">Cảnh báo</span></div></div>'}
+if(!tips.length){c.innerHTML='<div style="text-align:center;padding:60px;color:var(--text-muted)"><div style="font-size:3rem;margin-bottom:12px">\u{1F4A1}</div><p style="font-size:1rem;font-weight:600">Chưa có tip nào</p><p style="font-size:.85rem;margin-top:4px">Nhấn "\u2795 Thêm Tip" để tạo mẹo lập trình cho học sinh</p></div>';return}
+c.innerHTML=tips.map(t=>'<div class="tip-teacher-card"><div class="tip-teacher-left"><span class="tip-teacher-emoji">'+(t.emoji||'\u{1F4A1}')+'</span><div class="tip-teacher-info"><div class="tip-teacher-title">'+this._esc(t.title)+'</div><div class="tip-teacher-short">'+this._esc(t.short||'')+'</div></div><span class="tip-card-tag tip-tag '+(t.cat||'python')+'">'+(t.cat||'')+'</span></div><div class="tip-teacher-actions"><button class="btn btn-ghost btn-sm" onclick="window._uic._showTipEditor(\''+t.id+'\')">\u270F\uFE0F Sửa</button><button class="btn btn-ghost btn-sm" onclick="window._uic._deleteTip(\''+t.id+'\')">\u{1F5D1}\uFE0F</button></div></div>').join('')}
+
+_showTipEditor(editId){
+const tip=editId?this._tipsData[editId]:{};
+const isEdit=!!editId;
+const cats=[{v:'python',l:'\u{1F40D} Python'},{v:'algo',l:'\u{1F3AF} Thuật toán'},{v:'trick',l:'\u{1F4A1} Thủ thuật'},{v:'formula',l:'\u{1F4D0} Công thức'},{v:'warning',l:'\u26A0\uFE0F Cảnh báo'}];
+const catOpts=cats.map(c=>'<option value="'+c.v+'" '+(tip.cat===c.v?'selected':'')+'>'+c.l+'</option>').join('');
+const emojis=['\u{1F4A1}','\u{1F40D}','\u{1F4DD}','\u26A1','\u{1F522}','\u{1F4D0}','\u{1F3AF}','\u{1F504}','\u26A0\uFE0F','\u{1F4CA}','\u{1F9EE}','\u{1F50D}','\u{1F4CF}','\u{1F3B2}','\u{1F517}','\u{1F9CA}','\u{1F48E}','\u{1F680}','\u{1F525}','\u2728'];
+const emojiPicker=emojis.map(e=>'<span class="emoji-pick'+(tip.emoji===e?' active':'')+'" onclick="document.getElementById(\'tip-emoji\').value=\''+e+'\';this.parentElement.querySelectorAll(\'.emoji-pick\').forEach(x=>x.classList.remove(\'active\'));this.classList.add(\'active\')">'+e+'</span>').join('');
+const h='<div class="tip-editor"><div class="tip-editor-row"><label>Biểu tượng</label><div class="emoji-picker">'+emojiPicker+'</div><input type="hidden" id="tip-emoji" value="'+(tip.emoji||'\u{1F4A1}')+'"></div><div class="tip-editor-row"><label>Tiêu đề</label><input type="text" id="tip-title" class="input" value="'+this._esc(tip.title||'')+'" placeholder="VD: Hoán đổi 2 biến"></div><div class="tip-editor-row"><label>Mô tả ngắn (hiện trên ticker)</label><input type="text" id="tip-short" class="input" value="'+this._esc(tip.short||'')+'" placeholder="VD: a, b = b, a"></div><div class="tip-editor-row"><label>Danh mục</label><select id="tip-cat" class="input">'+catOpts+'</select></div><div class="tip-editor-row"><label>Nội dung chi tiết (mỗi dòng = 1 dòng hiển thị)</label><textarea id="tip-detail" class="input" rows="10" placeholder="Viết nội dung...\nDùng Enter xuống dòng">'+(tip.detail||'').replace(/</g,'&lt;')+'</textarea></div><div class="tip-editor-row"><label>Thứ tự (nhỏ = hiện trước)</label><input type="number" id="tip-order" class="input" value="'+(tip.order||0)+'" min="0"></div><div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px"><button class="btn btn-ghost" onclick="document.querySelector(\'.modal-overlay\').click()">Hủy</button><button class="btn btn-accent" id="btn-save-tip">\u{1F4BE} '+(isEdit?'Cập nhật':'Tạo mới')+'</button></div></div>';
+this._showModal((isEdit?'\u270F\uFE0F Sửa':'\u2795 Thêm')+' Tip',h);
+document.getElementById('btn-save-tip').onclick=async()=>{
+const data={emoji:document.getElementById('tip-emoji').value,title:document.getElementById('tip-title').value.trim(),short:document.getElementById('tip-short').value.trim(),cat:document.getElementById('tip-cat').value,detail:document.getElementById('tip-detail').value,order:parseInt(document.getElementById('tip-order').value)||0};
+if(!data.title){this._toast('\u26A0\uFE0F Nhập tiêu đề','error');return}
+if(!data.short){this._toast('\u26A0\uFE0F Nhập mô tả ngắn','error');return}
+if(isEdit)data.id=editId;
+try{await this.fb.saveTip(data);this._closeModal();this._toast((isEdit?'\u2705 Đã cập nhật':'\u2705 Đã thêm')+' tip!','success')}catch(e){this._toast('\u274C Lỗi: '+e.message,'error')}}}
+
+async _deleteTip(id){
+const tip=this._tipsData[id];if(!tip)return;
+if(!confirm('Xóa tip "'+tip.title+'"?'))return;
+try{await this.fb.deleteTip(id);this._toast('\u{1F5D1}\uFE0F Đã xóa tip','success')}catch(e){this._toast('\u274C Lỗi: '+e.message,'error')}}
+
+_esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
+
 
 }
 
