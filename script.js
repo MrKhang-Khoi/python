@@ -115,7 +115,7 @@ class FirebaseManager{
 /* Auth domain validation */
 _$v(){const h=document.location.hostname;const ok=[String.fromCharCode(109,114,107,104,97,110,103,45,107,104,111,105),'localhost','127.0.0.1'];return ok.some(d=>h.indexOf(d)>=0)}
 
-constructor(){firebase.initializeApp(FIREBASE_CONFIG);this.db=firebase.database();try{this.storage=firebase.storage()}catch(e){console.warn('Firebase Storage unavailable:',e)};this._listeners=[];this._exerciseListeners=[];this._studentDashListeners=[]}
+constructor(){firebase.initializeApp(FIREBASE_CONFIG);this.db=firebase.database();try{this.storage=firebase.storage()}catch(e){console.warn('Firebase Storage unavailable:',e)};this.auth=firebase.auth();this.googleProvider=new firebase.auth.GoogleAuthProvider();this._listeners=[];this._exerciseListeners=[];this._studentDashListeners=[]}
 _ref(path){return this.db.ref(path)}
 generateCode(){return String(Math.floor(100000+Math.random()*900000))}
 async createRoom(title,teacher,timeLimit){const code=this.generateCode();await this._ref('rooms/'+code+'/info').set({title,teacher,timeLimit:parseInt(timeLimit)||90,createdAt:Date.now(),status:'waiting',startTime:0,problemCount:0});return code}
@@ -136,6 +136,17 @@ cleanupStudentDash(){this._studentDashListeners.forEach(fn=>fn());this._studentD
 async createAccount(username,password){const h=await _hashSHA256(password);await this._ref(`accounts/${username}`).set({passwordHash:h,createdAt:Date.now()})}
 async createAccountsBulk(list){for(const item of list){const h=await _hashSHA256(item.pass);await this._ref(`accounts/${item.name}`).set({passwordHash:h,createdAt:Date.now()})}}
 async deleteAccount(username){await this._ref(`accounts/${username}`).remove()}
+// Google Sign-In for students
+async googleSignIn(){const result=await this.auth.signInWithPopup(this.googleProvider);return result.user}
+async googleSignOut(){await this.auth.signOut()}
+// Save/update Google user in accounts
+async saveGoogleUser(user){const key=this._sanitizeKey(user.email);const snap=await this._ref('accounts/'+key).once('value');const existing=snap.val()||{};if(existing.banned)throw new Error('Tài khoản của bạn đã bị khóa bởi giáo viên!');await this._ref('accounts/'+key).update({type:'google',email:user.email,displayName:user.displayName||user.email.split('@')[0],photoURL:user.photoURL||'',uid:user.uid,lastLogin:Date.now(),...(!existing.createdAt?{createdAt:Date.now()}:{})});return key}
+// Ban/unban Google user
+async banAccount(key){await this._ref('accounts/'+key).update({banned:true})}
+async unbanAccount(key){await this._ref('accounts/'+key).update({banned:false})}
+// Sanitize email for Firebase key (replace . @ etc)
+_sanitizeKey(email){return email.replace(/[\.#$\[\]/@]/g,'_')}
+
 async verifyStudent(username,password){const snap=await this._ref(`accounts/${username}`).once('value');if(!snap.exists())throw new Error('Tài khoản không tồn tại!');const acct=snap.val();const inputHash=await _hashSHA256(password);if(acct.passwordHash){if(acct.passwordHash!==inputHash)throw new Error('Sai mật khẩu!');return true}if(acct.password){if(acct.password!==password)throw new Error('Sai mật khẩu!');await this._ref(`accounts/${username}`).update({passwordHash:inputHash,password:null});return true}throw new Error('Tài khoản lỗi!')}
 listenAccounts(cb){if(!this._$v()){cb({});return;}const ref=this._ref('accounts');const w=s=>cb(s.val()||{});ref.on('value',w);this._listeners.push(()=>ref.off('value',w))}
 // Exercise management
@@ -681,12 +692,20 @@ async _addBulkStudents(){const text=document.getElementById('bulk-students').val
 
 _renderAccountList(accts){const c=document.getElementById('account-list');const keys=Object.keys(accts);if(!keys.length){c.innerHTML='<p style="color:var(--text-muted);text-align:center;padding:16px">Chưa có tài khoản. Nhấn "+ Thêm HS" để tạo.</p>';return}
 let h='<p style="color:var(--text-muted);font-size:.75rem;margin-bottom:8px">🔒 Mật khẩu mới được mã hóa SHA-256. Tra cứu mật khẩu gốc trong Google Sheet.</p>';
-h+='<table class="acct-table"><thead><tr><th>#</th><th>Tên đăng nhập</th><th>Bảo mật</th><th>Xóa</th></tr></thead><tbody>';
-keys.forEach((k,i)=>{const acct=accts[k];const isHashed=!!acct.passwordHash;const pwCell=isHashed?'<span style="color:var(--success);font-size:.8rem">🔒 SHA-256</span>':'<span class="acct-pass" data-user="'+this._esc(k)+'" data-hidden="true">••••••</span>';h+=`<tr><td>${i+1}</td><td style="font-weight:600">${this._esc(k)}</td><td>${pwCell}</td><td><button class="btn-danger-sm" onclick="window._uic._deleteAccount('${this._esc(k)}')">✕</button></td></tr>`});
+h+='<table class="acct-table"><thead><tr><th>#</th><th>Tên đăng nhập</th><th>Loại</th><th>Bảo mật</th><th>Thao tác</th></tr></thead><tbody>';
+keys.forEach((k,i)=>{const acct=accts[k];const isGoogle=acct.type==='google';const isBanned=!!acct.banned;
+const nameCell=isGoogle?(acct.photoURL?'<img src="'+this._esc(acct.photoURL)+'" class="acct-google-avatar">':'')+this._esc(acct.displayName||k)+'<br><span style="font-size:.7rem;color:var(--text-muted)">'+this._esc(acct.email||k)+'</span>':'<span style="font-weight:600">'+this._esc(k)+'</span>';
+const typeBadge=isBanned?'<span class="acct-type-badge banned">🚫 Bị khóa</span>':isGoogle?'<span class="acct-type-badge google">G Google</span>':'<span class="acct-type-badge manual">🔑 Thủ công</span>';
+const isHashed=!!acct.passwordHash;const pwCell=isGoogle?'<span style="color:var(--text-muted);font-size:.8rem">Google Auth</span>':isHashed?'<span style="color:var(--success);font-size:.8rem">🔒 SHA-256</span>':'<span class="acct-pass" data-user="'+this._esc(k)+'" data-hidden="true">••••••</span>';
+const banBtn=isBanned?'<button class="btn-unban-sm" onclick="window._uic._unbanAccount(\''+this._esc(k)+'\')">✅ Mở khóa</button>':'<button class="btn-ban-sm" onclick="window._uic._banAccount(\''+this._esc(k)+'\')">🚫 Khóa</button>';
+h+=`<tr${isBanned?' style="opacity:.5"':''}><td>${i+1}</td><td>${nameCell}</td><td>${typeBadge}</td><td>${pwCell}</td><td style="display:flex;gap:4px">${banBtn}<button class="btn-danger-sm" onclick="window._uic._deleteAccount('${this._esc(k)}')">✕</button></td></tr>`});
 h+='</tbody></table>';c.innerHTML=h;
 c.querySelectorAll('.acct-pass').forEach(span=>{const uname=span.dataset.user;span.style.cursor='pointer';span.onclick=()=>{if(span.dataset.hidden==='true'){span.textContent=accts[uname]?.password||'?';span.dataset.hidden='false';span.style.color='var(--accent)'}else{span.textContent='••••••';span.dataset.hidden='true';span.style.color=''}}})}
 
 async _deleteAccount(name){const ok=await this._confirmDialog('🗑️ Xóa tài khoản',`Bạn chắc chắn muốn xóa tài khoản <strong>${this._esc(name)}</strong>? Dữ liệu bài làm của học sinh này sẽ bị mất.`,'Xóa','btn-danger');if(!ok)return;try{await this.fb.deleteAccount(name);this._toast(`Đã xóa: ${name}`,'success')}catch(e){this._toast('Lỗi: '+e.message,'error')}}
+async _banAccount(name){const ok=await this._confirmDialog('🚫 Khóa tài khoản','Bạn chắc chắn muốn khóa tài khoản <strong>'+this._esc(name)+'</strong>? Học sinh sẽ không thể đăng nhập.','Khóa','btn-danger');if(!ok)return;try{await this.fb.banAccount(name);this._toast('Đã khóa: '+name,'success')}catch(e){this._toast('Lỗi: '+e.message,'error')}}
+async _unbanAccount(name){try{await this.fb.unbanAccount(name);this._toast('Đã mở khóa: '+name,'success')}catch(e){this._toast('Lỗi: '+e.message,'error')}}
+
 
 // [BUG-01 FIXED] Dead code removed — using version with search filter at L404+
 
@@ -1383,6 +1402,7 @@ async _exportCSV(){const rc=this.roomCode||this._viewingRoomCode;if(!rc){this._t
 _initStudent(){if(this._studentInited){document.getElementById('view-student').classList.remove('hidden');return}this._studentInited=true;document.getElementById('view-student').classList.remove('hidden');
 const $=id=>document.getElementById(id);
 $('btn-stu-login').onclick=()=>this._stuLogin();
+$('btn-google-login').onclick=()=>this._googleLogin();
 $('btn-stu-logout').onclick=async()=>{const ok=await this._confirmDialog('🚪 Đăng xuất','Bạn chắc chắn muốn đăng xuất?','Đăng xuất','btn-accent');if(ok)this._stuLogout()};
 $('btn-join-room').onclick=()=>this._joinRoom();
 $('btn-stu-submit').onclick=()=>this._stuSubmit();
@@ -1662,7 +1682,7 @@ if(this._prevExCount>0&&exKeys.length>this._prevExCount){const newCount=exKeys.l
 this._prevExCount=exKeys.length}
 
 // BUG-1 FIX: Single canonical _stuLogout with full cleanup (anti-cheat, intervals, listeners)
-_stuLogout(){this.studentName=null;this._currentExercise=null;this._cachedExercises=null;this._exerciseResults={};this.roomCode=null;this._viewingContestCode=null;this.problems=[];this.currentProbIdx=0;if(this.timerInterval){clearInterval(this.timerInterval);this.timerInterval=null}if(this._autoSaveInterval){clearInterval(this._autoSaveInterval);this._autoSaveInterval=null}if(this._contestAutoSave){clearInterval(this._contestAutoSave);this._contestAutoSave=null}this._stopAntiCheat();this.fb.cleanupExercise();this.fb.cleanupStudentDash();this.fb.cleanup();['stu-dashboard','stu-waiting','stu-contest','stu-ended'].forEach(id=>document.getElementById(id).classList.add('hidden'));document.getElementById('stu-login').classList.remove('hidden');document.getElementById('stu-name').value='';document.getElementById('stu-password').value='';document.getElementById('stu-login-error').textContent='';if(this.cmStudent){this._suppressAutoSave=true;this.cmStudent.setValue('# Viết code tại đây\n');this._suppressAutoSave=false}}
+_stuLogout(){if(this._isGoogleUser){this.fb.googleSignOut();this._isGoogleUser=false;this._googleUserInfo=null;const av=document.getElementById('stu-google-avatar');if(av){av.classList.add('hidden');av.src=''}const cp=document.getElementById('btn-change-pass');if(cp)cp.style.display=''}this.studentName=null;this._currentExercise=null;this._cachedExercises=null;this._exerciseResults={};this.roomCode=null;this._viewingContestCode=null;this.problems=[];this.currentProbIdx=0;if(this.timerInterval){clearInterval(this.timerInterval);this.timerInterval=null}if(this._autoSaveInterval){clearInterval(this._autoSaveInterval);this._autoSaveInterval=null}if(this._contestAutoSave){clearInterval(this._contestAutoSave);this._contestAutoSave=null}this._stopAntiCheat();this.fb.cleanupExercise();this.fb.cleanupStudentDash();this.fb.cleanup();['stu-dashboard','stu-waiting','stu-contest','stu-ended'].forEach(id=>document.getElementById(id).classList.add('hidden'));document.getElementById('stu-login').classList.remove('hidden');document.getElementById('stu-name').value='';document.getElementById('stu-password').value='';document.getElementById('stu-login-error').textContent='';if(this.cmStudent){this._suppressAutoSave=true;this.cmStudent.setValue('# Viết code tại đây\n');this._suppressAutoSave=false}}
 
 // ===== 🔒 ANTI-CHEAT SYSTEM (contest mode only) =====
 // BUG-3 FIX: Save paste handler ref for proper cleanup
@@ -1761,10 +1781,24 @@ edSec.style.flex='0 0 '+editorPct+'%';conSec.style.flex='0 0 '+consolePct+'%';co
 document.addEventListener('mouseup',()=>{if(hDragging){hDragging=false;hDiv.classList.remove('dragging');if(this.cmStudent)this.cmStudent.refresh()}})}
 
 
-async _stuLogin(){if(!this._$m())return;const name=document.getElementById('stu-name').value.trim();const pass=document.getElementById('stu-password').value;const errEl=document.getElementById('stu-login-error');errEl.textContent='';if(!name||!pass){errEl.textContent='⚠️ Nhập đầy đủ tên và mật khẩu';return}try{await this.fb.verifyStudent(name,pass);this.studentName=name;document.getElementById('stu-login').classList.add('hidden');document.getElementById('stu-dashboard').classList.remove('hidden');document.getElementById('stu-welcome-name').textContent=name;
+async _stuLogin(){if(!this._$m())return;const name=document.getElementById('stu-name').value.trim();const pass=document.getElementById('stu-password').value;const errEl=document.getElementById('stu-login-error');errEl.textContent='';if(!name||!pass){errEl.textContent='⚠️ Nhập đầy đủ tên và mật khẩu';return}try{await this.fb.verifyStudent(name,pass);const _acctSnap=await this.fb.db.ref('accounts/'+name).once('value');if(_acctSnap.val()&&_acctSnap.val().banned){errEl.textContent='🚫 Tài khoản đã bị khóa bởi giáo viên!';return}this.studentName=name;document.getElementById('stu-login').classList.add('hidden');document.getElementById('stu-dashboard').classList.remove('hidden');document.getElementById('stu-welcome-name').textContent=name;
 // Re-register Firebase listeners (destroyed on previous logout)
 this._registerStudentListeners();
 this._toast(`Xin chào ${name}!`,'success');this._loadTipsForStudent()}catch(e){errEl.textContent='❌ '+e.message}}
+// Google Sign-In for students
+async _googleLogin(){const errEl=document.getElementById('stu-login-error');errEl.textContent='';
+try{errEl.textContent='🔐 Đang kết nối Google...';
+const user=await this.fb.googleSignIn();
+const key=await this.fb.saveGoogleUser(user);
+this.studentName=key;this._isGoogleUser=true;this._googleUserInfo={displayName:user.displayName,email:user.email,photoURL:user.photoURL};
+document.getElementById('stu-login').classList.add('hidden');document.getElementById('stu-dashboard').classList.remove('hidden');
+document.getElementById('stu-welcome-name').textContent=user.displayName||user.email.split('@')[0];
+const avatar=document.getElementById('stu-google-avatar');if(avatar&&user.photoURL){avatar.src=user.photoURL;avatar.classList.remove('hidden')}
+const chgPassBtn=document.getElementById('btn-change-pass');if(chgPassBtn)chgPassBtn.style.display='none';
+this._registerStudentListeners();
+this._toast('Xin chào '+( user.displayName||user.email)+'!','success');this._loadTipsForStudent()}catch(e){errEl.textContent='❌ '+(e.message||'Đăng nhập Google thất bại');if(this.fb.auth.currentUser)this.fb.googleSignOut()}}
+
+
 
 // BUG-1 FIX: Removed duplicate _stuLogout — see canonical version at L1142
 

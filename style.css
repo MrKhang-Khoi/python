@@ -1701,3 +1701,22 @@ textarea.ai-textarea{resize:vertical}
   .generic-modal-box{max-width:95vw}
   .tips-ticker-bar{height:36px}
 }
+
+/* ============ GOOGLE LOGIN ============ */
+.google-login-divider{display:flex;align-items:center;gap:12px;margin:14px 0 10px;color:var(--text-muted);font-size:.8rem}
+.google-login-divider::before,.google-login-divider::after{content:'';flex:1;height:1px;background:var(--border)}
+.btn-google{background:rgba(255,255,255,.08);border:1px solid var(--border);color:var(--text-primary);font-weight:600;font-size:.88rem;display:flex;align-items:center;transition:all .25s;border-radius:var(--radius)}
+.btn-google:hover{background:rgba(255,255,255,.15);border-color:rgba(66,133,244,.5);box-shadow:0 0 16px rgba(66,133,244,.15)}
+.btn-google:active{transform:scale(.98)}
+.btn-google svg{flex-shrink:0}
+.stu-google-avatar{width:28px;height:28px;border-radius:50%;border:2px solid var(--accent);object-fit:cover;margin-right:4px}
+.stu-google-avatar.hidden{display:none}
+.acct-google-avatar{width:22px;height:22px;border-radius:50%;object-fit:cover;border:1px solid var(--border);vertical-align:middle;margin-right:4px}
+.acct-type-badge{font-size:.65rem;padding:2px 6px;border-radius:8px;font-weight:600;display:inline-block}
+.acct-type-badge.google{background:rgba(66,133,244,.15);color:#4285f4}
+.acct-type-badge.manual{background:rgba(139,92,246,.12);color:var(--accent)}
+.acct-type-badge.banned{background:rgba(239,68,68,.15);color:var(--danger)}
+.btn-ban-sm{background:rgba(239,68,68,.12);color:var(--danger);border:none;border-radius:6px;padding:3px 8px;font-size:.72rem;cursor:pointer;transition:.2s}
+.btn-ban-sm:hover{background:rgba(239,68,68,.25)}
+.btn-unban-sm{background:rgba(34,197,94,.12);color:var(--success);border:none;border-radius:6px;padding:3px 8px;font-size:.72rem;cursor:pointer;transition:.2s}
+.btn-unban-sm:hover{background:rgba(34,197,94,.25)}
