@@ -1512,6 +1512,40 @@ textarea.ai-textarea{resize:vertical}
   .quiz-result-card{padding:20px;max-width:95%}
 }
 
+
+/* ============ DASHBOARD TỔNG QUAN ============ */
+.dash-stats-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:14px;margin-bottom:24px}
+.dash-stat-card{background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:20px 18px;display:flex;flex-direction:column;align-items:center;gap:6px;transition:all .25s;position:relative;overflow:hidden}
+.dash-stat-card::before{content:'';position:absolute;inset:0;opacity:.06;border-radius:14px}
+.dash-stat-card.accent::before{background:linear-gradient(135deg,#6366f1,#818cf8)}
+.dash-stat-card.success::before{background:linear-gradient(135deg,#10b981,#34d399)}
+.dash-stat-card.warning::before{background:linear-gradient(135deg,#f59e0b,#fbbf24)}
+.dash-stat-card.info::before{background:linear-gradient(135deg,#3b82f6,#60a5fa)}
+.dash-stat-card.violet::before{background:linear-gradient(135deg,#8b5cf6,#a78bfa)}
+.dash-stat-card.pink::before{background:linear-gradient(135deg,#ec4899,#f472b6)}
+.dash-stat-card:hover{transform:translateY(-3px);box-shadow:0 8px 24px rgba(0,0,0,.2)}
+.dash-stat-icon{font-size:1.8rem;filter:drop-shadow(0 2px 6px rgba(0,0,0,.2))}
+.dash-stat-num{font-size:2rem;font-weight:800;color:var(--text-primary);font-family:var(--font-display);line-height:1}
+.dash-stat-label{font-size:.72rem;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.06em}
+.dash-charts-row{display:flex;gap:16px;margin-bottom:16px}
+.dash-chart-card{flex:1;background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:18px 20px;min-height:280px}
+.dash-chart-title{font-size:.88rem;font-weight:700;color:var(--text-secondary);margin-bottom:14px}
+.dash-chart-wrap{position:relative;height:220px}
+.dash-recent-card{background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:18px 20px;margin-bottom:24px}
+.dash-activity-item{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid rgba(148,163,184,.05)}
+.dash-activity-item:last-child{border-bottom:none}
+.dash-activity-icon{font-size:1.1rem;flex-shrink:0}
+.dash-activity-text{flex:1;font-size:.82rem;color:var(--text-secondary)}
+.dash-activity-score{font-size:.78rem;font-weight:700;color:var(--accent-light);min-width:60px;text-align:right}
+.dash-activity-time{font-size:.72rem;color:var(--text-muted);min-width:80px;text-align:right}
+@media(max-width:768px){
+  .dash-stats-grid{grid-template-columns:repeat(3,1fr);gap:8px}
+  .dash-stat-card{padding:14px 10px}
+  .dash-stat-num{font-size:1.5rem}
+  .dash-charts-row{flex-direction:column}
+  .dash-chart-card{min-height:220px}
+}
+
 /* ============ GENERIC MODAL ============ */
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(8px);z-index:10000;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .3s}
 .modal-overlay.active{opacity:1}

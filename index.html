@@ -23,6 +23,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -81,7 +82,8 @@
         <!-- ===== TEACHER TAB BAR ===== -->
         <nav class="t-tabbar">
             <div class="container t-tabbar-inner">
-                <button class="t-tab active" data-ttab="compose">📝 Soạn Đề</button>
+                <button class="t-tab active" data-ttab="dashboard">🏠 Tổng Quan</button>
+                <button class="t-tab" data-ttab="compose">📝 Soạn Đề</button>
                 <button class="t-tab" data-ttab="exercises">📚 Bài Tập</button>
                 <button class="t-tab" data-ttab="theory">📖 Lý Thuyết</button>
                 <button class="t-tab" data-ttab="students">👥 Học Sinh</button>
@@ -92,8 +94,48 @@
             </div>
         </nav>
         <main class="container">
+
+            <!-- ===== TAB: TỔNG QUAN ===== -->
+            <div id="t-tab-dashboard" class="t-tab-panel">
+                <div class="oj-page-header">
+                    <div><h2 class="oj-page-title">🏠 Tổng Quan</h2><p class="oj-page-sub">Nắm bắt nhanh tình hình lớp học</p></div>
+                    <div style="display:flex;gap:8px">
+                        <button class="btn btn-ghost btn-sm" id="btn-export-excel" title="Xuất bảng điểm">📤 Export Excel</button>
+                        <button class="btn btn-ghost btn-sm" id="btn-change-teacher-pass" title="Đổi mật khẩu">🔑 Đổi MK</button>
+                    </div>
+                </div>
+                <!-- Quick Stats Cards -->
+                <div class="dash-stats-grid" id="dash-stats-grid"></div>
+                <!-- Charts Row -->
+                <div class="dash-charts-row">
+                    <div class="dash-chart-card">
+                        <h3 class="dash-chart-title">📊 Điểm Trung Bình Theo Bài</h3>
+                        <div class="dash-chart-wrap"><canvas id="chart-exercise-avg"></canvas></div>
+                    </div>
+                    <div class="dash-chart-card">
+                        <h3 class="dash-chart-title">🎯 Tỉ Lệ Hoàn Thành</h3>
+                        <div class="dash-chart-wrap"><canvas id="chart-completion"></canvas></div>
+                    </div>
+                </div>
+                <div class="dash-charts-row">
+                    <div class="dash-chart-card" style="flex:2">
+                        <h3 class="dash-chart-title">📈 Top 10 Học Sinh</h3>
+                        <div class="dash-chart-wrap"><canvas id="chart-top-students"></canvas></div>
+                    </div>
+                    <div class="dash-chart-card" style="flex:1">
+                        <h3 class="dash-chart-title">📂 Phân Bổ Chủ Đề</h3>
+                        <div class="dash-chart-wrap"><canvas id="chart-topic-dist"></canvas></div>
+                    </div>
+                </div>
+                <!-- Recent Activity -->
+                <div class="dash-recent-card">
+                    <h3 class="dash-chart-title">🕐 Hoạt Động Gần Đây</h3>
+                    <div id="dash-recent-list"></div>
+                </div>
+            </div>
+
             <!-- ===== TAB 1: SOẠN ĐỀ ===== -->
-            <div id="t-tab-compose" class="t-tab-panel">
+            <div id="t-tab-compose" class="t-tab-panel hidden">
                 <!-- ===== STEP 1: ĐỀ BÀI (Problem Statement) — ĐẦU TIÊN, RỘNG NHẤT ===== -->
                 <section class="card card-full" id="section-problem">
                     <div class="card-header">

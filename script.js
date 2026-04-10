@@ -223,10 +223,11 @@ _initTeacher(){if(this._teacherInited){document.getElementById('view-teacher').c
 document.querySelectorAll('.stats-subtab').forEach(btn=>{btn.onclick=()=>{document.querySelectorAll('.stats-subtab').forEach(b=>b.classList.remove('active'));btn.classList.add('active');document.querySelectorAll('.stats-subtab-content').forEach(p=>p.classList.remove('active'));const panel=document.getElementById('stab-'+btn.dataset.stab);if(panel)panel.classList.add('active')}});
 // Auto-restore draft if exists
 this._restoreDraft();
-this.fb.listenAccounts(accts=>{this._cachedAccounts=accts;this._renderAccountList(accts);this._renderProgress();this._renderTopicStats()});
+this.fb.listenAccounts(accts=>{this._cachedAccounts=accts;this._renderAccountList(accts);this._renderProgress();this._renderTopicStats();this._renderDashboard()});
 this.fb.listenExercises(exs=>{this._teacherExercises=exs;this._renderTeacherExerciseList(exs);this._renderProgress();this._renderTopicStats()});
+this._initDashboard();
 this._initTeacherTips();
-this.fb.listenAllExerciseResults(res=>{this._teacherExResults=res;this._renderTeacherExerciseList(this._teacherExercises||{});this._renderProgress();this._renderTopicStats()});
+this.fb.listenAllExerciseResults(res=>{this._teacherExResults=res;this._renderTeacherExerciseList(this._teacherExercises||{});this._renderProgress();this._renderTopicStats();this._renderDashboard()});
 // Theory listener
 const thRef=this.fb.db.ref('theories');const _thCb=s=>{this._cachedTheories=s.val()||{};this._renderTheoryList(this._cachedTheories,'t-theory-list',true)};thRef.on('value',_thCb);this.fb._listeners.push(()=>thRef.off('value',_thCb));
 // Room history listener
@@ -3581,6 +3582,134 @@ async _deleteTip(id){
 const tip=this._tipsData[id];if(!tip)return;
 if(!confirm('Xóa tip "'+tip.title+'"?'))return;
 try{await this.fb.deleteTip(id);this._toast('\u{1F5D1}\uFE0F Đã xóa tip','success')}catch(e){this._toast('\u274C Lỗi: '+e.message,'error')}}
+
+
+// ============ FEATURE 1: DASHBOARD TỔNG QUAN ============
+_chartInstances={}
+_initDashboard(){
+const exportBtn=document.getElementById('btn-export-excel');
+if(exportBtn)exportBtn.onclick=()=>this._exportExcel();
+const changePwBtn=document.getElementById('btn-change-teacher-pass');
+if(changePwBtn)changePwBtn.onclick=()=>this._showChangePasswordModal();
+this._renderDashboard()}
+
+_renderDashboard(){
+const exs=this._teacherExercises||{};const accts=this._cachedAccounts||{};const res=this._teacherExResults||{};
+const quizzes=this._teacherQuizzes||{};const tips=this._tipsData||{};
+const exKeys=Object.keys(exs);const stuNames=Object.keys(accts);
+const totalEx=exKeys.length;const totalStu=stuNames.length;
+const totalQuiz=Object.keys(quizzes).length;const totalTips=Object.keys(tips).length;
+// Calculate stats
+let totalSubmissions=0,perfectCount=0,totalScore=0,scoreCount=0;
+exKeys.forEach(ek=>{stuNames.forEach(sn=>{const r=res[ek]&&res[ek][sn];if(r&&r.score!=null){totalSubmissions++;totalScore+=r.score;scoreCount++;if(r.score===100)perfectCount++}})});
+const avgScore=scoreCount?Math.round(totalScore/scoreCount):0;
+const completionRate=totalEx&&totalStu?Math.round(totalSubmissions/(totalEx*totalStu)*100):0;
+// Render stat cards
+const grid=document.getElementById('dash-stats-grid');
+if(grid)grid.innerHTML='<div class="dash-stat-card accent"><div class="dash-stat-icon">👥</div><div class="dash-stat-num">'+totalStu+'</div><div class="dash-stat-label">Học Sinh</div></div><div class="dash-stat-card success"><div class="dash-stat-icon">📚</div><div class="dash-stat-num">'+totalEx+'</div><div class="dash-stat-label">Bài Tập</div></div><div class="dash-stat-card warning"><div class="dash-stat-icon">📝</div><div class="dash-stat-num">'+totalQuiz+'</div><div class="dash-stat-label">Trắc Nghiệm</div></div><div class="dash-stat-card info"><div class="dash-stat-icon">💡</div><div class="dash-stat-num">'+totalTips+'</div><div class="dash-stat-label">Tips</div></div><div class="dash-stat-card violet"><div class="dash-stat-icon">📊</div><div class="dash-stat-num">'+avgScore+'</div><div class="dash-stat-label">Điểm TB</div></div><div class="dash-stat-card pink"><div class="dash-stat-icon">🎯</div><div class="dash-stat-num">'+completionRate+'%</div><div class="dash-stat-label">Hoàn Thành</div></div>';
+// Render charts
+this._renderCharts(exs,accts,res);
+// Recent activity
+this._renderRecentActivity(exs,res,accts)}
+
+// ============ FEATURE 2: BIỂU ĐỒ THỐNG KÊ ============
+_renderCharts(exs,accts,res){
+if(typeof Chart==='undefined')return;
+const exKeys=Object.keys(exs);const stuNames=Object.keys(accts);
+// Destroy old charts
+Object.values(this._chartInstances).forEach(c=>{if(c&&c.destroy)c.destroy()});this._chartInstances={};
+// Chart 1: Average score per exercise
+const exLabels=exKeys.map(k=>(exs[k].title||k).substring(0,15));
+const exAvgs=exKeys.map(ek=>{let sum=0,cnt=0;stuNames.forEach(sn=>{const r=res[ek]&&res[ek][sn];if(r&&r.score!=null){sum+=r.score;cnt++}});return cnt?Math.round(sum/cnt):0});
+const ctx1=document.getElementById('chart-exercise-avg');
+if(ctx1&&exKeys.length){this._chartInstances.exAvg=new Chart(ctx1,{type:'bar',data:{labels:exLabels,datasets:[{label:'Điểm TB',data:exAvgs,backgroundColor:'rgba(99,102,241,.6)',borderColor:'#6366f1',borderWidth:1,borderRadius:6}]},options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true,max:100,ticks:{color:'#94a3b8'},grid:{color:'rgba(148,163,184,.08)'}},x:{ticks:{color:'#94a3b8',maxRotation:45},grid:{display:false}}},plugins:{legend:{display:false}}}})}
+// Chart 2: Completion pie
+const notStarted=exKeys.length&&stuNames.length?exKeys.reduce((s,ek)=>s+stuNames.filter(sn=>!res[ek]||!res[ek][sn]||res[ek][sn].score==null).length,0):0;
+const partial=exKeys.reduce((s,ek)=>s+stuNames.filter(sn=>res[ek]&&res[ek][sn]&&res[ek][sn].score!=null&&res[ek][sn].score<100).length,0);
+const perfect=exKeys.reduce((s,ek)=>s+stuNames.filter(sn=>res[ek]&&res[ek][sn]&&res[ek][sn].score===100).length,0);
+const ctx2=document.getElementById('chart-completion');
+if(ctx2&&(notStarted+partial+perfect)>0){this._chartInstances.completion=new Chart(ctx2,{type:'doughnut',data:{labels:['💯 100 điểm','🔶 Chưa đạt','❌ Chưa làm'],datasets:[{data:[perfect,partial,notStarted],backgroundColor:['rgba(16,185,129,.7)','rgba(245,158,11,.7)','rgba(100,116,139,.4)'],borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{color:'#94a3b8',padding:12,usePointStyle:true}}}}})}
+// Chart 3: Top 10 students
+const stuScores=stuNames.map(sn=>{let total=0;exKeys.forEach(ek=>{const r=res[ek]&&res[ek][sn];if(r&&r.score!=null)total+=r.score});return{name:sn,score:total}}).sort((a,b)=>b.score-a.score).slice(0,10);
+const ctx3=document.getElementById('chart-top-students');
+if(ctx3&&stuScores.length){this._chartInstances.topStu=new Chart(ctx3,{type:'bar',data:{labels:stuScores.map(s=>s.name.substring(0,12)),datasets:[{label:'Tổng điểm',data:stuScores.map(s=>s.score),backgroundColor:stuScores.map((_,i)=>i<3?'rgba(245,158,11,.7)':'rgba(139,92,246,.5)'),borderRadius:6}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,scales:{x:{beginAtZero:true,ticks:{color:'#94a3b8'},grid:{color:'rgba(148,163,184,.06)'}},y:{ticks:{color:'#94a3b8'},grid:{display:false}}},plugins:{legend:{display:false}}}})}
+// Chart 4: Topic distribution
+const topicMap={};exKeys.forEach(k=>{const t=exs[k].topic||'Chưa phân loại';topicMap[t]=(topicMap[t]||0)+1});
+const topicLabels=Object.keys(topicMap);const topicData=Object.values(topicMap);
+const topicColors=['rgba(99,102,241,.7)','rgba(139,92,246,.7)','rgba(16,185,129,.7)','rgba(245,158,11,.7)','rgba(236,72,153,.7)','rgba(6,182,212,.7)','rgba(248,113,113,.7)','rgba(52,211,153,.7)'];
+const ctx4=document.getElementById('chart-topic-dist');
+if(ctx4&&topicLabels.length){this._chartInstances.topics=new Chart(ctx4,{type:'pie',data:{labels:topicLabels,datasets:[{data:topicData,backgroundColor:topicColors.slice(0,topicLabels.length),borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{color:'#94a3b8',padding:8,usePointStyle:true,font:{size:11}}}}}})}}
+
+_renderRecentActivity(exs,res,accts){
+const list=document.getElementById('dash-recent-list');if(!list)return;
+const activities=[];const stuNames=Object.keys(accts||{});
+Object.keys(exs||{}).forEach(ek=>{const ex=exs[ek];stuNames.forEach(sn=>{const r=res[ek]&&res[ek][sn];if(r&&r.submittedAt){activities.push({time:r.submittedAt,text:sn+' nộp "'+this._esc((ex.title||'').substring(0,30))+'"',score:r.score,icon:r.score===100?'💯':r.score>=50?'🔶':'❌'})}})});
+activities.sort((a,b)=>b.time-a.time);
+const recent=activities.slice(0,15);
+if(!recent.length){list.innerHTML='<p style="color:var(--text-muted);text-align:center;padding:20px">Chưa có hoạt động</p>';return}
+list.innerHTML=recent.map(a=>'<div class="dash-activity-item"><span class="dash-activity-icon">'+a.icon+'</span><span class="dash-activity-text">'+a.text+'</span><span class="dash-activity-score">'+(a.score!=null?a.score+' điểm':'')+'</span><span class="dash-activity-time">'+this._timeAgo(a.time)+'</span></div>').join('')}
+
+_timeAgo(ts){const d=Date.now()-ts;if(d<60000)return 'vừa xong';if(d<3600000)return Math.floor(d/60000)+' phút trước';if(d<86400000)return Math.floor(d/3600000)+' giờ trước';return Math.floor(d/86400000)+' ngày trước'}
+
+// ============ FEATURE 3: EXPORT EXCEL ============
+_exportExcel(){
+const exs=this._teacherExercises||{};const accts=this._cachedAccounts||{};const res=this._teacherExResults||{};
+const exKeys=Object.keys(exs);const stuNames=Object.keys(accts).sort();
+if(!exKeys.length||!stuNames.length){this._toast('Cần có bài tập và học sinh để xuất','error');return}
+// Build data array
+const headers=['STT','Họ tên',...exKeys.map(k=>(exs[k].title||k).substring(0,20)),'Tổng điểm','Số bài 100','Điểm TB'];
+const rows=stuNames.map((sn,i)=>{let total=0,cnt=0,perfect=0;
+const scores=exKeys.map(ek=>{const r=res[ek]&&res[ek][sn];const s=r&&r.score!=null?r.score:'';if(s!==''){total+=s;cnt++;if(s===100)perfect++}return s});
+const avg=cnt?Math.round(total/cnt):0;
+return[i+1,sn,...scores,total,perfect,avg]});
+// Create workbook
+const wb=XLSX.utils.book_new();
+// Sheet 1: Bảng điểm bài tập
+const ws1Data=[headers,...rows];const ws1=XLSX.utils.aoa_to_sheet(ws1Data);
+// Auto column widths
+ws1['!cols']=[{wch:5},{wch:20},...exKeys.map(()=>({wch:12})),{wch:10},{wch:10},{wch:10}];
+XLSX.utils.book_append_sheet(wb,ws1,'Bảng Điểm');
+// Sheet 2: Kết quả trắc nghiệm
+const quizzes=this._teacherQuizzes||{};const qRes=this._teacherQuizResults||{};
+const qKeys=Object.keys(quizzes);
+if(qKeys.length){
+const qHeaders=['STT','Họ tên',...qKeys.map(k=>(quizzes[k].title||k).substring(0,20))];
+const qRows=stuNames.map((sn,i)=>{const scores=qKeys.map(qk=>{const r=qRes[qk]&&qRes[qk][sn];return r?Math.round(r.score||0):''});return[i+1,sn,...scores]});
+const ws2=XLSX.utils.aoa_to_sheet([qHeaders,...qRows]);ws2['!cols']=[{wch:5},{wch:20},...qKeys.map(()=>({wch:15}))];
+XLSX.utils.book_append_sheet(wb,ws2,'Trắc Nghiệm')}
+// Sheet 3: Thống kê tổng hợp
+const summaryData=[['Thống Kê Tổng Hợp',''],['Tổng số học sinh',stuNames.length],['Tổng số bài tập',exKeys.length],['Tổng số trắc nghiệm',Object.keys(quizzes).length],['Ngày xuất',new Date().toLocaleDateString('vi-VN')]];
+const ws3=XLSX.utils.aoa_to_sheet(summaryData);ws3['!cols']=[{wch:25},{wch:15}];
+XLSX.utils.book_append_sheet(wb,ws3,'Thống Kê');
+// Download
+const fileName='BangDiem_'+new Date().toISOString().slice(0,10)+'.xlsx';
+XLSX.writeFile(wb,fileName);
+this._toast('📤 Đã xuất '+fileName,'success')}
+
+// ============ FEATURE 4: ĐỔI MẬT KHẨU GV ============
+_showChangePasswordModal(){
+const h='<div class="tip-editor" style="min-width:400px"><div class="tip-editor-row"><label>Mật khẩu hiện tại</label><input type="password" id="cp-old" class="input" placeholder="Nhập MK hiện tại"></div><div class="tip-editor-row"><label>Mật khẩu mới</label><input type="password" id="cp-new" class="input" placeholder="Nhập MK mới (≥6 ký tự)"></div><div class="tip-editor-row"><label>Xác nhận MK mới</label><input type="password" id="cp-confirm" class="input" placeholder="Nhập lại MK mới"></div><div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px"><button class="btn btn-ghost" onclick="document.querySelector(\'.modal-overlay\').click()">Hủy</button><button class="btn btn-accent" id="btn-cp-save">🔑 Đổi Mật Khẩu</button></div></div>';
+this._showModal('🔑 Đổi Mật Khẩu Giáo Viên',h);
+document.getElementById('btn-cp-save').onclick=async()=>{
+const oldP=document.getElementById('cp-old').value;
+const newP=document.getElementById('cp-new').value;
+const cfm=document.getElementById('cp-confirm').value;
+if(!oldP){this._toast('Nhập mật khẩu hiện tại','error');return}
+if(newP.length<6){this._toast('Mật khẩu mới phải ≥6 ký tự','error');return}
+if(newP!==cfm){this._toast('Mật khẩu xác nhận không khớp','error');return}
+try{
+// Verify old password
+const hash=await this._sha256(oldP);
+const verifyRes=await fetch(APPS_SCRIPT_URL,{method:'POST',body:JSON.stringify({action:'verify_teacher',passwordHash:hash}),headers:{'Content-Type':'text/plain'}});
+const vData=await verifyRes.json();
+if(!vData.ok){this._toast('Mật khẩu hiện tại không đúng','error');return}
+// Change password via Apps Script
+const newHash=await this._sha256(newP);
+const changeRes=await fetch(APPS_SCRIPT_URL,{method:'POST',body:JSON.stringify({action:'change_teacher_password',oldHash:hash,newHash:newHash}),headers:{'Content-Type':'text/plain'}});
+const cData=await changeRes.json();
+if(cData.ok){this._closeModal();this._toast('✅ Đã đổi mật khẩu thành công!','success')}
+else{this._toast('❌ '+(cData.error||'Không thể đổi MK. Server chưa hỗ trợ.'),'error')}
+}catch(e){this._toast('❌ Lỗi: '+e.message,'error')}}}
 
 _esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
 
