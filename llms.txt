@@ -1,0 +1,50 @@
+# Themis Online Judge
+
+> Nền tảng chấm bài lập trình Python trực tuyến miễn phí, chuẩn Themis, dành cho giáo viên và học sinh Việt Nam.
+
+## About
+
+Themis Online Judge (Themis OJ) là hệ thống giáo dục lập trình trực tuyến cho phép:
+- **Giáo viên**: Soạn đề bài, sinh test tự động, tạo phòng thi, quản lý học sinh, xem thống kê tiến độ
+- **Học sinh**: Luyện tập, nộp bài, thi đấu trực tuyến, nhận phản hồi tức thì từ AI
+
+URL: https://mrkhang-khoi.github.io/python/
+
+## Key Features
+
+- [Chấm bài Python tự động](https://mrkhang-khoi.github.io/python/): Code chạy trực tiếp trên trình duyệt bằng Pyodide (WebAssembly), không cần server
+- [AI Gemini tích hợp](https://mrkhang-khoi.github.io/python/): Tự động sinh code đáp án, stress test, tạo đề trắc nghiệm
+- [Phòng thi trực tuyến](https://mrkhang-khoi.github.io/python/): Real-time, giám sát anti-cheat, bảng xếp hạng tự động
+- [Dashboard thống kê](https://mrkhang-khoi.github.io/python/): Biểu đồ Chart.js, export bảng điểm Excel
+- [Hệ thống huy hiệu](https://mrkhang-khoi.github.io/python/): Gamification cho học sinh (Tập Sự → Đồng → Bạc → Vàng → Kim Cương → Huyền Thoại)
+
+## Technology
+
+- Frontend: Vanilla HTML/CSS/JavaScript (Single Page Application)
+- Database: Firebase Realtime Database
+- Code Runner: Pyodide (Python-in-browser via WebAssembly)
+- AI: Google Gemini API
+- Editor: CodeMirror 5
+- Charts: Chart.js 4
+- Hosting: GitHub Pages
+
+## FAQ
+
+### Themis Online Judge là gì?
+Là nền tảng chấm bài lập trình Python trực tuyến miễn phí. Giáo viên soạn đề, học sinh nộp bài, hệ thống chấm tự động bằng Pyodide ngay trên trình duyệt.
+
+### Có miễn phí không?
+Hoàn toàn miễn phí. Host trên GitHub Pages, dữ liệu lưu trên Firebase.
+
+### Hỗ trợ ngôn ngữ nào?
+Python, chạy trực tiếp trên trình duyệt bằng Pyodide (WebAssembly). Không cần cài đặt.
+
+### Ai có thể sử dụng?
+Giáo viên tin học, học sinh giỏi, đội tuyển HSG, và bất kỳ ai muốn luyện tập lập trình Python.
+
+### Tính năng AI hoạt động thế nào?
+Tích hợp Google Gemini API: sinh code đáp án (brute force + optimal), stress test tự động, tạo câu hỏi trắc nghiệm, và chatbot trợ lý hỗ trợ học sinh.
+
+## Source Code
+
+- GitHub: https://github.com/MrKhang-Khoi/python

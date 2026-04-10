@@ -3,16 +3,137 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Themis Online Judge — Hệ Thống Chấm Bài HSG</title>
-    <meta name="description" content="Hệ thống chấm bài lập trình thi đấu trực tuyến chuẩn Themis. Real-time leaderboard.">
+
+    <!-- ===== SEO: Primary Meta Tags ===== -->
+    <title>Themis Online Judge — Hệ Thống Chấm Bài Lập Trình HSG Trực Tuyến</title>
+    <meta name="description" content="Themis Online Judge - Nền tảng chấm bài lập trình Python trực tuyến chuẩn Themis cho học sinh giỏi. Luyện tập, thi đấu, AI hỗ trợ, bảng xếp hạng real-time. Miễn phí cho giáo viên và học sinh.">
+    <meta name="keywords" content="Themis Online Judge, chấm bài lập trình, học sinh giỏi tin học, HSG, luyện code Python, thi đấu lập trình, online judge Việt Nam, chấm bài tự động, Pyodide, lập trình thi đấu, competitive programming">
+    <meta name="author" content="MrKhang-Khoi">
+    <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large">
+    <meta name="googlebot" content="index, follow">
+    <link rel="canonical" href="https://mrkhang-khoi.github.io/python/">
+    <meta name="theme-color" content="#0f172a">
+
+    <!-- ===== SEO: Open Graph (Facebook, Zalo, LinkedIn) ===== -->
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Themis Online Judge">
+    <meta property="og:title" content="Themis Online Judge — Chấm Bài Lập Trình HSG Trực Tuyến">
+    <meta property="og:description" content="Nền tảng luyện tập và thi đấu lập trình Python miễn phí. Chấm bài tự động, AI trợ lý, trắc nghiệm, bảng xếp hạng real-time. Dành cho giáo viên & học sinh.">
+    <meta property="og:url" content="https://mrkhang-khoi.github.io/python/">
+    <meta property="og:image" content="https://mrkhang-khoi.github.io/python/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:locale" content="vi_VN">
+
+    <!-- ===== SEO: Twitter Card ===== -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Themis Online Judge — Chấm Bài Lập Trình HSG">
+    <meta name="twitter:description" content="Luyện tập & thi đấu lập trình Python trực tuyến. Chấm bài chuẩn Themis, AI hỗ trợ, miễn phí.">
+    <meta name="twitter:image" content="https://mrkhang-khoi.github.io/python/og-image.png">
+
+    <!-- ===== SEO: JSON-LD Structured Data ===== -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@graph": [
+            {
+                "@type": "WebApplication",
+                "name": "Themis Online Judge",
+                "alternateName": ["Themis OJ", "Chấm bài HSG online"],
+                "url": "https://mrkhang-khoi.github.io/python/",
+                "description": "Nền tảng chấm bài lập trình Python trực tuyến chuẩn Themis cho học sinh giỏi tin học. Hỗ trợ AI, bảng xếp hạng real-time, trắc nghiệm, phòng thi trực tuyến.",
+                "applicationCategory": "EducationalApplication",
+                "operatingSystem": "Web Browser",
+                "offers": {
+                    "@type": "Offer",
+                    "price": "0",
+                    "priceCurrency": "VND",
+                    "availability": "https://schema.org/InStock"
+                },
+                "featureList": [
+                    "Chấm bài Python tự động trong trình duyệt (Pyodide)",
+                    "Soạn đề tự động với AI Gemini",
+                    "Sinh test tự động (stress test, brute force)",
+                    "Trắc nghiệm trực tuyến với AI tạo đề",
+                    "Phòng thi trực tuyến real-time",
+                    "Bảng xếp hạng & hệ thống huy hiệu",
+                    "Tips lập trình & tài liệu lý thuyết",
+                    "Quản lý học sinh & thống kê tiến độ",
+                    "Export bảng điểm Excel"
+                ],
+                "screenshot": "https://mrkhang-khoi.github.io/python/og-image.png",
+                "inLanguage": "vi",
+                "isAccessibleForFree": true
+            },
+            {
+                "@type": "EducationalOrganization",
+                "name": "Themis Online Judge",
+                "url": "https://mrkhang-khoi.github.io/python/",
+                "description": "Hệ thống giáo dục lập trình trực tuyến miễn phí cho giáo viên và học sinh Việt Nam"
+            },
+            {
+                "@type": "FAQPage",
+                "mainEntity": [
+                    {
+                        "@type": "Question",
+                        "name": "Themis Online Judge là gì?",
+                        "acceptedAnswer": {
+                            "@type": "Answer",
+                            "text": "Themis Online Judge là nền tảng chấm bài lập trình Python trực tuyến miễn phí, dành cho giáo viên soạn đề và học sinh luyện tập thi đấu lập trình. Hệ thống sử dụng Pyodide để chạy code Python ngay trên trình duyệt, không cần cài đặt phần mềm."
+                        }
+                    },
+                    {
+                        "@type": "Question",
+                        "name": "Làm sao để sử dụng Themis Online Judge?",
+                        "acceptedAnswer": {
+                            "@type": "Answer",
+                            "text": "Giáo viên đăng nhập bằng mật khẩu quản trị để soạn đề, tạo tài khoản học sinh, quản lý phòng thi. Học sinh đăng nhập bằng tài khoản giáo viên cấp để làm bài tập, thi đấu, xem bảng xếp hạng."
+                        }
+                    },
+                    {
+                        "@type": "Question",
+                        "name": "Themis Online Judge có miễn phí không?",
+                        "acceptedAnswer": {
+                            "@type": "Answer",
+                            "text": "Có, Themis Online Judge hoàn toàn miễn phí. Được host trên GitHub Pages, sử dụng Firebase Realtime Database, không yêu cầu cài đặt server."
+                        }
+                    },
+                    {
+                        "@type": "Question",
+                        "name": "Hỗ trợ ngôn ngữ lập trình nào?",
+                        "acceptedAnswer": {
+                            "@type": "Answer",
+                            "text": "Hiện tại hỗ trợ Python, chạy trực tiếp trên trình duyệt bằng Pyodide (WebAssembly). Học sinh không cần cài đặt Python trên máy tính."
+                        }
+                    },
+                    {
+                        "@type": "Question",
+                        "name": "Có tính năng AI không?",
+                        "acceptedAnswer": {
+                            "@type": "Answer",
+                            "text": "Có. Hệ thống tích hợp Google Gemini AI để: (1) Tự động sinh code đáp án, (2) Stress test so sánh code, (3) Tạo đề trắc nghiệm tự động, (4) Trợ lý AI hỗ trợ học sinh khi làm bài."
+                        }
+                    }
+                ]
+            }
+        ]
+    }
+    </script>
+
+    <!-- ===== Performance: Preconnect & Preload ===== -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com">
+    <link rel="preconnect" href="https://www.gstatic.com">
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+    <!-- ===== External Libraries ===== -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
-    <script src="https://cdn.jsdelivr.net/pyodide/v0.25.0/full/pyodide.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.25.0/full/pyodide.js" defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js" defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
@@ -23,7 +144,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" defer></script>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -1083,7 +1204,39 @@
     </div>
 
     <div id="toast-container"></div>
-    <footer id="app-footer"><div class="container"><p>Themis Online Judge &bull; Firebase Real-time &bull; Pyodide</p></div></footer>
+    <!-- ===== SEO: Noscript Fallback (visible to crawlers) ===== -->
+    <noscript>
+        <article style="max-width:800px;margin:40px auto;padding:20px;font-family:sans-serif;color:#333;line-height:1.8">
+            <h1>Themis Online Judge — Hệ Thống Chấm Bài Lập Trình HSG Trực Tuyến</h1>
+            <p><strong>Themis Online Judge</strong> là nền tảng chấm bài lập trình Python trực tuyến miễn phí, chuẩn Themis, dành cho giáo viên và học sinh Việt Nam. Hệ thống cho phép chấm bài tự động ngay trên trình duyệt bằng công nghệ Pyodide (WebAssembly), không cần cài đặt phần mềm.</p>
+            <h2>Tính Năng Chính</h2>
+            <ul>
+                <li><strong>Chấm bài tự động:</strong> Code Python chạy trực tiếp trên trình duyệt, chấm điểm theo subtask</li>
+                <li><strong>AI hỗ trợ:</strong> Google Gemini tự động sinh đáp án, stress test, tạo đề trắc nghiệm</li>
+                <li><strong>Phòng thi trực tuyến:</strong> Tạo kỳ thi real-time, giám sát, bảng xếp hạng tự động</li>
+                <li><strong>Quản lý lớp học:</strong> Tạo tài khoản HS hàng loạt, thống kê tiến độ, export Excel</li>
+                <li><strong>Trắc nghiệm:</strong> Tạo bộ đề, import Excel, AI sinh câu hỏi tự động</li>
+                <li><strong>Dashboard:</strong> Biểu đồ Chart.js, thống kê theo chủ đề, hệ thống huy hiệu</li>
+            </ul>
+            <h2>Đối Tượng Sử Dụng</h2>
+            <p><strong>Giáo viên:</strong> Soạn đề bài, quản lý học sinh, tạo phòng thi, xem thống kê, export bảng điểm.</p>
+            <p><strong>Học sinh:</strong> Làm bài tập, thi trực tuyến, xem bảng xếp hạng, nhận huy hiệu, trợ lý AI hỗ trợ.</p>
+            <h2>Câu Hỏi Thường Gặp</h2>
+            <h3>Themis Online Judge có miễn phí không?</h3>
+            <p>Có, hoàn toàn miễn phí. Host trên GitHub Pages, sử dụng Firebase Realtime Database.</p>
+            <h3>Hỗ trợ ngôn ngữ lập trình nào?</h3>
+            <p>Hiện hỗ trợ Python, chạy trực tiếp trên trình duyệt bằng Pyodide (WebAssembly).</p>
+            <h3>Cần cài đặt gì không?</h3>
+            <p>Không cần. Chỉ cần trình duyệt web hiện đại (Chrome, Firefox, Edge).</p>
+            <p><em>Truy cập: <a href="https://mrkhang-khoi.github.io/python/">mrkhang-khoi.github.io/python</a></em></p>
+        </article>
+    </noscript>
+
+    <footer id="app-footer" role="contentinfo">
+        <div class="container">
+            <p>Themis Online Judge &bull; Chấm bài lập trình HSG &bull; Firebase &bull; Pyodide &bull; <a href="https://github.com/MrKhang-Khoi/python" style="color:inherit;text-decoration:underline">GitHub</a></p>
+        </div>
+    </footer>
     <script src="script.js"></script>
 </body>
 </html>
