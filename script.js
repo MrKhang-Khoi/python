@@ -1371,7 +1371,7 @@ $('btn-stu-submit').onclick=()=>this._stuSubmit();
 $('btn-stu-run').onclick=()=>this._stuRun();
 // Sample input button
 $('btn-use-sample-input').onclick=()=>this._fillSampleInput();
-$('btn-stu-back-join').onclick=()=>{$('stu-ended').classList.add('hidden');$('stu-dashboard').classList.remove('hidden');this.fb.cleanupExercise();this._renderExerciseList(this._cachedExercises||{});this._renderStudentRanking();this._renderStudentStats()};
+$('btn-stu-back-join').onclick=()=>{$('stu-ended').classList.add('hidden');$('stu-dashboard').classList.remove('hidden');this.fb.cleanupExercise();this._renderExerciseList(this._cachedExercises||{});this._renderStudentRanking();this._renderStudentStats();this._renderStudentDashboard()};
 $('stu-password').onkeydown=e=>{if(e.key==='Enter')this._stuLogin()};
 // Notification bell
 const bellBtn=$('btn-stu-notif-bell');if(bellBtn)bellBtn.onclick=e=>{e.stopPropagation();const dd=$('stu-notif-dropdown');dd.classList.toggle('hidden')};
@@ -1384,7 +1384,7 @@ const chgPassBtn=$('btn-change-pass');if(chgPassBtn)chgPassBtn.onclick=()=>this.
 // Dashboard nav tabs
 document.querySelectorAll('.oj-nav-tab[data-tab]').forEach(btn=>{btn.onclick=()=>{document.querySelectorAll('.oj-nav-tab[data-tab]').forEach(b=>b.classList.remove('active'));btn.classList.add('active');document.querySelectorAll('.oj-tab-panel').forEach(p=>p.classList.add('hidden'));$('tab-panel-'+btn.dataset.tab).classList.remove('hidden')}});
 // Back from contest to dashboard
-const backBtn=$('btn-stu-back-dash');if(backBtn)backBtn.onclick=()=>{$('stu-contest').classList.add('hidden');$('stu-dashboard').classList.remove('hidden');this._currentExercise=null;if(this.timerInterval){clearInterval(this.timerInterval);this.timerInterval=null}if(this._contestAutoSave){clearInterval(this._contestAutoSave);this._contestAutoSave=null}this._stopAntiCheat();this.fb.cleanupExercise();this._renderExerciseList(this._cachedExercises||{});this._renderStudentRanking();this._renderStudentStats()};
+const backBtn=$('btn-stu-back-dash');if(backBtn)backBtn.onclick=()=>{$('stu-contest').classList.add('hidden');$('stu-dashboard').classList.remove('hidden');this._currentExercise=null;if(this.timerInterval){clearInterval(this.timerInterval);this.timerInterval=null}if(this._contestAutoSave){clearInterval(this._contestAutoSave);this._contestAutoSave=null}this._stopAntiCheat();this.fb.cleanupExercise();this._renderExerciseList(this._cachedExercises||{});this._renderStudentRanking();this._renderStudentStats();this._renderStudentDashboard()};
 // Pane tabs (Desc/Leaderboard — left pane)
 document.querySelectorAll('.oj-ptab[data-ptab]').forEach(btn=>{btn.onclick=()=>{document.querySelectorAll('.oj-ptab').forEach(b=>b.classList.remove('active'));btn.classList.add('active');document.querySelectorAll('.oj-ptab-content').forEach(p=>p.classList.remove('active'));$('ptab-'+btn.dataset.ptab).classList.add('active')}});
 // Console sub-tabs (Results/Input/Console — right pane bottom)
@@ -1412,7 +1412,7 @@ this.fb.cleanupStudentDash();
 this._exerciseResults={};this._prevExCount=0;
 this.fb.listenExercises(exs=>{// Filter out exam-only exercises (topic='Đề Thi') from student view
 const filtered={};Object.keys(exs).forEach(k=>{const t=(exs[k].topic||'').trim().toLowerCase();if(t!=='đề thi'&&t!=='de thi')filtered[k]=exs[k]});this._cachedExercises=filtered;this._loadExerciseStatuses(filtered);this._checkNewExerciseNotification(filtered)},'student');
-this.fb.listenAllExerciseResults(res=>{this._exerciseResults=res;if(this._cachedExercises){this._renderExerciseList(this._cachedExercises);this._renderStudentRanking();this._renderStudentStats()}},'student');
+this.fb.listenAllExerciseResults(res=>{this._exerciseResults=res;if(this._cachedExercises){this._renderExerciseList(this._cachedExercises);this._renderStudentRanking();this._renderStudentStats();this._renderStudentDashboard()}},'student');
 const thRef2=this.fb.db.ref('theories');const _sthCb=s=>{this._stuTheories=s.val()||{};this._renderTheoryList(this._stuTheories,'stu-theory-list',false)};thRef2.on('value',_sthCb);this.fb._studentDashListeners.push(()=>thRef2.off('value',_sthCb));
 // Listen for notifications
 this._listenStudentNotifications();
@@ -1535,7 +1535,7 @@ document.getElementById('stu-dashboard').classList.add('hidden');
 this._showStudentEndedScreen(code,info);
 }catch(e){this._toast('Lỗi: '+e.message,'error')}}
 
-_loadExerciseStatuses(exs){this._renderExerciseList(exs);this._renderStudentRanking();this._renderStudentStats()}
+_loadExerciseStatuses(exs){this._renderExerciseList(exs);this._renderStudentRanking();this._renderStudentStats();this._renderStudentDashboard()}
 
 // ===== STUDENT BADGE / TITLE SYSTEM =====
 _computeStudentBadges(stats){
@@ -3710,6 +3710,77 @@ const cData=await changeRes.json();
 if(cData.ok){this._closeModal();this._toast('✅ Đã đổi mật khẩu thành công!','success')}
 else{this._toast('❌ '+(cData.error||'Không thể đổi MK. Server chưa hỗ trợ.'),'error')}
 }catch(e){this._toast('❌ Lỗi: '+e.message,'error')}}}
+
+
+// ============ STUDENT DASHBOARD OVERVIEW ============
+_stuChartInstances={}
+
+_renderStudentDashboard(){
+if(!this.studentName)return;
+const exs=this._cachedExercises||{};const res=this._exerciseResults||{};
+const exKeys=Object.keys(exs);const me=this.studentName;
+
+// Compute personal stats
+let done=0,totalScore=0,perfect=0,bestScore=0;
+const myScores=[];
+exKeys.forEach(k=>{const r=res[k]&&res[k][me];if(r&&r.score!=null){done++;totalScore+=r.score;if(r.score>=100)perfect++;if(r.score>bestScore)bestScore=r.score;myScores.push({key:k,title:exs[k].title||'Bài',score:r.score,time:r.submittedAt||0})}else{myScores.push({key:k,title:exs[k].title||'Bài',score:null,time:0})}});
+const total=exKeys.length;const notDone=total-done;
+const avg=done>0?Math.round(totalScore/done):0;
+const pct=total>0?Math.round(done/total*100):0;
+
+// Compute rank
+const stuSet=new Set();exKeys.forEach(k=>{if(res[k])Object.keys(res[k]).forEach(n=>stuSet.add(n))});
+const allStu=[...stuSet].map(n=>{let ts=0,pc=0;exKeys.forEach(k=>{const r=res[k]&&res[k][n];if(r&&r.score!=null){ts+=r.score;if(r.score>=100)pc++}});return{name:n,ts,pc}}).sort((a,b)=>b.pc-a.pc||b.ts-a.ts);
+const myRank=allStu.findIndex(s=>s.name===me)+1;
+const totalStu=Math.max(allStu.length,1);
+
+// Welcome card
+const welEl=document.getElementById('stu-dash-welcome');
+if(welEl){const b=this._computeStudentBadges?this._computeStudentBadges({done,total,perfect,avg,totalScore,rank:myRank||999,totalStudents:totalStu}):{tierIcon:'⚡',tierName:'Học sinh',tierNext:''};
+welEl.innerHTML='<div class="stu-dash-welcome-inner"><div class="stu-dash-avatar">'+(b.tierIcon||'⚡')+'</div><div class="stu-dash-welcome-text"><h2>Xin chào, <span class="stu-dash-name">'+this._esc(me)+'</span>!</h2><p class="stu-dash-rank">'+(b.tierName||'')+(myRank?' • Hạng #'+myRank+'/'+totalStu:'')+'</p>'+(b.tierNext?'<p class="stu-dash-next">'+this._esc(b.tierNext)+'</p>':'')+'</div></div>'}
+
+// Stats cards
+const statsEl=document.getElementById('stu-dash-stats');
+if(statsEl)statsEl.innerHTML='<div class="stu-dash-stat s-accent"><div class="stu-dash-stat-icon">📚</div><div class="stu-dash-stat-val">'+done+'/'+total+'</div><div class="stu-dash-stat-lbl">Đã làm</div></div><div class="stu-dash-stat s-success"><div class="stu-dash-stat-icon">💯</div><div class="stu-dash-stat-val">'+perfect+'</div><div class="stu-dash-stat-lbl">Hoàn hảo</div></div><div class="stu-dash-stat s-warning"><div class="stu-dash-stat-icon">📊</div><div class="stu-dash-stat-val">'+avg+'</div><div class="stu-dash-stat-lbl">Điểm TB</div></div><div class="stu-dash-stat s-violet"><div class="stu-dash-stat-icon">🏆</div><div class="stu-dash-stat-val">'+(myRank?'#'+myRank:'—')+'</div><div class="stu-dash-stat-lbl">Xếp hạng</div></div><div class="stu-dash-stat s-pink"><div class="stu-dash-stat-icon">🎯</div><div class="stu-dash-stat-val">'+pct+'%</div><div class="stu-dash-stat-lbl">Tiến độ</div></div><div class="stu-dash-stat s-info"><div class="stu-dash-stat-icon">⭐</div><div class="stu-dash-stat-val">'+totalScore+'</div><div class="stu-dash-stat-lbl">Tổng điểm</div></div>';
+
+// Charts
+this._renderStudentCharts(exs,res,me,myScores);
+
+// Recent submissions
+const recentEl=document.getElementById('stu-dash-recent');
+if(recentEl){const recent=myScores.filter(s=>s.score!=null).sort((a,b)=>b.time-a.time).slice(0,8);
+if(!recent.length)recentEl.innerHTML='<p style="color:var(--text-muted);text-align:center;padding:20px;font-size:.85rem">Chưa nộp bài nào. Hãy bắt đầu luyện tập!</p>';
+else recentEl.innerHTML=recent.map(s=>'<div class="stu-dash-recent-item"><span class="stu-dash-recent-icon">'+(s.score>=100?'💯':s.score>=50?'🔶':'❌')+'</span><span class="stu-dash-recent-name">'+this._esc(s.title.substring(0,25))+'</span><span class="stu-dash-recent-score'+(s.score>=100?' perfect':'')+'">'+s.score+' điểm</span><span class="stu-dash-recent-time">'+(s.time?this._timeAgo(s.time):'')+'</span></div>').join('')}
+
+// Suggestions
+const suggestEl=document.getElementById('stu-dash-suggest');
+if(suggestEl){const notDoneList=myScores.filter(s=>s.score==null).slice(0,3);
+const partialList=myScores.filter(s=>s.score!=null&&s.score<100).sort((a,b)=>b.score-a.score).slice(0,3);
+let sHtml='';
+if(notDoneList.length){sHtml+='<div class="stu-suggest-section"><div class="stu-suggest-label">❌ Chưa làm</div>';
+notDoneList.forEach(s=>{sHtml+='<div class="stu-suggest-item"><span>📝 '+this._esc(s.title.substring(0,25))+'</span><span class="stu-suggest-badge new">Mới</span></div>'});sHtml+='</div>'}
+if(partialList.length){sHtml+='<div class="stu-suggest-section"><div class="stu-suggest-label">🔶 Cải thiện</div>';
+partialList.forEach(s=>{sHtml+='<div class="stu-suggest-item"><span>📝 '+this._esc(s.title.substring(0,25))+'</span><span class="stu-suggest-badge partial">'+s.score+'đ</span></div>'});sHtml+='</div>'}
+if(!sHtml)sHtml='<p style="color:var(--success);text-align:center;padding:20px;font-size:.92rem">🎉 Tuyệt vời! Bạn đã hoàn thành tất cả!</p>';
+suggestEl.innerHTML=sHtml}}
+
+_renderStudentCharts(exs,res,me,myScores){
+if(typeof Chart==='undefined')return;
+Object.values(this._stuChartInstances).forEach(c=>{if(c&&c.destroy)c.destroy()});this._stuChartInstances={};
+// Chart 1: Score per exercise (bar)
+const scored=myScores.filter(s=>s.score!=null);
+const labels=scored.map(s=>s.title.substring(0,12));
+const data=scored.map(s=>s.score);
+const colors=data.map(s=>s>=100?'rgba(16,185,129,.7)':s>=50?'rgba(245,158,11,.7)':'rgba(248,113,113,.7)');
+const ctx1=document.getElementById('stu-chart-scores');
+if(ctx1&&labels.length){this._stuChartInstances.scores=new Chart(ctx1,{type:'bar',data:{labels,datasets:[{label:'Điểm',data,backgroundColor:colors,borderRadius:6}]},options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true,max:100,ticks:{color:'#94a3b8'},grid:{color:'rgba(148,163,184,.06)'}},x:{ticks:{color:'#94a3b8',maxRotation:45},grid:{display:false}}},plugins:{legend:{display:false}}}})}
+else if(ctx1)ctx1.parentElement.innerHTML='<p style="color:var(--text-muted);text-align:center;padding:60px 20px;font-size:.85rem">Chưa có dữ liệu. Hãy nộp bài để thấy biểu đồ!</p>';
+// Chart 2: Progress doughnut
+const total=myScores.length;const perfect=myScores.filter(s=>s.score>=100).length;
+const partial=myScores.filter(s=>s.score!=null&&s.score<100).length;
+const notDone=total-perfect-partial;
+const ctx2=document.getElementById('stu-chart-progress');
+if(ctx2&&total>0){this._stuChartInstances.progress=new Chart(ctx2,{type:'doughnut',data:{labels:['💯 100 điểm','🔶 Chưa đạt','❌ Chưa làm'],datasets:[{data:[perfect,partial,notDone],backgroundColor:['rgba(16,185,129,.7)','rgba(245,158,11,.7)','rgba(100,116,139,.35)'],borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,cutout:'65%',plugins:{legend:{position:'bottom',labels:{color:'#94a3b8',padding:10,usePointStyle:true,font:{size:11}}}}}})}}
 
 _esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
 

@@ -621,7 +621,8 @@
                 <div class="oj-nav-left">
                     <span class="oj-nav-logo">⚡</span>
                     <span class="oj-nav-title">Themis OJ</span>
-                    <button class="oj-nav-tab active" id="nav-tab-exercises" data-tab="exercises">📚 Bài Tập <span id="stu-notif-badge" class="notif-badge hidden">0</span></button>
+                    <button class="oj-nav-tab active" id="nav-tab-overview" data-tab="overview">🏠 Tổng Quan</button>
+                    <button class="oj-nav-tab" id="nav-tab-exercises" data-tab="exercises">📚 Bài Tập <span id="stu-notif-badge" class="notif-badge hidden">0</span></button>
                     <button class="oj-nav-tab" id="nav-tab-quiz" data-tab="quiz">📝 Trắc Nghiệm</button>
                     <button class="oj-nav-tab" id="nav-tab-theory" data-tab="theory">📖 Lý Thuyết</button>
                     <button class="oj-nav-tab" id="nav-tab-contest" data-tab="contest">🏆 Kỳ Thi <span id="stu-contest-badge" class="notif-badge hidden">0</span></button>
@@ -649,8 +650,39 @@
                 <button class="tips-ticker-btn" id="btn-tips-all" title="Xem tất cả mẹo">📋</button>
             </div>
             <div class="oj-content">
+
+                <!-- TAB: Student Dashboard Overview -->
+                <div id="tab-panel-overview" class="oj-tab-panel">
+                    <!-- Welcome + Badge -->
+                    <div class="stu-dash-welcome" id="stu-dash-welcome"></div>
+                    <!-- Quick Stats -->
+                    <div class="stu-dash-stats" id="stu-dash-stats"></div>
+                    <!-- Progress Chart + Radar -->
+                    <div class="stu-dash-charts">
+                        <div class="stu-dash-chart-card" style="flex:2">
+                            <h3 class="dash-chart-title">📈 Điểm Từng Bài</h3>
+                            <div class="dash-chart-wrap"><canvas id="stu-chart-scores"></canvas></div>
+                        </div>
+                        <div class="stu-dash-chart-card" style="flex:1">
+                            <h3 class="dash-chart-title">🎯 Tiến Độ</h3>
+                            <div class="dash-chart-wrap"><canvas id="stu-chart-progress"></canvas></div>
+                        </div>
+                    </div>
+                    <!-- Recent submissions + Suggestions -->
+                    <div class="stu-dash-bottom">
+                        <div class="stu-dash-recent-card">
+                            <h3 class="dash-chart-title">🕐 Bài Nộp Gần Đây</h3>
+                            <div id="stu-dash-recent"></div>
+                        </div>
+                        <div class="stu-dash-suggest-card">
+                            <h3 class="dash-chart-title">💡 Gợi Ý Tiếp Theo</h3>
+                            <div id="stu-dash-suggest"></div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- TAB: Exercises list -->
-                <div id="tab-panel-exercises" class="oj-tab-panel">
+                <div id="tab-panel-exercises" class="oj-tab-panel hidden">
                     <!-- Stats bar -->
                     <div id="stu-stats-bar" class="oj-stats-bar"></div>
                     <div class="oj-page-header">
