@@ -1731,7 +1731,7 @@ document.addEventListener('mouseup',()=>{if(hDragging){hDragging=false;hDiv.clas
 async _stuLogin(){const name=document.getElementById('stu-name').value.trim();const pass=document.getElementById('stu-password').value;const errEl=document.getElementById('stu-login-error');errEl.textContent='';if(!name||!pass){errEl.textContent='⚠️ Nhập đầy đủ tên và mật khẩu';return}try{await this.fb.verifyStudent(name,pass);this.studentName=name;document.getElementById('stu-login').classList.add('hidden');document.getElementById('stu-dashboard').classList.remove('hidden');document.getElementById('stu-welcome-name').textContent=name;
 // Re-register Firebase listeners (destroyed on previous logout)
 this._registerStudentListeners();
-this._toast(`Xin chào ${name}!`,'success')}catch(e){errEl.textContent='❌ '+e.message}}
+this._toast(`Xin chào ${name}!`,'success');this._initTipsTicker()}catch(e){errEl.textContent='❌ '+e.message}}
 
 // BUG-1 FIX: Removed duplicate _stuLogout — see canonical version at L1142
 
@@ -3482,6 +3482,65 @@ document.getElementById('quiz-result-overlay').classList.add('hidden');
 document.getElementById('stu-dashboard').classList.remove('hidden');
 this._currentQuizId=null;this._currentQuizData=null;
 this._renderStudentQuizList()}
+
+// ============ PROGRAMMING TIPS TICKER ============
+_PROG_TIPS=[
+{emoji:'🐍',title:'Hoán đổi 2 biến',short:'Python: a, b = b, a',detail:'Trong Python, hoán đổi giá trị 2 biến:\na, b = b, a\nKhông cần biến tạm!',cat:'python'},
+{emoji:'📝',title:'List Comprehension',short:'[x**2 for x in range(10)]',detail:'squares = [x**2 for x in range(10)]\n# [0,1,4,9,16,25,36,49,64,81]\nevens = [x for x in range(20) if x%2==0]',cat:'python'},
+{emoji:'⚡',title:'f-string formatting',short:'f"Xin chào {name}"',detail:'name = "An"\nprint(f"Tên: {name}")\nprint(f"Pi = {3.14159:.2f}")  # 3.14',cat:'python'},
+{emoji:'🔢',title:'Công thức tổng 1→N',short:'Tổng = N×(N+1)/2',detail:'Gauss: 1+2+...+N = N×(N+1)/2\nVD: 1+...+100 = 5050\nCode: n*(n+1)//2',cat:'formula'},
+{emoji:'📐',title:'Số Fibonacci',short:'F(n) = F(n-1) + F(n-2)',detail:'0, 1, 1, 2, 3, 5, 8, 13, 21...\ndef fib(n):\n    a,b = 0,1\n    for _ in range(n): a,b = b,a+b\n    return a',cat:'formula'},
+{emoji:'🎯',title:'Kiểm tra số nguyên tố',short:'Chỉ cần kiểm tra đến √N',detail:'def is_prime(n):\n    if n<2: return False\n    for i in range(2,int(n**0.5)+1):\n        if n%i==0: return False\n    return True\nĐộ phức tạp: O(√N)',cat:'algo'},
+{emoji:'🔄',title:'Đảo ngược chuỗi/list',short:'s[::-1] đảo ngược chuỗi',detail:'"Hello"[::-1] → "olleH"\n[1,2,3][::-1] → [3,2,1]\nPalindrome: s == s[::-1]',cat:'trick'},
+{emoji:'⚠️',title:'Cẩn thận chia số nguyên',short:'/ cho float, // cho int',detail:'10/3 = 3.333 (thực)\n10//3 = 3 (nguyên)\n10%3 = 1 (dư)\n⚠️ Dùng // khi cần số nguyên!',cat:'warning'},
+{emoji:'📊',title:'sorted() vs .sort()',short:'sorted() giữ nguyên, .sort() thay đổi',detail:'sorted(a) → list mới\na.sort() → đổi a tại chỗ\nGiảm: sorted(a, reverse=True)',cat:'python'},
+{emoji:'🧮',title:'UCLN và BCNN',short:'math.gcd(a,b) | a*b//gcd(a,b)',detail:'import math\nmath.gcd(12,8) = 4\nlcm = a*b//math.gcd(a,b)\nlcm(12,8) = 24',cat:'formula'},
+{emoji:'💡',title:'enumerate() tiện lợi',short:'for i, val in enumerate(list)',detail:'Thay range(len(arr)):\nfor i, val in enumerate(arr):\n    print(i, val)\nNgắn hơn, Pythonic hơn!',cat:'trick'},
+{emoji:'🔍',title:'Tìm kiếm nhị phân',short:'O(log N) — 1 triệu PT ~20 bước!',detail:'def bsearch(arr, t):\n    lo,hi = 0,len(arr)-1\n    while lo<=hi:\n        mid=(lo+hi)//2\n        if arr[mid]==t: return mid\n        elif arr[mid]<t: lo=mid+1\n        else: hi=mid-1\n    return -1',cat:'algo'},
+{emoji:'📏',title:'Hàm len()',short:'len("hello")=5 | len([1,2,3])=3',detail:'len("Python") = 6 ký tự\nlen([1,2,3]) = 3 phần tử\n⚠️ Index: 0 đến len-1!',cat:'python'},
+{emoji:'🎲',title:'Random',short:'random.randint(1, 100)',detail:'import random\nrandom.randint(1,100) # int 1-100\nrandom.choice([1,2,3]) # chọn ngẫu nhiên\nrandom.shuffle(list) # xáo trộn',cat:'python'},
+{emoji:'⚠️',title:'IndexError',short:'list index out of range',detail:'a=[10,20,30]\na[3] → IndexError!\nList 3 PT → index 0,1,2\n✅ if i<len(a): print(a[i])',cat:'warning'},
+{emoji:'🔗',title:'Nối chuỗi hiệu quả',short:'join() nhanh hơn + gấp 100x',detail:'❌ result += word (chậm)\n✅ result = " ".join(words)\nNhanh gấp 100x với list lớn!',cat:'trick'},
+{emoji:'📐',title:'Diện tích tam giác Heron',short:'S = √(p(p-a)(p-b)(p-c))',detail:'p = (a+b+c)/2\nS = √(p×(p-a)×(p-b)×(p-c))\nimport math\ndef area(a,b,c):\n    p=(a+b+c)/2\n    return math.sqrt(p*(p-a)*(p-b)*(p-c))',cat:'formula'},
+{emoji:'🧊',title:'Set loại bỏ trùng lặp',short:'set([1,2,2,3]) → {1,2,3}',detail:'unique = list(set([1,2,2,3,3]))\nlen(set(a)) # đếm không trùng\n3 in {1,2,3} → True, O(1)!',cat:'trick'},
+{emoji:'📊',title:'Counter đếm phần tử',short:'Counter("aabbc") → {a:2,b:2,c:1}',detail:'from collections import Counter\nc = Counter("aabbccc")\nc.most_common(2) # [(c,3),(a,2)]',cat:'python'},
+{emoji:'⚡',title:'Lũy thừa modulo',short:'pow(base, exp, mod)',detail:'pow(2, 100, 10**9+7)\n= (2^100) mod 1000000007\nKhông tràn số! O(log n)',cat:'algo'},
+{emoji:'📝',title:'Đọc input nhanh',short:'a,b = map(int, input().split())',detail:'n = int(input())\na,b = map(int, input().split())\narr = list(map(int, input().split()))',cat:'python'},
+{emoji:'🔄',title:'while True + break',short:'Lặp đến khi thỏa điều kiện',detail:'while True:\n    n = int(input("Nhập số dương: "))\n    if n > 0: break\n    print("Nhập lại!")',cat:'trick'},
+{emoji:'🧮',title:'Chuyển đổi hệ cơ số',short:'bin(10)="0b1010" | int("1010",2)=10',detail:'bin(10) → "0b1010"\noct(10) → "0o12"\nhex(255) → "0xff"\nint("1010",2) → 10',cat:'formula'},
+{emoji:'⚠️',title:'Mutable default bug',short:'def f(a=[]): ← List dùng chung!',detail:'❌ def add(x, lst=[]):\n    lst.append(x)\nadd(1) → [1]\nadd(2) → [1,2] BUG!\n✅ Dùng lst=None rồi if None: lst=[]',cat:'warning'},
+{emoji:'💡',title:'Toán tử 3 ngôi',short:'x = a if điều_kiện else b',detail:'r = "Đạt" if score>=5 else "Trượt"\nprint("Chẵn" if n%2==0 else "Lẻ")\nGọn hơn if-else 4 dòng!',cat:'trick'}
+]
+
+_initTipsTicker(){
+const bar=document.getElementById('tips-ticker-bar');const track=document.getElementById('tips-ticker-content');
+if(!bar||!track)return;
+const tips=this._PROG_TIPS;
+const buildItems=(arr)=>arr.map((t,i)=>`<div class="tip-item" data-tip-idx="${i}"><span class="tip-emoji">${t.emoji}</span><span class="tip-text">${t.short}</span><span class="tip-tag ${t.cat}">${t.cat}</span></div>`).join('');
+track.innerHTML=buildItems(tips)+buildItems(tips);
+const dur=Math.max(40,tips.length*3.5);track.style.setProperty('--tip-duration',dur+'s');
+track.addEventListener('click',(e)=>{const item=e.target.closest('.tip-item');if(!item)return;const idx=parseInt(item.dataset.tipIdx);const tip=tips[idx];if(tip)this._showTipDetail(tip)});
+const pauseBtn=document.getElementById('btn-tips-pause');
+if(pauseBtn){let paused=false;pauseBtn.onclick=()=>{paused=!paused;bar.classList.toggle('paused',paused);pauseBtn.textContent=paused?'▶':'⏸';pauseBtn.title=paused?'Tiếp tục':'Tạm dừng'}}
+const allBtn=document.getElementById('btn-tips-all');
+if(allBtn)allBtn.onclick=()=>this._showAllTips()}
+
+_showTipDetail(tip){
+const cats={python:'Python',algo:'Thuật toán',trick:'Thủ thuật',formula:'Công thức',warning:'Cảnh báo'};
+const h='<div style="max-width:560px"><div class="tip-card-full cat-'+tip.cat+'" style="border:none;box-shadow:none"><div class="tip-card-header"><span class="tip-card-emoji">'+tip.emoji+'</span><span class="tip-card-title">'+tip.title+'</span><span class="tip-card-tag tip-tag '+tip.cat+'">'+(cats[tip.cat]||tip.cat)+'</span></div><div class="tip-card-body">'+this._fmtTip(tip.detail)+'</div></div></div>';
+this._showModal('💡 '+tip.title,h)}
+
+_showAllTips(filterCat){
+if(!filterCat)filterCat='all';
+const cats={all:'Tất cả',python:'Python',algo:'Thuật toán',trick:'Thủ thuật',formula:'Công thức',warning:'Cảnh báo'};
+const tips=this._PROG_TIPS;const filtered=filterCat==='all'?tips:tips.filter(t=>t.cat===filterCat);
+let filterHtml='';Object.keys(cats).forEach(c=>{filterHtml+='<button class="tips-filter-btn '+(c===filterCat?'active':'')+'" onclick="window._uic._showAllTips(\''+c+'\')">'+cats[c]+' ('+(c==='all'?tips.length:tips.filter(t=>t.cat===c).length)+')</button>'});
+let cardsHtml='';filtered.forEach(t=>{cardsHtml+='<div class="tip-card-full cat-'+t.cat+'"><div class="tip-card-header"><span class="tip-card-emoji">'+t.emoji+'</span><span class="tip-card-title">'+t.title+'</span><span class="tip-card-tag tip-tag '+t.cat+'">'+(cats[t.cat]||t.cat)+'</span></div><div class="tip-card-body">'+this._fmtTip(t.detail)+'</div></div>'});
+const h='<div class="tips-modal-body"><div class="tips-filter-bar">'+filterHtml+'</div><div class="tips-modal-grid">'+cardsHtml+'</div></div>';
+this._showModal('💡 Mẹo Lập Trình ('+filtered.length+' tips)',h)}
+
+_fmtTip(t){return String(t).replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>')}
+
 }
 
 document.addEventListener('DOMContentLoaded',()=>{const uic=new UIController();window._uic=uic;uic.init()});
