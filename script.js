@@ -1015,7 +1015,10 @@ const keys=Object.keys(exs).filter(k=>{const ex=exs[k];return(!filter||(ex.title
 if(!keys.length){c.innerHTML=`<p style="color:var(--text-muted);text-align:center;padding:20px">Không tìm thấy bài tập "${this._esc(filter)}"</p>`;return}
 // Group by topic
 const groups={};keys.forEach(k=>{const topic=exs[k].topic||'Không phân loại';if(!groups[topic])groups[topic]=[];groups[topic].push(k)});
-const sortedTopics=Object.keys(groups).sort((a,b)=>a.localeCompare(b,'vi'));
+// Sort topics by newest exercise date (newest first)
+const _topicNewest={};Object.keys(groups).forEach(t=>{let mx=0;groups[t].forEach(k=>{const ca=exs[k].createdAt||0;if(ca>mx)mx=ca});_topicNewest[t]=mx});
+const sortedTopics=Object.keys(groups).sort((a,b)=>(_topicNewest[b]||0)-(_topicNewest[a]||0));
+const _now=Date.now();const _7days=7*24*3600*1000;
 const totalAccts=this._cachedAccounts?Object.keys(this._cachedAccounts).length:0;
 let h='';
 sortedTopics.forEach(topic=>{
@@ -1031,10 +1034,10 @@ h+=`<div class="topic-group-header" onclick="window._uic._toggleTeacherTopic('${
 h+=`<span class="topic-group-chevron">▶</span>`;
 const isExamTopic=(topic.trim().toLowerCase()==='đề thi'||topic.trim().toLowerCase()==='de thi');
 const examBadge=isExamTopic?' <span style="font-size:.65rem;padding:2px 6px;border-radius:4px;background:rgba(239,68,68,.12);color:#f87171;font-weight:700;vertical-align:middle">🔒 Ẩn HS</span>':'';
-h+=`<span class="topic-group-name">${this._esc(topic)}${examBadge} <span class="topic-group-count">${topicKeys.length} bài</span></span>`;
+h+=`<span class="topic-group-name">${this._esc(topic)}${examBadge}${(_now-(_topicNewest[topic]||0))<_7days?' <span class="topic-new-badge">NEW</span>':''} <span class="topic-group-count">${topicKeys.length} bài</span></span>`;
 h+=`<div class="topic-group-stats">`;
 h+=`<div class="topic-group-progress"><div class="topic-group-progress-fill" style="width:${avgPct}%;background:${barColor}"></div></div>`;
-h+=`<span>${groupDone}/${topicKeys.length*totalAccts} lượt</span>`;
+h+=`<span class="topic-done-count"><span class="tdc-done">${groupDone} nộp</span> · <span class="tdc-notdone">${topicKeys.length*totalAccts-groupDone} chưa</span></span>`;
 h+=`</div></div>`;
 h+=`<div class="topic-group-body">`;
 h+=`<table class="ex-mgmt-table"><thead><tr><th>#</th><th>Tên bài</th><th style="width:96px">Độ khó</th><th>Tests</th><th>Ngày tạo</th><th>HS đã làm</th><th>Thao tác</th></tr></thead><tbody>`;
@@ -1066,7 +1069,10 @@ _renderTopicStats(){const c=document.getElementById('t-topic-stats');const exs=t
 if(!exKeys.length||!stuNames.length){c.innerHTML='<p style="color:var(--text-muted);text-align:center;padding:16px">Cần có bài tập và tài khoản HS để hiển thị.</p>';return}
 // Group exercises by topic
 const topicMap={};exKeys.forEach(k=>{const topic=exs[k].topic||'Không phân loại';if(!topicMap[topic])topicMap[topic]=[];topicMap[topic].push(k)});
-const topics=Object.keys(topicMap).sort();
+// Sort by newest exercise
+const _tsNewest={};Object.keys(topicMap).forEach(t=>{let mx=0;topicMap[t].forEach(k=>{const ca=exs[k].createdAt||0;if(ca>mx)mx=ca});_tsNewest[t]=mx});
+const topics=Object.keys(topicMap).sort((a,b)=>(_tsNewest[b]||0)-(_tsNewest[a]||0));
+const _tsNow=Date.now();const _ts7d=7*24*3600*1000;
 let h='<div class="topic-stats-grid">';
 topics.forEach((topic,ti)=>{const topicExKeys=topicMap[topic];
 // Calculate topic-level stats
@@ -1081,7 +1087,7 @@ const needAlert=stuData.filter(s=>s.pct<50).length;
 // Topic card
 h+=`<div class="topic-card open" id="topic-card-${ti}">`;
 h+=`<div class="topic-card-header" onclick="this.parentElement.classList.toggle('open')">`;
-h+=`<div class="topic-card-title"><span>📂 ${this._esc(topic)}</span><span class="topic-card-badge">${topicExKeys.length} bài</span></div>`;
+h+=`<div class="topic-card-title"><span>📂 ${this._esc(topic)}${(_tsNow-(_tsNewest[topic]||0))<_ts7d?' <span class="topic-new-badge">NEW</span>':''}</span><span class="topic-card-badge">${topicExKeys.length} bài</span></div>`;
 h+=`<div class="topic-card-stats">`;
 h+=`<span>✅ ${completionPct}% hoàn thành</span>`;
 if(needAlert>0)h+=`<span style="color:var(--error)">⚠️ ${needAlert} HS cần nhắc</span>`;
@@ -1771,7 +1777,10 @@ if(!keys.length){c.innerHTML=`<p style="color:var(--text-muted);text-align:cente
 c.className='oj-exercise-list-v2';
 // Group by topic
 const groups={};keys.forEach(k=>{const topic=exs[k].topic||'Không phân loại';if(!groups[topic])groups[topic]=[];groups[topic].push(k)});
-const sortedTopics=Object.keys(groups).sort((a,b)=>a.localeCompare(b,'vi'));
+// Sort topics by newest exercise date (newest first)
+const _stuTopicNewest={};Object.keys(groups).forEach(t=>{let mx=0;groups[t].forEach(k=>{const ca=exs[k].createdAt||0;if(ca>mx)mx=ca});_stuTopicNewest[t]=mx});
+const sortedTopics=Object.keys(groups).sort((a,b)=>(_stuTopicNewest[b]||0)-(_stuTopicNewest[a]||0));
+const _stuNow=Date.now();const _stu7d=7*24*3600*1000;
 const hasFilter=!!(filter||statusFilter!=='all');
 let h='';
 sortedTopics.forEach(topic=>{
@@ -1787,7 +1796,7 @@ const personalClass=doneCnt===topicKeys.length?'tg-done':(doneCnt>0?'tg-partial'
 h+=`<div class="topic-group ${isOpen?'open':''}" id="tg-s-${this._topicSlug(topic)}">`;
 h+=`<div class="topic-group-header" onclick="window._uic._toggleStudentTopic('${this._esc(topic).replace(/'/g,"\\'")}')">`;
 h+=`<span class="topic-group-chevron">▶</span>`;
-h+=`<span class="topic-group-name">${this._esc(topic)} <span class="topic-group-count">${topicKeys.length} bài</span></span>`;
+h+=`<span class="topic-group-name">${this._esc(topic)}${(_stuNow-(_stuTopicNewest[topic]||0))<_stu7d?' <span class="topic-new-badge">NEW</span>':''} <span class="topic-group-count">${topicKeys.length} bài</span> <span class="topic-done-count"><span class="tdc-done">${doneCnt} xong</span> · <span class="tdc-notdone">${topicKeys.length-doneCnt} chưa</span></span></span>`;
 h+=`<div class="topic-group-stats">`;
 h+=`<div class="topic-group-progress"><div class="topic-group-progress-fill" style="width:${pct}%;background:${barColor}"></div></div>`;
 h+=`<span class="topic-group-personal ${personalClass}">${personalIcon} ${doneCnt}/${topicKeys.length}</span>`;

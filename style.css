@@ -1547,6 +1547,14 @@ textarea.ai-textarea{resize:vertical}
 }
 
 
+
+/* ============ TOPIC NEW BADGE + DONE/NOTDONE ============ */
+.topic-new-badge{display:inline-block;font-size:.6rem;font-weight:800;padding:2px 7px;border-radius:4px;background:linear-gradient(135deg,#ef4444,#f97316);color:#fff;text-transform:uppercase;letter-spacing:.06em;vertical-align:middle;margin-left:6px;animation:badge-pulse 2s ease-in-out infinite;box-shadow:0 2px 8px rgba(239,68,68,.3)}
+@keyframes badge-pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.85;transform:scale(1.05)}}
+.topic-done-count{font-size:.7rem;font-weight:600;margin-left:4px;color:var(--text-muted)}
+.tdc-done{color:var(--success-text)}
+.tdc-notdone{color:var(--text-muted)}
+
 /* ============ STUDENT DASHBOARD OVERVIEW ============ */
 .stu-dash-welcome{margin-bottom:20px}
 .stu-dash-welcome-inner{display:flex;align-items:center;gap:20px;padding:24px 28px;background:linear-gradient(135deg,rgba(99,102,241,.12),rgba(139,92,246,.08));border:1px solid rgba(99,102,241,.2);border-radius:16px;position:relative;overflow:hidden}
