@@ -1801,3 +1801,60 @@ textarea.ai-textarea{resize:vertical}
 .api-key-dot.active{background:#10b981}
 #modal-api-key .modal-content{animation:slideUp .25s ease}
 @keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+
+/* ===== AI BIỆN LUẬN ===== */
+.argue-section{padding:4px 0}
+.argue-config{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+.argue-status{font-size:.84rem;color:var(--text-muted);display:inline-flex;align-items:center;gap:6px}
+.argue-results{display:flex;flex-direction:column;gap:16px;animation:slideUp .4s ease}
+
+/* Summary Card */
+.argue-summary{background:linear-gradient(135deg,rgba(99,102,241,.12),rgba(139,92,246,.08));border:1px solid rgba(99,102,241,.2);border-radius:12px;padding:18px 22px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+.argue-summary-item{text-align:center}
+.argue-summary-label{font-size:.72rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.argue-summary-value{font-size:1.1rem;font-weight:700;color:var(--text-primary)}
+
+/* Bloom Badge */
+.argue-bloom-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 14px;border-radius:20px;font-weight:700;font-size:.82rem}
+.argue-bloom-1,.argue-bloom-2{background:rgba(16,185,129,.15);color:#10b981}
+.argue-bloom-3{background:rgba(59,130,246,.15);color:#3b82f6}
+.argue-bloom-4{background:rgba(245,158,11,.15);color:#f59e0b}
+.argue-bloom-5,.argue-bloom-6{background:rgba(239,68,68,.15);color:#ef4444}
+
+/* Difficulty Dots */
+.argue-diff-dots{display:inline-flex;gap:4px;margin-right:6px}
+.argue-diff-dot{width:10px;height:10px;border-radius:50%;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15)}
+.argue-diff-dot.filled{background:var(--accent);border-color:var(--accent)}
+.argue-diff-dot.filled.hard{background:#f59e0b;border-color:#f59e0b}
+.argue-diff-dot.filled.vhard{background:#ef4444;border-color:#ef4444}
+
+/* Detail Cards */
+.argue-detail{background:var(--card-bg);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.argue-detail-header{display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid rgba(255,255,255,.04);font-weight:700;font-size:.9rem}
+.argue-detail-header .argue-icon{font-size:1.1rem}
+.argue-detail-header .argue-status-tag{margin-left:auto;font-size:.72rem;padding:2px 10px;border-radius:12px;font-weight:600}
+.argue-tag-good{background:rgba(16,185,129,.15);color:#10b981}
+.argue-tag-warning{background:rgba(245,158,11,.15);color:#f59e0b}
+.argue-tag-error{background:rgba(239,68,68,.15);color:#ef4444}
+.argue-detail-body{padding:14px 18px;font-size:.85rem;line-height:1.7;color:var(--text-secondary)}
+.argue-detail-body p{margin:0 0 8px}
+.argue-detail-body ul{margin:6px 0;padding-left:20px}
+.argue-detail-body li{margin-bottom:4px}
+
+/* Suggestions */
+.argue-suggestion{display:flex;gap:10px;padding:10px 14px;border-radius:8px;margin-bottom:6px;font-size:.84rem;line-height:1.5}
+.argue-suggestion .sug-icon{font-size:1rem;min-width:20px;text-align:center;padding-top:1px}
+.argue-sug-critical{background:rgba(239,68,68,.08);border-left:3px solid #ef4444}
+.argue-sug-improve{background:rgba(245,158,11,.08);border-left:3px solid #f59e0b}
+.argue-sug-nice{background:rgba(16,185,129,.08);border-left:3px solid #10b981}
+
+/* Score Circle */
+.argue-score-circle{width:60px;height:60px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.5rem;font-weight:800;margin:0 auto 4px;border:3px solid}
+.argue-score-high{border-color:#10b981;color:#10b981;background:rgba(16,185,129,.08)}
+.argue-score-mid{border-color:#f59e0b;color:#f59e0b;background:rgba(245,158,11,.08)}
+.argue-score-low{border-color:#ef4444;color:#ef4444;background:rgba(239,68,68,.08)}
+
+@media(max-width:768px){
+.argue-summary{grid-template-columns:1fr}
+.argue-config{flex-direction:column;align-items:stretch}
+}

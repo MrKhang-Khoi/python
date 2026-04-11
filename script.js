@@ -302,6 +302,8 @@ $('btn-ai-use-brute').onclick=()=>{this.cmBrute.setValue(this.cmAiPreview.getVal
 $('btn-stress-run').onclick=()=>this._runStress();
 // Verify
 const verifyBtn=$('btn-verify-run');if(verifyBtn)verifyBtn.onclick=()=>this._verifyCode();
+// AI Biện Luận
+const argueBtn=$('btn-argue-analyze');if(argueBtn)argueBtn.onclick=()=>this._analyzeExam();
 // Room
 $('btn-create-room').onclick=()=>this._showCreateRoomModal();
 $('btn-confirm-room').onclick=()=>this._confirmCreateRoom();
@@ -3871,6 +3873,119 @@ const ctx2=document.getElementById('stu-chart-progress');
 if(ctx2&&total>0){this._stuChartInstances.progress=new Chart(ctx2,{type:'doughnut',data:{labels:['💯 100 điểm','🔶 Chưa đạt','❌ Chưa làm'],datasets:[{data:[perfect,partial,notDone],backgroundColor:['rgba(16,185,129,.7)','rgba(245,158,11,.7)','rgba(100,116,139,.35)'],borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,cutout:'65%',plugins:{legend:{position:'bottom',labels:{color:'#94a3b8',padding:10,usePointStyle:true,font:{size:11}}}}}})}}
 
 _esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
+
+// ===== AI BIỆN LUẬN ĐỀ THI =====
+async _analyzeExam(){
+const key=this.gemini?.getApiKey();
+if(!key){this._toast('Nhấn 🔑 API Key trên menu để cài đặt','error');document.getElementById('btn-api-key-settings').click();return}
+const title=document.getElementById('problem-title')?.value?.trim()||'';
+const desc=document.getElementById('problem-description')?.value?.trim()||'';
+const solutionCode=this.cmMain?this.cmMain.getValue():'';
+if(!desc&&!title){this._toast('Soạn đề bài trước khi phân tích','error');return}
+if(!solutionCode.trim()){this._toast('Nhập code đáp án (tab Code) trước','error');return}
+const grade=document.getElementById('argue-grade')?.value||'10';
+const st=document.getElementById('argue-status');const res=document.getElementById('argue-results');const btn=document.getElementById('btn-argue-analyze');
+btn.disabled=true;st.innerHTML='<span class="progress-spinner"></span> Đang phân tích...';res.classList.add('hidden');res.innerHTML='';
+// Collect sample IO
+const sampleEls=document.querySelectorAll('#sample-io-container .sample-io-pair');
+let sampleIO='';
+sampleEls.forEach((el,i)=>{const inp=el.querySelector('.sample-input')?.value||'';const out=el.querySelector('.sample-output')?.value||'';if(inp||out)sampleIO+=`Ví dụ ${i+1}: Input="${inp}" Output="${out}"\n`});
+// Collect subtasks
+const subEls=document.querySelectorAll('#subtasks-container .subtask-row');
+let subtaskInfo='';
+subEls.forEach((el,i)=>{const name=el.querySelector('.subtask-name')?.value||'';const pct=el.querySelector('.subtask-pct')?.value||'';subtaskInfo+=`Subtask ${i+1}: ${name} (${pct}%)\n`});
+const prompt=`Bạn là CHUYÊN GIA giáo dục Tin học Việt Nam với 15 năm kinh nghiệm ra đề thi.
+Hãy PHÂN TÍCH BIỆN LUẬN đề thi Python sau theo 6 tiêu chí chuyên môn.
+
+## ĐỐI TƯỢNG: Học sinh lớp ${grade}
+
+## ĐỀ THI:
+- Tên: ${title}
+- Nội dung: ${desc}
+${sampleIO?'- Ví dụ:\n'+sampleIO:''}
+${subtaskInfo?'- Subtasks:\n'+subtaskInfo:''}
+
+## CODE ĐÁP ÁN:
+${solutionCode}
+
+## YÊU CẦU PHÂN TÍCH (suy nghĩ từng bước):
+
+1. **Bloom's Taxonomy**: Bài này ở bậc tư duy nào (1-Nhớ, 2-Hiểu, 3-Áp dụng, 4-Phân tích, 5-Đánh giá, 6-Sáng tạo)? Giải thích tại sao.
+
+2. **Độ khó vs Đối tượng**: Với HS lớp ${grade}, đề này ở mức nào? (1=Rất dễ, 2=Dễ, 3=Trung bình, 4=Khó, 5=Rất khó). Phân tích chi tiết.
+
+3. **Kiến thức**: Đề có chính xác về mặt khoa học Tin học không? Constraints có hợp lý không? Có gì sai/thiếu?
+
+4. **Rõ ràng**: Đề viết có rõ ràng, dễ hiểu với HS lớp ${grade} không? Input/Output format có đầy đủ?
+
+5. **Code Review**: Phân tích code đáp án - độ phức tạp (Big O), có lỗi edge case không, có tối ưu không, coding style?
+
+6. **Gợi ý cải thiện**: Đưa ra 2-5 gợi ý cụ thể (mỗi gợi ý kèm mức độ: critical/improve/nice)`;
+
+const schema={type:'object',properties:{
+bloomLevel:{type:'number',description:'Bậc Bloom 1-6'},
+bloomName:{type:'string',description:'Tên bậc VD: Áp dụng (Apply)'},
+bloomExplain:{type:'string',description:'Giải thích chi tiết vì sao xếp bậc này'},
+difficulty:{type:'number',description:'1-5, 1=Rất dễ, 5=Rất khó'},
+difficultyLabel:{type:'string',description:'Nhãn VD: Trung bình'},
+difficultyExplain:{type:'string',description:'Phân tích chi tiết'},
+gradeMatch:{type:'boolean',description:'true=phù hợp lớp đã chọn'},
+gradeMatchExplain:{type:'string'},
+correctness:{type:'object',properties:{status:{type:'string',description:'good/warning/error'},details:{type:'string'},issues:{type:'array',items:{type:'string'}}},required:['status','details']},
+clarity:{type:'object',properties:{status:{type:'string',description:'good/warning/error'},details:{type:'string'}},required:['status','details']},
+codeReview:{type:'object',properties:{status:{type:'string',description:'good/warning/error'},complexity:{type:'string',description:'Big O VD: O(N)'},details:{type:'string'},issues:{type:'array',items:{type:'string'}}},required:['status','complexity','details']},
+suggestions:{type:'array',items:{type:'object',properties:{type:{type:'string',description:'critical/improve/nice'},text:{type:'string'}},required:['type','text']}},
+overallScore:{type:'number',description:'Điểm tổng 1-10'},
+summary:{type:'string',description:'Nhận xét tổng quan 2-3 câu'}
+},required:['bloomLevel','bloomName','bloomExplain','difficulty','difficultyLabel','difficultyExplain','gradeMatch','gradeMatchExplain','correctness','clarity','codeReview','suggestions','overallScore','summary']};
+
+try{
+const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:0.4,response_mime_type:'application/json',response_schema:schema}})});
+if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e.error?.message||'API Error '+r.status)}
+const d=await r.json(),txt=d.candidates?.[0]?.content?.parts?.[0]?.text||'';
+const data=JSON.parse(txt);
+this._renderArgueResults(data,grade);
+st.innerHTML='✅ Phân tích hoàn tất!';
+}catch(e){st.innerHTML='❌ '+e.message;this._toast('Lỗi phân tích: '+e.message,'error')}finally{btn.disabled=false}
+}
+
+_renderArgueResults(d,grade){
+const el=document.getElementById('argue-results');el.classList.remove('hidden');
+const esc=s=>this._esc(s);
+// Score class
+const sc=d.overallScore>=7?'high':d.overallScore>=5?'mid':'low';
+// Bloom class
+const bl=Math.min(Math.max(d.bloomLevel||3,1),6);
+// Difficulty dots
+const diff=Math.min(Math.max(d.difficulty||3,1),5);
+const diffClass=diff>=4?'vhard':diff>=3?'hard':'';
+let dots='';for(let i=1;i<=5;i++)dots+=`<span class="argue-diff-dot${i<=diff?' filled '+diffClass:''}"></span>`;
+// Tag helper
+const tag=status=>`<span class="argue-status-tag argue-tag-${status}">${status==='good'?'✅ Tốt':status==='warning'?'⚠️ Cần xem':status==='error'?'❌ Có vấn đề':'—'}</span>`;
+
+el.innerHTML=`
+<!-- SUMMARY -->
+<div class="argue-summary">
+<div class="argue-summary-item"><div class="argue-summary-label">Điểm tổng</div><div class="argue-score-circle argue-score-${sc}">${d.overallScore||'?'}</div><div style="font-size:.75rem;color:var(--text-muted)">/10</div></div>
+<div class="argue-summary-item"><div class="argue-summary-label">Bloom's Level</div><div class="argue-summary-value"><span class="argue-bloom-badge argue-bloom-${bl}">${esc(d.bloomName||'?')}</span></div></div>
+<div class="argue-summary-item"><div class="argue-summary-label">Độ khó</div><div class="argue-summary-value"><div class="argue-diff-dots">${dots}</div>${esc(d.difficultyLabel||'?')}</div><div style="font-size:.75rem;color:var(--text-muted);margin-top:2px">${d.gradeMatch?'✅ Phù hợp lớp '+grade:'⚠️ Chưa phù hợp lớp '+grade}</div></div>
+</div>
+<!-- SUMMARY TEXT -->
+<div class="argue-detail"><div class="argue-detail-header"><span class="argue-icon">📝</span>Nhận xét tổng quan</div><div class="argue-detail-body"><p>${esc(d.summary||'')}</p></div></div>
+<!-- BLOOM -->
+<div class="argue-detail"><div class="argue-detail-header"><span class="argue-icon">🎯</span>Bloom's Taxonomy — Bậc ${bl}${tag(bl<=2?'good':bl<=4?'warning':'error')}</div><div class="argue-detail-body"><p>${esc(d.bloomExplain||'')}</p></div></div>
+<!-- DIFFICULTY -->
+<div class="argue-detail"><div class="argue-detail-header"><span class="argue-icon">📊</span>Độ khó vs Đối tượng lớp ${grade}${tag(d.gradeMatch?'good':'warning')}</div><div class="argue-detail-body"><p>${esc(d.difficultyExplain||'')}</p>${d.gradeMatchExplain?'<p>'+esc(d.gradeMatchExplain)+'</p>':''}</div></div>
+<!-- CORRECTNESS -->
+<div class="argue-detail"><div class="argue-detail-header"><span class="argue-icon">🔬</span>Kiến thức & Tính chính xác${tag(d.correctness?.status||'good')}</div><div class="argue-detail-body"><p>${esc(d.correctness?.details||'')}</p>${(d.correctness?.issues||[]).length?'<ul>'+d.correctness.issues.map(i=>'<li>'+esc(i)+'</li>').join('')+'</ul>':''}</div></div>
+<!-- CLARITY -->
+<div class="argue-detail"><div class="argue-detail-header"><span class="argue-icon">📖</span>Độ rõ ràng${tag(d.clarity?.status||'good')}</div><div class="argue-detail-body"><p>${esc(d.clarity?.details||'')}</p></div></div>
+<!-- CODE REVIEW -->
+<div class="argue-detail"><div class="argue-detail-header"><span class="argue-icon">🐍</span>Code Review — ${esc(d.codeReview?.complexity||'?')}${tag(d.codeReview?.status||'good')}</div><div class="argue-detail-body"><p>${esc(d.codeReview?.details||'')}</p>${(d.codeReview?.issues||[]).length?'<ul>'+d.codeReview.issues.map(i=>'<li>'+esc(i)+'</li>').join('')+'</ul>':''}</div></div>
+<!-- SUGGESTIONS -->
+<div class="argue-detail"><div class="argue-detail-header"><span class="argue-icon">💡</span>Gợi ý chỉnh sửa (${(d.suggestions||[]).length})</div><div class="argue-detail-body">${(d.suggestions||[]).map(s=>`<div class="argue-suggestion argue-sug-${s.type||'nice'}"><span class="sug-icon">${s.type==='critical'?'🔴':s.type==='improve'?'🟡':'🟢'}</span><span>${esc(s.text)}</span></div>`).join('')}</div></div>
+`;
+}
 
 
 // ===== CENTRALIZED API KEY MANAGER =====
