@@ -3984,6 +3984,8 @@ print(' '.join(str(random.randint(1,10**9)) for _ in range(n)))
 ## SUBTASKS:
 - 2-4 subtask, tổng 100%
 - Mỗi subtask PHẢI có maxN cụ thể`;
+const st=document.getElementById('util-ai-status');st.className='util-status';st.innerHTML='<span class="progress-spinner"></span> Đang sinh đề bài...';st.classList.remove('hidden');
+document.getElementById('btn-util-generate').disabled=true;
 try{const schema={type:'object',properties:{title:{type:'string'},description:{type:'string'},inputFormat:{type:'string'},outputFormat:{type:'string'},constraints:{type:'array',items:{type:'string'}},sampleIO:{type:'array',items:{type:'object',properties:{input:{type:'string'},output:{type:'string'},explain:{type:'string'}},required:['input','output']}},solutionCode:{type:'string'},testGenCode:{type:'string',description:'Code Python sinh 1 bộ test input. Dòng đầu: max_n=int(input()). Sau đó print dữ liệu input theo format đề.'},subtasks:{type:'array',items:{type:'object',properties:{name:{type:'string'},percent:{type:'number'},maxN:{type:'number',description:'Giới hạn N tối đa cho subtask'}},required:['name','percent','maxN']}}},required:['title','description','inputFormat','outputFormat','solutionCode','testGenCode','sampleIO','constraints','subtasks']};
 const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:0.7,response_mime_type:'application/json',response_schema:schema}})});
 if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e.error?.message||'API Error')}
