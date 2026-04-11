@@ -242,7 +242,7 @@ async _sha256(message){const msgBuffer=new TextEncoder().encode(message);const h
 _selectRole(role){this.role=role;document.getElementById('splash').classList.add('hidden');if(role==='teacher')this._initTeacher();else this._initStudent()}
 
 // ===== TEACHER =====
-_initTeacher(){if(this._teacherInited){document.getElementById('view-teacher').classList.remove('hidden');return}this._teacherInited=true;document.getElementById('view-teacher').classList.remove('hidden');this._initCM();this._bindTeacher();this._bindTeacherTabs();this.addSubtask(70,'Subtask 1');this.addSubtask(30,'Subtask 2');this._updateSTTotal();const k=this.gemini.getApiKey();if(k)document.getElementById('ai-api-key').value=k;this._validateForm();
+_initTeacher(){if(this._teacherInited){document.getElementById('view-teacher').classList.remove('hidden');return}this._teacherInited=true;document.getElementById('view-teacher').classList.remove('hidden');this._initCM();this._bindTeacher();this._bindTeacherTabs();this.addSubtask(70,'Subtask 1');this.addSubtask(30,'Subtask 2');this._updateSTTotal();this._initApiKeyManager();this._validateForm();
 // Stats sub-tab switching
 document.querySelectorAll('.stats-subtab').forEach(btn=>{btn.onclick=()=>{document.querySelectorAll('.stats-subtab').forEach(b=>b.classList.remove('active'));btn.classList.add('active');document.querySelectorAll('.stats-subtab-content').forEach(p=>p.classList.remove('active'));const panel=document.getElementById('stab-'+btn.dataset.stab);if(panel)panel.classList.add('active')}});
 // Auto-restore draft if exists
@@ -293,8 +293,7 @@ $('btn-add-line').onclick=()=>this.addInputLine();
 $('btn-generate').onclick=()=>this.startGeneration();
 $('btn-download').onclick=()=>this.themis.downloadZip();
 $('btn-dismiss-error').onclick=()=>$('error-area').classList.add('hidden');
-// AI
-$('ai-api-key').onchange=()=>this.gemini.setApiKey($('ai-api-key').value.trim());
+// AI (key managed centrally via _initApiKeyManager)
 $('btn-ai-generate').onclick=()=>this._aiGen(false);
 $('btn-ai-brute').onclick=()=>this._aiGen(true);
 $('btn-ai-auto').onclick=()=>this._aiAutoGenVerify();
@@ -367,7 +366,7 @@ const vars=document.querySelectorAll('.var-row');let constraintStr='';vars.forEa
 try{const samples=this._getSampleIOs();if(samples.length)ctx.sampleIO=samples}catch(e){}
 return ctx}
 
-async _aiGen(brute){const p=document.getElementById('ai-prompt').value.trim();if(!p){this._toast('Nhập đề bài','error');return}const k=document.getElementById('ai-api-key').value.trim();if(!k){this._toast('Nhập API Key','error');return}this.gemini.setApiKey(k);
+async _aiGen(brute){const p=document.getElementById('ai-prompt').value.trim();if(!p){this._toast('Nhập đề bài','error');return}const k=this.gemini.getApiKey();if(!k){this._toast('Nhấn 🔑 API Key trên menu để cài đặt','error');document.getElementById('btn-api-key-settings').click();return}
 const ctx=this._getAIContext(brute);
 // Show context info
 const infoEl=document.getElementById('ai-context-info');
@@ -383,7 +382,7 @@ if(brute){this.cmBrute.setValue(code);this._toast('Đã tự động điền và
 }catch(e){document.getElementById('ai-status').textContent='';this._toast('AI: '+e.message,'error')}}
 
 // A3: One-click Auto Gen & Verify
-async _aiAutoGenVerify(){const p=document.getElementById('ai-prompt').value.trim();if(!p){this._toast('Nhập đề bài','error');return}const k=document.getElementById('ai-api-key').value.trim();if(!k){this._toast('Nhập API Key','error');return}this.gemini.setApiKey(k);
+async _aiAutoGenVerify(){const p=document.getElementById('ai-prompt').value.trim();if(!p){this._toast('Nhập đề bài','error');return}const k=this.gemini.getApiKey();if(!k){this._toast('Nhấn 🔑 API Key trên menu để cài đặt','error');document.getElementById('btn-api-key-settings').click();return}
 if(!document.getElementById('input-lines-container').children.length){this._toast('Cấu hình input (Step 4) trước!','error');return}
 const statusEl=document.getElementById('ai-status');
 try{
@@ -2510,9 +2509,8 @@ Hãy nhận xét theo cấu trúc sau:
 async _aiAnalyzeAll(){if(!this._gradeResults||!this._gradeProblems){this._toast('Chấm bài trước','error');return}
 const rc=this._viewingRoomCode||this.roomCode;
 if(!rc){this._toast('Không có phòng thi','error');return}
-const k=document.getElementById('ai-api-key')?.value?.trim()||this.gemini.getApiKey();
-if(!k){this._toast('Nhập Gemini API Key trong tab AI trước','error');return}
-this.gemini.setApiKey(k);
+const k=this.gemini.getApiKey();
+if(!k){this._toast('Nhấn 🔑 API Key trên menu để cài đặt','error');document.getElementById('btn-api-key-settings').click();return}
 const ok=await this._confirmDialog('🤖 AI Phân Tích','AI sẽ phân tích code của từng HS. Cần API key và mất vài phút.','Phân tích','btn-accent');
 if(!ok)return;
 const names=Object.keys(this._gradeResults);
@@ -2593,9 +2591,8 @@ this._toast('💾 Đã lưu nhận xét!','success')}
 // AI analyze single student from modal
 async _aiAnalyzeStudent(name,probCount){
 const rc=this._viewingRoomCode||this.roomCode;if(!rc)return;
-const k=document.getElementById('ai-api-key')?.value?.trim()||this.gemini.getApiKey();
-if(!k){this._toast('Nhập Gemini API Key trong tab AI trước','error');return}
-this.gemini.setApiKey(k);
+const k=this.gemini.getApiKey();
+if(!k){this._toast('Nhấn 🔑 API Key trên menu để cài đặt','error');document.getElementById('btn-api-key-settings').click();return}
 const btn=document.getElementById(`btn-ai-student-${name}`);
 if(btn){btn.disabled=true;btn.textContent='⏳ Đang phân tích...'}
 const probs=this._gradeProblems||[];
@@ -3161,14 +3158,11 @@ const cfg=$('quiz-ai-config');cfg.classList.toggle('hidden');
 // Auto-fill topic from quiz-topic field
 const topicVal=$('quiz-topic')?.value;
 if(topicVal&&!$('quiz-ai-topic').value)$('quiz-ai-topic').value=topicVal;
-// Auto-fill API key from localStorage or compose tab
+// API key auto-populated via _initApiKeyManager
 const qk=$('quiz-ai-key');
-if(qk&&!qk.value){const saved=this.gemini.getApiKey()||$('ai-api-key')?.value||'';if(saved)qk.value=saved}};
+if(qk&&!qk.value){const saved=this.gemini.getApiKey();if(saved)qk.value=saved}};
 $('btn-quiz-ai-close').onclick=()=>$('quiz-ai-config').classList.add('hidden');
 $('btn-quiz-ai-run').onclick=()=>this._generateQuizWithAI();
-// Sync quiz-ai-key to gemini helper and compose tab on change
-const qkEl=$('quiz-ai-key');
-if(qkEl)qkEl.onchange=()=>{const v=qkEl.value.trim();if(v){this.gemini.setApiKey(v);const ck=$('ai-api-key');if(ck)ck.value=v}};
 }
 
 _addQuizQuestion(content='',options=['','','',''],correctIndex=0,explanation=''){
@@ -3377,16 +3371,10 @@ const numQ=parseInt(document.getElementById('quiz-ai-count')?.value)||10;
 const difficulty=document.getElementById('quiz-ai-difficulty')?.value||'medium';
 const runBtn=document.getElementById('btn-quiz-ai-run');
 const runText=document.getElementById('quiz-ai-run-text');
-// Sync API key from quiz-ai-key (quiz tab) or ai-api-key (compose tab)
-const quizKeyInput=document.getElementById('quiz-ai-key');
-const composeKeyInput=document.getElementById('ai-api-key');
-// Priority: quiz tab key > compose tab key > localStorage
-if(quizKeyInput&&quizKeyInput.value.trim()){this.gemini.setApiKey(quizKeyInput.value.trim());if(composeKeyInput)composeKeyInput.value=quizKeyInput.value.trim()}
-else if(composeKeyInput&&composeKeyInput.value.trim()&&!this.gemini.getApiKey()){this.gemini.setApiKey(composeKeyInput.value.trim());if(quizKeyInput)quizKeyInput.value=composeKeyInput.value.trim()}
-// If still no key, show inline error with guidance
-if(!this.gemini||!this.gemini.getApiKey()){
-this._toast('⚠️ Nhập Gemini API Key ở ô phía trên để AI tạo câu hỏi','error');
-if(quizKeyInput){quizKeyInput.focus();quizKeyInput.style.borderColor='var(--danger)';setTimeout(()=>{quizKeyInput.style.borderColor=''},3000)}
+// Use centralized API key
+if(!this.gemini.getApiKey()){
+this._toast('Nhấn 🔑 API Key trên menu để cài đặt','error');
+document.getElementById('btn-api-key-settings').click();
 return}
 // Check if existing questions — confirm before clearing
 const container=document.getElementById('quiz-questions-container');
@@ -3885,10 +3873,55 @@ if(ctx2&&total>0){this._stuChartInstances.progress=new Chart(ctx2,{type:'doughnu
 _esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
 
 
+// ===== CENTRALIZED API KEY MANAGER =====
+_initApiKeyManager(){
+const saved=this.gemini.getApiKey();
+if(saved)this._syncApiKeyToAll(saved);
+this._updateApiKeyStatus();
+const btnOpen=document.getElementById('btn-api-key-settings');
+if(btnOpen)btnOpen.onclick=()=>{
+const modal=document.getElementById('modal-api-key');modal.classList.remove('hidden');
+const inp=document.getElementById('global-api-key-input');
+const k=this.gemini.getApiKey();if(k)inp.value=k;
+this._updateModalKeyStatus(k);inp.focus()};
+const btnCancel=document.getElementById('btn-cancel-api-key');
+if(btnCancel)btnCancel.onclick=()=>document.getElementById('modal-api-key').classList.add('hidden');
+const modal=document.getElementById('modal-api-key');
+if(modal)modal.onclick=e=>{if(e.target===modal)modal.classList.add('hidden')};
+const btnSave=document.getElementById('btn-save-api-key');
+if(btnSave)btnSave.onclick=()=>{
+const v=document.getElementById('global-api-key-input').value.trim();
+if(!v){this._toast('Nhập API Key','error');return}
+this.gemini.setApiKey(v);this._syncApiKeyToAll(v);this._updateApiKeyStatus();
+document.getElementById('modal-api-key').classList.add('hidden');
+this._toast('✅ API Key đã lưu và đồng bộ!','success')};
+const btnVis=document.getElementById('btn-toggle-key-vis');
+if(btnVis)btnVis.onclick=()=>{
+const inp=document.getElementById('global-api-key-input');
+inp.type=inp.type==='password'?'text':'password';
+btnVis.textContent=inp.type==='password'?'👁️':'🙈'}}
+_syncApiKeyToAll(key){
+['ai-api-key','quiz-ai-key','util-api-key'].forEach(id=>{
+const el=document.getElementById(id);if(el)el.value=key})}
+_updateApiKeyStatus(){
+const k=this.gemini.getApiKey();const has=!!k;
+const masked=has?'AIza***'+k.slice(-4):'';
+const ids=[{id:'ai-api-key-status',label:has?`✅ Đã cài đặt (${masked})`:'Chưa cài đặt — Nhấn 🔑 API Key trên thanh menu'},
+{id:'quiz-api-key-status',label:has?`✅ ${masked}`:'Chưa cài đặt'},
+{id:'util-api-key-status',label:has?`✅ ${masked}`:'Chưa cài đặt'}];
+ids.forEach(s=>{const el=document.getElementById(s.id);if(!el)return;
+const dot=el.querySelector('.api-key-dot');const span=el.querySelector('span:last-child');
+if(dot)dot.classList.toggle('active',has);
+if(span)span.textContent=s.label});
+const btn=document.getElementById('btn-api-key-settings');
+if(btn)btn.style.borderColor=has?'rgba(16,185,129,.4)':'rgba(239,68,68,.4)'}
+_updateModalKeyStatus(k){
+const dot=document.getElementById('modal-key-dot');const txt=document.getElementById('modal-key-status');
+if(k){if(dot)dot.classList.add('active');if(txt)txt.textContent='API Key đã lưu: AIza***'+k.slice(-4)}
+else{if(dot)dot.classList.remove('active');if(txt)txt.textContent='Chưa có API Key'}}
+
 // ===== UTILITIES TAB — AI RA ĐỀ =====
 _initUtilities(){if(this._utilInited)return;this._utilInited=true;
-const mk=document.getElementById('ai-api-key'),uk=document.getElementById('util-api-key');
-if(mk&&mk.value&&uk)uk.value=mk.value;
 document.getElementById('btn-util-generate').onclick=()=>this._utilGenerate();
 document.getElementById('btn-util-regen').onclick=()=>this._utilGenerate();
 document.getElementById('btn-util-verify').onclick=()=>this._utilVerifyAndGenTests();
@@ -3897,9 +3930,8 @@ document.getElementById('btn-util-back2').onclick=()=>{document.getElementById('
 document.getElementById('btn-util-new').onclick=()=>this._utilReset();
 document.getElementById('btn-util-to-contest').onclick=()=>this._utilPublishExercise(true)}
 _utilSetStep(n){document.querySelectorAll('.util-step').forEach(s=>{const sn=parseInt(s.dataset.step);s.classList.remove('active','done');if(sn<n)s.classList.add('done');if(sn===n)s.classList.add('active')})}
-async _utilGenerate(){const topic=document.getElementById('util-topic').value,diff=document.getElementById('util-difficulty').value,grade=document.getElementById('util-grade').value,extra=document.getElementById('util-extra-desc').value.trim(),key=document.getElementById('util-api-key').value.trim();
-if(!key){this._toast('Nhập Gemini API Key','error');return}
-this.gemini.setApiKey(key);const mk=document.getElementById('ai-api-key');if(mk)mk.value=key;
+async _utilGenerate(){const topic=document.getElementById('util-topic').value,diff=document.getElementById('util-difficulty').value,grade=document.getElementById('util-grade').value,extra=document.getElementById('util-extra-desc').value.trim(),key=this.gemini.getApiKey();
+if(!key){this._toast('Nhấn 🔑 API Key trên menu để cài đặt','error');document.getElementById('btn-api-key-settings').click();return}
 const dl={easy:'Dễ',medium:'Trung bình',hard:'Khó',hsg:'HSG tỉnh'}[diff]||'Trung bình';
 const prompt=`Bạn là giáo viên Tin học giỏi, soạn đề thi HSG Python lớp ${grade}.\n\n## YÊU CẦU:\n- Chủ đề: ${topic}\n- Độ khó: ${dl}\n${extra?'- Thêm: '+extra:''}\n\n## ĐỀ BÀI:\n- Tiếng Việt rõ ràng, chi tiết, có tình huống thực tế\n- Input format: ghi rõ TỪNG DÒNG\n- Output format: ghi rõ kết quả\n- Constraints: ghi giới hạn cụ thể\n- 2 ví dụ kèm giải thích\n\n## CODE ĐÁP ÁN:\n- Python 3 ĐƠN GIẢN\n- Biến tiếng Việt không dấu (tong, dem, ket_qua)\n- Comment tiếng Việt mỗi bước\n- KHÔNG thư viện ngoài, chỉ input()/print()\n- HS lớp ${grade} đọc hiểu được\n\n## SUBTASKS:\n- 2-4 subtask, tổng 100%`;
 const st=document.getElementById('util-ai-status');st.className='util-status';st.innerHTML='<span class="progress-spinner"></span> Đang sinh đề bài...';st.classList.remove('hidden');

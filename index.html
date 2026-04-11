@@ -196,6 +196,7 @@
                     </div>
                     <div style="display:flex;gap:8px;align-items:center">
                         <button class="btn btn-accent" id="btn-create-room">📡 Tạo Phòng Thi</button>
+                        <button class="btn btn-ghost btn-sm" id="btn-api-key-settings" title="Cài đặt API Key">🔑 API Key</button>
                         <button class="btn btn-ghost btn-sm" id="btn-back-splash-t">↩ Đổi vai trò</button>
                     </div>
                 </div>
@@ -305,7 +306,7 @@
                         <div class="tab-panel" id="tab-ai">
                             <div class="ai-section">
                                 <div class="ai-key-row">
-                                    <div class="form-group" style="flex:1;margin-bottom:0"><label>🔑 Gemini API Key</label><input type="password" id="ai-api-key" placeholder="AIzaSy..."></div>
+                                    <div class="form-group" style="flex:1;margin-bottom:0"><label>🔑 Gemini API Key</label><div id="ai-api-key-status" class="api-key-status" onclick="document.getElementById('btn-api-key-settings').click()"><span class="api-key-dot"></span><span>Chưa cài đặt — Nhấn 🔑 API Key trên thanh menu</span></div><input type="hidden" id="ai-api-key"></div>
                                     <div class="form-group" style="margin-bottom:0;min-width:160px"><label>🧠 Model</label>
                                         <select id="ai-model-select" class="preset-dropdown" style="width:100%">
                                             <option value="gemini-2.5-flash" selected>Gemini 2.5 Flash ⚡ (Khuyến nghị)</option>
@@ -577,10 +578,8 @@
                             </div>
                             <div class="quiz-ai-config-body">
                                 <div class="form-group" style="margin-bottom:8px"><label>🔑 Gemini API Key</label>
-                                    <div style="display:flex;gap:6px;align-items:center">
-                                        <input type="password" id="quiz-ai-key" placeholder="AIzaSy..." style="flex:1">
-                                        <a href="https://aistudio.google.com/apikey" target="_blank" class="btn btn-sm btn-ghost" style="white-space:nowrap">🔗 Lấy key</a>
-                                    </div>
+                                    <div id="quiz-api-key-status" class="api-key-status" onclick="document.getElementById('btn-api-key-settings').click()" style="cursor:pointer"><span class="api-key-dot"></span><span>Chưa cài đặt</span></div>
+                                    <input type="hidden" id="quiz-ai-key">
                                 </div>
                                 <div class="form-group" style="margin-bottom:8px"><label>📝 Chủ đề / Nội dung để AI tạo câu hỏi</label>
                                     <textarea id="quiz-ai-topic" rows="2" class="ai-textarea" placeholder="VD: Lập trình Python cơ bản (biến, vòng lặp, hàm)..."></textarea>
@@ -769,14 +768,19 @@
                         <div class="util-form-group">
                             <label>🎓 Lớp</label>
                             <select id="util-grade">
+                                <option value="6">Lớp 6</option>
+                                <option value="7">Lớp 7</option>
+                                <option value="8">Lớp 8</option>
+                                <option value="9">Lớp 9</option>
                                 <option value="10" selected>Lớp 10</option>
                                 <option value="11">Lớp 11</option>
                                 <option value="12">Lớp 12</option>
                             </select>
                         </div>
                         <div class="util-form-group">
-                            <label>🔑 Gemini API Key</label>
-                            <input type="password" id="util-api-key" placeholder="Nhập API Key...">
+                            <label>🔑 API Key</label>
+                            <div id="util-api-key-status" class="api-key-status" onclick="document.getElementById('btn-api-key-settings').click()" style="cursor:pointer"><span class="api-key-dot"></span><span>Chưa cài đặt</span></div>
+                            <input type="hidden" id="util-api-key">
                         </div>
                     </div>
                     <div class="util-form-group" style="margin-top:12px">
@@ -1248,6 +1252,32 @@
             <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
                 <button class="btn btn-ghost btn-sm" id="btn-cancel-room">Hủy</button>
                 <button class="btn btn-accent" id="btn-confirm-room">🚀 Tạo Phòng</button>
+            </div>
+        </div>
+    </div>
+    <!-- Modal: API Key Settings -->
+    <div id="modal-api-key" class="modal-overlay hidden">
+        <div class="modal-content" style="max-width:480px">
+            <h3>🔑 Cài Đặt Gemini API Key</h3>
+            <p style="color:var(--text-muted);font-size:.82rem;margin-bottom:16px">API Key được lưu trên trình duyệt của bạn và sử dụng cho <b>tất cả</b> tính năng AI (Soạn Đề, Trắc Nghiệm, Tiện Ích).</p>
+            <div class="form-group">
+                <label>🔐 API Key</label>
+                <div style="display:flex;gap:6px;align-items:center">
+                    <input type="password" id="global-api-key-input" placeholder="AIzaSy..." style="flex:1">
+                    <button class="btn btn-ghost btn-sm" id="btn-toggle-key-vis" title="Hiện/Ẩn">👁️</button>
+                </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;margin:12px 0">
+                <div class="api-key-dot" id="modal-key-dot"></div>
+                <span id="modal-key-status" style="font-size:.82rem;color:var(--text-muted)">Chưa có API Key</span>
+            </div>
+            <div style="background:rgba(251,191,36,.06);border:1px solid rgba(251,191,36,.15);border-radius:8px;padding:10px 12px;margin-bottom:16px;font-size:.78rem;color:var(--text-secondary)">
+                <b>🔒 Bảo mật:</b> API Key chỉ lưu trên máy bạn (localStorage), không gửi lên server. Mỗi request gọi trực tiếp từ trình duyệt đến Google API.
+                <br><a href="https://aistudio.google.com/apikey" target="_blank" style="color:var(--accent-light)">→ Tạo API Key miễn phí tại Google AI Studio</a>
+            </div>
+            <div style="display:flex;gap:8px;justify-content:flex-end">
+                <button class="btn btn-ghost btn-sm" id="btn-cancel-api-key">Đóng</button>
+                <button class="btn btn-accent" id="btn-save-api-key">💾 Lưu API Key</button>
             </div>
         </div>
     </div>
