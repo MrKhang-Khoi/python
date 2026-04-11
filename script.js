@@ -730,6 +730,8 @@ this._renderViewSampleIO(ex.sampleIO||[]);
 this._renderViewSubtasks(ex.subtasks||[{id:1,name:'Subtask 1',percent:100}],tcCount);
 // F_TC: Render Test Cases viewer (read-only)
 this._renderViewTestCases(ex.testCases||[],ex.subtasks||[]);
+// F_CODE: Render answer code viewer
+this._renderViewAnswerCode(ex.answerCode||'');
 // F3: Render students with code viewer
 const res=this._teacherExResults||{};const exRes=res[id]||{};
 this._renderViewStudentsWithCode(id,exRes);
@@ -748,12 +750,50 @@ const addSampleBtn=document.getElementById('btn-view-add-sample');if(addSampleBt
 const addStBtn=document.getElementById('btn-view-add-subtask');if(addStBtn)addStBtn.onclick=()=>this._addViewSubtask();
 document.getElementById('modal-view-exercise').classList.remove('hidden')}
 
+// Answer code viewer in edit modal
+_renderViewAnswerCode(code){
+const wrap=document.getElementById('view-ex-code-wrap');
+const editorEl=document.getElementById('view-ex-code-editor');
+const infoEl=document.getElementById('view-ex-code-info');
+const codeSection=document.getElementById('view-ex-code-section');
+const toggleBtn=document.getElementById('btn-toggle-code-view');
+if(!editorEl)return;
+wrap.style.display='none';
+this._viewCodeOpen=false;
+if(toggleBtn)toggleBtn.textContent='\u25BC Xem code';
+if(!code||!code.trim()){
+if(codeSection)codeSection.style.display='none';return}
+if(codeSection)codeSection.style.display='';
+this._viewAnswerCode=code;
+const lineCount=code.split('\n').length;
+if(infoEl)infoEl.textContent='Python \u2022 '+lineCount+' d\u00F2ng';
+const copyBtn=document.getElementById('btn-copy-answer-code');
+if(copyBtn)copyBtn.onclick=()=>this._copyText(this._viewAnswerCode);
+if(this._cmViewCode){try{this._cmViewCode.toTextArea()}catch(e){}this._cmViewCode=null}
+editorEl.innerHTML='<textarea id="view-ex-code-ta"></textarea>'}
+
+_toggleViewCode(){
+const wrap=document.getElementById('view-ex-code-wrap');
+const btn=document.getElementById('btn-toggle-code-view');
+if(!wrap)return;
+this._viewCodeOpen=!this._viewCodeOpen;
+wrap.style.display=this._viewCodeOpen?'':'none';
+if(btn)btn.textContent=this._viewCodeOpen?'\u25B2 \u1EA8n code':'\u25BC Xem code';
+if(this._viewCodeOpen&&!this._cmViewCode&&this._viewAnswerCode){
+const ta=document.getElementById('view-ex-code-ta');
+if(ta){
+this._cmViewCode=CodeMirror.fromTextArea(ta,{mode:'python',lineNumbers:true,readOnly:false,indentUnit:4,tabSize:4,matchBrackets:true,styleActiveLine:true,autoCloseBrackets:true,extraKeys:{'Tab':cm=>cm.execCommand('indentMore'),'Shift-Tab':cm=>cm.execCommand('indentLess')}});
+this._cmViewCode.setValue(this._viewAnswerCode);
+this._cmViewCode.setSize(null,Math.min(350,Math.max(120,this._viewAnswerCode.split('\n').length*20)));
+setTimeout(()=>this._cmViewCode.refresh(),50)}}}
+
 async _saveViewExercise(){const id=document.getElementById('view-ex-id').value;if(!id)return;
 const newSubtasks=this._collectViewSubtasks();
 const stTotal=newSubtasks.reduce((s,st)=>s+st.percent,0);
 if(stTotal!==100){this._toast(`Tổng % subtask = ${stTotal}%, cần = 100%`,'error');return}
 const newSampleIO=this._collectViewSampleIO();
-const updates={title:document.getElementById('view-ex-title').value.trim(),topic:document.getElementById('view-ex-topic').value.trim()||'Không phân loại',description:document.getElementById('view-ex-desc').value,difficulty:document.getElementById('view-ex-difficulty')?.value||'medium',subtasks:newSubtasks,sampleIO:newSampleIO.length?newSampleIO:null};
+const answerCode=this._cmViewCode?this._cmViewCode.getValue():(this._viewAnswerCode||'');
+const updates={title:document.getElementById('view-ex-title').value.trim(),topic:document.getElementById('view-ex-topic').value.trim()||'Không phân loại',description:document.getElementById('view-ex-desc').value,difficulty:document.getElementById('view-ex-difficulty')?.value||'medium',subtasks:newSubtasks,sampleIO:newSampleIO.length?newSampleIO:null,answerCode:answerCode||null};
 try{
 await this.fb.updateExercise(id,updates);
 this._toast('Đã cập nhật bài tập!','success');
@@ -1392,7 +1432,7 @@ _closeRoomHistory(){this._closeCommandCenter()}
 _showExerciseModal(){if(!this.themis.testCases.length){this._toast('Sinh test trước','error');return}const cfg=this.collectFormData();const desc=document.getElementById('problem-description').value||document.getElementById('ai-prompt').value||'Không có mô tả';const displayTitle=document.getElementById('problem-title').value.trim()||cfg.taskName;const topic=document.getElementById('problem-topic').value.trim()||'Không phân loại';document.getElementById('ex-title-input').value=displayTitle;document.getElementById('ex-desc-input').value=desc;document.getElementById('ex-test-count').textContent=this.themis.testCases.length;document.getElementById('ex-subtask-count').textContent=cfg.subtasks?cfg.subtasks.length:1;document.getElementById('ex-topic').value=topic;document.getElementById('modal-publish-exercise').classList.remove('hidden')}
 
 async _confirmPublishExercise(){const topic=document.getElementById('ex-topic').value.trim()||document.getElementById('problem-topic').value.trim()||'Không phân loại';const cfg=this.collectFormData();const desc=document.getElementById('ex-desc-input').value;const displayTitle=document.getElementById('ex-title-input').value.trim()||cfg.taskName;const sampleIO=this._getSampleIOs();const difficulty=document.getElementById('ex-difficulty')?.value||'medium';
-const data={title:displayTitle,description:desc,topic,difficulty,fileIO:cfg.fileIO,uppercase:cfg.uppercase,taskName:cfg.taskName,timePerTest:5,subtasks:cfg.subtasks,sampleIO:sampleIO.length?sampleIO:null,testCases:this.themis.testCases.map(tc=>({input:tc.input,output:tc.output,subtaskId:tc.subtaskId}))};document.getElementById('modal-publish-exercise').classList.add('hidden');try{const exId=await this.fb.publishExercise(data);this._clearDraft();this.drive.logData('Exercises',[exId,displayTitle,topic,desc.substring(0,200),this.themis.testCases.length,cfg.subtasks?.length||1,new Date().toISOString(),cfg.fileIO?'Yes':'No',cfg.taskName]).catch(()=>{});this._toast(`📚 Đã đăng bài tập: ${displayTitle} (${topic})`,'success');
+const data={title:displayTitle,description:desc,topic,difficulty,fileIO:cfg.fileIO,uppercase:cfg.uppercase,taskName:cfg.taskName,timePerTest:5,subtasks:cfg.subtasks,sampleIO:sampleIO.length?sampleIO:null,testCases:this.themis.testCases.map(tc=>({input:tc.input,output:tc.output,subtaskId:tc.subtaskId})),answerCode:this.cmMain?this.cmMain.getValue():''};document.getElementById('modal-publish-exercise').classList.add('hidden');try{const exId=await this.fb.publishExercise(data);this._clearDraft();this.drive.logData('Exercises',[exId,displayTitle,topic,desc.substring(0,200),this.themis.testCases.length,cfg.subtasks?.length||1,new Date().toISOString(),cfg.fileIO?'Yes':'No',cfg.taskName]).catch(()=>{});this._toast(`📚 Đã đăng bài tập: ${displayTitle} (${topic})`,'success');
 // Auto-switch to exercise management tab so teacher sees the new exercise immediately
 const exTab=document.querySelector('.t-tab[data-ttab="exercises"]');if(exTab){exTab.click()}}catch(e){this._toast('Lỗi: '+e.message,'error')}}
 

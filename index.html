@@ -1152,6 +1152,21 @@
             </div>
             <div class="form-group"><label>Mô tả đề bài</label><textarea id="view-ex-desc" rows="4" class="ai-textarea"></textarea></div>
 
+            <!-- Code Đáp Án -->
+            <div class="form-group view-ex-section" id="view-ex-code-section">
+                <div class="view-ex-section-header">
+                    <label>🐍 Code Đáp Án</label>
+                    <button class="btn btn-ghost btn-sm" id="btn-toggle-code-view" onclick="window._uic._toggleViewCode()">▼ Xem code</button>
+                </div>
+                <div id="view-ex-code-wrap" style="display:none">
+                    <div class="view-code-toolbar">
+                        <span id="view-ex-code-info" style="font-size:.75rem;color:var(--text-muted)"></span>
+                        <button class="btn btn-ghost btn-sm" id="btn-copy-answer-code" style="font-size:.72rem;padding:3px 8px">📋 Copy</button>
+                    </div>
+                    <div id="view-ex-code-editor" style="border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-top:6px"></div>
+                </div>
+            </div>
+
             <!-- F1: Sample I/O Editor -->
             <div class="form-group view-ex-section">
                 <div class="view-ex-section-header">

@@ -1720,3 +1720,18 @@ textarea.ai-textarea{resize:vertical}
 .btn-ban-sm:hover{background:rgba(239,68,68,.25)}
 .btn-unban-sm{background:rgba(34,197,94,.12);color:var(--success);border:none;border-radius:6px;padding:3px 8px;font-size:.72rem;cursor:pointer;transition:.2s}
 .btn-unban-sm:hover{background:rgba(34,197,94,.25)}
+.view-code-toolbar{display:flex;align-items:center;justify-content:space-between;padding:6px 0;margin-top:8px}
+#view-ex-code-editor .CodeMirror{background:#0f1729;color:#e2e8f0;border-radius:8px;font-size:.85rem;height:auto;min-height:80px}
+#view-ex-code-editor .CodeMirror-gutters{background:#0f1729;border-right:1px solid rgba(148,163,184,.12)}
+#view-ex-code-editor .CodeMirror-linenumber{color:#475569}
+#view-ex-code-editor .CodeMirror-activeline-background{background:rgba(99,102,241,.08)}
+#view-ex-code-editor .CodeMirror-cursor{border-left-color:#a78bfa}
+#view-ex-code-editor .cm-keyword{color:#c084fc}
+#view-ex-code-editor .cm-builtin{color:#60a5fa}
+#view-ex-code-editor .cm-string{color:#34d399}
+#view-ex-code-editor .cm-number{color:#fbbf24}
+#view-ex-code-editor .cm-comment{color:#64748b;font-style:italic}
+#view-ex-code-editor .cm-def{color:#38bdf8}
+#view-ex-code-editor .cm-variable{color:#e2e8f0}
+#view-ex-code-editor .cm-operator{color:#f472b6}
+#view-ex-code-editor .CodeMirror-selected{background:rgba(99,102,241,.25)!important}
