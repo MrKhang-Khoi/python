@@ -3958,7 +3958,7 @@ const addV=(ic,tx)=>{vs.innerHTML+=`<div class="util-verify-item"><span class="u
 addV('⏳','Khởi tạo Pyodide...');
 try{if(!window.pyodideReady){if(!window.pyodideReadyPromise)window.pyodideReadyPromise=loadPyodide();await window.pyodideReadyPromise;window.pyodideReady=true}
 const py=await window.pyodideReadyPromise||window.pyodide;addV('✅','Pyodide sẵn sàng');
-const runPy=async(c,inp)=>{py.globals.set('__inp',inp);py.runPython(`import sys,io\n_L=__inp.strip().split('\\n');_i=0\ndef _I(p=''):\n global _i\n if _i<len(_L):r=_L[_i];_i+=1;return r\n return ''\n__builtins__.__dict__['input']=_I\n_O=io.StringIO();sys.stdout=_O`);py.runPython(c);const o=py.runPython('_O.getvalue()').trim();py.runPython('sys.stdout=sys.__stdout');return o};
+const runPy=async(c,inp)=>{py.globals.set('__inp',inp);py.runPython(`import sys,io\n_L=__inp.strip().split('\\n');_i=0\ndef _I(p=''):\n global _i\n if _i<len(_L):r=_L[_i];_i+=1;return r\n return ''\n__builtins__.__dict__['input']=_I\n_O=io.StringIO();sys.stdout=_O`);py.runPython(c);const o=py.runPython('_O.getvalue()').trim();py.runPython('sys.stdout=sys.__stdout__');return o};
 let ok=true;for(let i=0;i<(data.sampleIO||[]).length;i++){const s=data.sampleIO[i];try{const o=await runPy(code,s.input);if(o===s.output.trim())addV('✅',`Ví dụ ${i+1}: Đúng`);else{addV('❌',`Ví dụ ${i+1}: Sai — got "${o}" expected "${s.output.trim()}"`);ok=false}}catch(ex){addV('❌',`Ví dụ ${i+1}: ${ex.message}`);ok=false}}
 if(!ok){addV('⚠️','Code sai. Quay lại chỉnh sửa.');document.getElementById('btn-util-back2').classList.remove('hidden');return}
 addV('⏳','Sinh test cases...');const tests=[];const subs=data.subtasks||[{name:'Full',percent:100}];
