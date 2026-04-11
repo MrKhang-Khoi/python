@@ -213,6 +213,7 @@
                 <button class="t-tab" data-ttab="tips">💡 Tips</button>
                 <button class="t-tab" data-ttab="stats">📊 Thống Kê</button>
                 <button class="t-tab" data-ttab="contest">🏆 Phòng Thi</button>
+                <button class="t-tab" data-ttab="utilities">🧰 Tiện Ích</button>
             </div>
         </nav>
         <main class="container">
@@ -718,6 +719,153 @@
                 <div id="t-contest-problems" class="hidden"></div>
                 <div id="t-active-room-dashboard" class="hidden"></div>
             </div>
+
+            <!-- ===== TAB: TIỆN ÍCH — AI RA ĐỀ ===== -->
+            <div id="t-tab-utilities" class="t-tab-panel hidden">
+                <div class="oj-page-header">
+                    <div><h2 class="oj-page-title">🧰 Tiện Ích — AI Ra Đề Thi</h2><p class="oj-page-sub">Tạo đề bài, code đáp án và test cases chuẩn bằng AI</p></div>
+                </div>
+
+                <!-- Progress Steps -->
+                <div class="util-steps">
+                    <div class="util-step active" data-step="1"><span class="util-step-num">1</span><span class="util-step-label">Cấu hình</span></div>
+                    <div class="util-step-line"></div>
+                    <div class="util-step" data-step="2"><span class="util-step-num">2</span><span class="util-step-label">AI Ra Đề</span></div>
+                    <div class="util-step-line"></div>
+                    <div class="util-step" data-step="3"><span class="util-step-num">3</span><span class="util-step-label">Verify & Test</span></div>
+                    <div class="util-step-line"></div>
+                    <div class="util-step" data-step="4"><span class="util-step-num">4</span><span class="util-step-label">Đăng Bài</span></div>
+                </div>
+
+                <!-- STEP 1: Cấu hình -->
+                <div class="util-card" id="util-step1">
+                    <h3 class="util-card-title">📋 Bước 1: Cấu Hình Đề Bài</h3>
+                    <div class="util-form-grid">
+                        <div class="util-form-group">
+                            <label>🏷️ Chủ đề</label>
+                            <select id="util-topic">
+                                <option value="Mảng (List)">Mảng (List)</option>
+                                <option value="Chuỗi (String)">Chuỗi (String)</option>
+                                <option value="Sắp xếp">Sắp xếp</option>
+                                <option value="Tìm kiếm">Tìm kiếm</option>
+                                <option value="Đệ quy">Đệ quy</option>
+                                <option value="Quy hoạch động">Quy hoạch động</option>
+                                <option value="Đồ thị">Đồ thị</option>
+                                <option value="Số học">Số học</option>
+                                <option value="Xử lý bit">Xử lý bit</option>
+                                <option value="Stack/Queue">Stack/Queue</option>
+                                <option value="Tổng hợp">Tổng hợp</option>
+                            </select>
+                        </div>
+                        <div class="util-form-group">
+                            <label>⚡ Độ khó</label>
+                            <select id="util-difficulty">
+                                <option value="easy">🟢 Dễ</option>
+                                <option value="medium" selected>🟡 Trung bình</option>
+                                <option value="hard">🔴 Khó</option>
+                                <option value="hsg">💎 HSG</option>
+                            </select>
+                        </div>
+                        <div class="util-form-group">
+                            <label>🎓 Lớp</label>
+                            <select id="util-grade">
+                                <option value="10" selected>Lớp 10</option>
+                                <option value="11">Lớp 11</option>
+                                <option value="12">Lớp 12</option>
+                            </select>
+                        </div>
+                        <div class="util-form-group">
+                            <label>🔑 Gemini API Key</label>
+                            <input type="password" id="util-api-key" placeholder="Nhập API Key...">
+                        </div>
+                    </div>
+                    <div class="util-form-group" style="margin-top:12px">
+                        <label>📝 Mô tả thêm <span style="font-weight:400;color:var(--text-muted)">(tùy chọn)</span></label>
+                        <textarea id="util-extra-desc" rows="3" placeholder="VD: Bài toán về tìm dãy con liên tục có tổng lớn nhất, sử dụng mảng 1 chiều..."></textarea>
+                    </div>
+                    <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
+                        <button class="btn btn-accent" id="btn-util-generate">🤖 AI Ra Đề</button>
+                    </div>
+                </div>
+
+                <!-- AI Status -->
+                <div id="util-ai-status" class="util-status hidden"></div>
+
+                <!-- STEP 2: Preview đề -->
+                <div class="util-card hidden" id="util-step2">
+                    <h3 class="util-card-title">📝 Bước 2: Xem & Chỉnh Sửa Đề Bài</h3>
+                    <div class="util-form-group">
+                        <label>🏷️ Tên bài</label>
+                        <input type="text" id="util-title" placeholder="Tên bài toán">
+                    </div>
+                    <div class="util-form-group">
+                        <label>📄 Đề bài chi tiết</label>
+                        <textarea id="util-description" rows="8" style="font-family:var(--font-mono);font-size:.85rem;white-space:pre-wrap"></textarea>
+                    </div>
+                    <div class="util-form-row">
+                        <div class="util-form-group" style="flex:1">
+                            <label>📥 Input Format</label>
+                            <textarea id="util-input-format" rows="4" style="font-family:var(--font-mono);font-size:.85rem"></textarea>
+                        </div>
+                        <div class="util-form-group" style="flex:1">
+                            <label>📤 Output Format</label>
+                            <textarea id="util-output-format" rows="4" style="font-family:var(--font-mono);font-size:.85rem"></textarea>
+                        </div>
+                    </div>
+                    <div class="util-form-group">
+                        <label>⚙️ Constraints</label>
+                        <div id="util-constraints-list"></div>
+                    </div>
+                    <!-- Sample I/O -->
+                    <div class="util-form-group">
+                        <label>📝 Ví dụ Input/Output</label>
+                        <div id="util-sample-io"></div>
+                    </div>
+                    <!-- Subtasks -->
+                    <div class="util-form-group">
+                        <label>📊 Subtasks</label>
+                        <div id="util-subtasks"></div>
+                    </div>
+                    <!-- Code -->
+                    <div class="util-form-group">
+                        <label>🐍 Code Đáp Án <span style="font-weight:400;color:var(--text-muted)">(có thể chỉnh sửa)</span></label>
+                        <div id="util-code-editor"></div>
+                    </div>
+                    <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
+                        <button class="btn btn-ghost btn-sm" id="btn-util-regen">🔄 Sinh lại</button>
+                        <button class="btn btn-accent" id="btn-util-verify">✅ Verify & Sinh Test</button>
+                    </div>
+                </div>
+
+                <!-- STEP 3: Verify & Test -->
+                <div class="util-card hidden" id="util-step3">
+                    <h3 class="util-card-title">✅ Bước 3: Xác Minh & Sinh Test Cases</h3>
+                    <div id="util-verify-status"></div>
+                    <div id="util-test-preview" class="hidden">
+                        <div class="util-form-group">
+                            <label>📊 Test Cases đã sinh</label>
+                            <div id="util-test-list"></div>
+                        </div>
+                    </div>
+                    <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
+                        <button class="btn btn-ghost btn-sm hidden" id="btn-util-back2">← Quay lại</button>
+                        <button class="btn btn-accent hidden" id="btn-util-publish">📚 Đăng Bài Tập</button>
+                        <button class="btn btn-warning hidden" id="btn-util-to-contest">🏆 Thêm vào Đề Thi</button>
+                    </div>
+                </div>
+
+                <!-- STEP 4: Done -->
+                <div class="util-card hidden" id="util-step4">
+                    <div style="text-align:center;padding:40px">
+                        <div style="font-size:4rem;margin-bottom:16px">🎉</div>
+                        <h3 style="color:var(--success);font-size:1.3rem;margin-bottom:8px">Hoàn tất!</h3>
+                        <p id="util-done-msg" style="color:var(--text-secondary);font-size:.9rem"></p>
+                        <button class="btn btn-accent" id="btn-util-new" style="margin-top:20px">🤖 Tạo Đề Mới</button>
+                    </div>
+                </div>
+
+            </div>
+
         </main>
     </div>
 

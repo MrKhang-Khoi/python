@@ -264,7 +264,7 @@ this.fb.listenAllQuizResults(res=>{this._teacherQuizResults=res;this._renderTeac
 this._initTeacherQuiz();
 const tqSearch=document.getElementById('t-quiz-search');if(tqSearch)tqSearch.oninput=()=>this._renderTeacherQuizList(this._teacherQuizzes||{})}
 
-_bindTeacherTabs(){const self=this;document.querySelectorAll('.t-tab[data-ttab]').forEach(btn=>{btn.onclick=()=>{document.querySelectorAll('.t-tab').forEach(b=>b.classList.remove('active'));btn.classList.add('active');document.querySelectorAll('.t-tab-panel').forEach(p=>p.classList.add('hidden'));const panel=document.getElementById('t-tab-'+btn.dataset.ttab);if(panel)panel.classList.remove('hidden');if(btn.dataset.ttab==='compose')setTimeout(()=>{self.cmMain&&self.cmMain.refresh();self.cmBrute&&self.cmBrute.refresh();self.cmAiPreview&&self.cmAiPreview.refresh()},50)}})}
+_bindTeacherTabs(){const self=this;document.querySelectorAll('.t-tab[data-ttab]').forEach(btn=>{btn.onclick=()=>{document.querySelectorAll('.t-tab').forEach(b=>b.classList.remove('active'));btn.classList.add('active');document.querySelectorAll('.t-tab-panel').forEach(p=>p.classList.add('hidden'));const panel=document.getElementById('t-tab-'+btn.dataset.ttab);if(panel)panel.classList.remove('hidden');if(btn.dataset.ttab==='compose')setTimeout(()=>{self.cmMain&&self.cmMain.refresh();self.cmBrute&&self.cmBrute.refresh();self.cmAiPreview&&self.cmAiPreview.refresh()},50);if(btn.dataset.ttab==='utilities')self._initUtilities()}})}
 
 _initCM(){if(this.cmMain)return;const cfg={mode:'python',lineNumbers:true,indentUnit:4,tabSize:4,matchBrackets:true,autoCloseBrackets:true,styleActiveLine:true,extraKeys:{'Tab':cm=>cm.execCommand('indentMore'),'Shift-Tab':cm=>cm.execCommand('indentLess'),'Ctrl-/':cm=>cm.execCommand('toggleComment')}};
 document.getElementById('editor-main-wrap').innerHTML='';document.getElementById('editor-brute-wrap').innerHTML='';document.getElementById('editor-ai-preview').innerHTML='';
@@ -3811,6 +3811,7 @@ else{this._toast('❌ '+(cData.error||'Không thể đổi MK. Server chưa hỗ
 }catch(e){this._toast('❌ Lỗi: '+e.message,'error')}}}
 
 
+
 // ============ STUDENT DASHBOARD OVERVIEW ============
 _stuChartInstances={}
 
@@ -3883,6 +3884,66 @@ if(ctx2&&total>0){this._stuChartInstances.progress=new Chart(ctx2,{type:'doughnu
 
 _esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
 
+
+// ===== UTILITIES TAB — AI RA ĐỀ =====
+_initUtilities(){if(this._utilInited)return;this._utilInited=true;
+const mk=document.getElementById('ai-api-key'),uk=document.getElementById('util-api-key');
+if(mk&&mk.value&&uk)uk.value=mk.value;
+document.getElementById('btn-util-generate').onclick=()=>this._utilGenerate();
+document.getElementById('btn-util-regen').onclick=()=>this._utilGenerate();
+document.getElementById('btn-util-verify').onclick=()=>this._utilVerifyAndGenTests();
+document.getElementById('btn-util-publish').onclick=()=>this._utilPublishExercise();
+document.getElementById('btn-util-back2').onclick=()=>{document.getElementById('util-step2').classList.remove('hidden');document.getElementById('util-step3').classList.add('hidden');this._utilSetStep(2)};
+document.getElementById('btn-util-new').onclick=()=>this._utilReset();
+document.getElementById('btn-util-to-contest').onclick=()=>this._utilPublishExercise(true)}
+_utilSetStep(n){document.querySelectorAll('.util-step').forEach(s=>{const sn=parseInt(s.dataset.step);s.classList.remove('active','done');if(sn<n)s.classList.add('done');if(sn===n)s.classList.add('active')})}
+async _utilGenerate(){const topic=document.getElementById('util-topic').value,diff=document.getElementById('util-difficulty').value,grade=document.getElementById('util-grade').value,extra=document.getElementById('util-extra-desc').value.trim(),key=document.getElementById('util-api-key').value.trim();
+if(!key){this._toast('Nhập Gemini API Key','error');return}
+this.gemini.setApiKey(key);const mk=document.getElementById('ai-api-key');if(mk)mk.value=key;
+const dl={easy:'Dễ',medium:'Trung bình',hard:'Khó',hsg:'HSG tỉnh'}[diff]||'Trung bình';
+const prompt=`Bạn là giáo viên Tin học giỏi, soạn đề thi HSG Python lớp ${grade}.\n\n## YÊU CẦU:\n- Chủ đề: ${topic}\n- Độ khó: ${dl}\n${extra?'- Thêm: '+extra:''}\n\n## ĐỀ BÀI:\n- Tiếng Việt rõ ràng, chi tiết, có tình huống thực tế\n- Input format: ghi rõ TỪNG DÒNG\n- Output format: ghi rõ kết quả\n- Constraints: ghi giới hạn cụ thể\n- 2 ví dụ kèm giải thích\n\n## CODE ĐÁP ÁN:\n- Python 3 ĐƠN GIẢN\n- Biến tiếng Việt không dấu (tong, dem, ket_qua)\n- Comment tiếng Việt mỗi bước\n- KHÔNG thư viện ngoài, chỉ input()/print()\n- HS lớp ${grade} đọc hiểu được\n\n## SUBTASKS:\n- 2-4 subtask, tổng 100%`;
+const st=document.getElementById('util-ai-status');st.className='util-status';st.innerHTML='<span class="progress-spinner"></span> Đang sinh đề bài...';st.classList.remove('hidden');
+document.getElementById('btn-util-generate').disabled=true;
+try{const schema={type:'object',properties:{title:{type:'string'},description:{type:'string'},inputFormat:{type:'string'},outputFormat:{type:'string'},constraints:{type:'array',items:{type:'string'}},sampleIO:{type:'array',items:{type:'object',properties:{input:{type:'string'},output:{type:'string'},explain:{type:'string'}},required:['input','output']}},solutionCode:{type:'string'},subtasks:{type:'array',items:{type:'object',properties:{name:{type:'string'},percent:{type:'number'}},required:['name','percent']}}},required:['title','description','inputFormat','outputFormat','solutionCode','sampleIO','constraints','subtasks']};
+const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:0.7,response_mime_type:'application/json',response_schema:schema}})});
+if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e.error?.message||'API Error')}
+const d=await r.json(),txt=d.candidates?.[0]?.content?.parts?.[0]?.text||'';
+this._utilData=JSON.parse(txt);if(!this._utilData.title||!this._utilData.solutionCode)throw new Error('AI trả thiếu dữ liệu');
+this._utilRenderPreview(this._utilData);st.className='util-status success';st.innerHTML='✅ Đã sinh đề thành công!';
+this._utilSetStep(2);document.getElementById('util-step2').classList.remove('hidden');
+}catch(e){st.className='util-status error';st.innerHTML='❌ '+e.message}finally{document.getElementById('btn-util-generate').disabled=false}}
+_utilRenderPreview(d){document.getElementById('util-title').value=d.title||'';document.getElementById('util-description').value=d.description||'';document.getElementById('util-input-format').value=d.inputFormat||'';document.getElementById('util-output-format').value=d.outputFormat||'';
+document.getElementById('util-constraints-list').innerHTML=(d.constraints||[]).map(c=>'<span class="util-constraint-chip">'+this._esc(c)+'</span>').join('');
+document.getElementById('util-sample-io').innerHTML=(d.sampleIO||[]).map((s,i)=>`<div class="util-sample-card"><div class="util-sample-header"><span class="util-sample-label">📝 Ví dụ ${i+1}</span></div><div class="util-sample-grid"><div class="util-sample-col"><label>INPUT</label><pre>${this._esc(s.input)}</pre></div><div class="util-sample-col"><label>OUTPUT</label><pre>${this._esc(s.output)}</pre></div></div>${s.explain?'<div class="util-sample-explain">💡 '+this._esc(s.explain)+'</div>':''}</div>`).join('');
+document.getElementById('util-subtasks').innerHTML=(d.subtasks||[]).map(s=>`<div class="util-subtask-row"><span class="util-subtask-name">${this._esc(s.name)}</span><span class="util-subtask-pct">${s.percent}%</span></div>`).join('');
+const el=document.getElementById('util-code-editor');el.innerHTML='';const ta=document.createElement('textarea');ta.value=d.solutionCode||'';el.appendChild(ta);
+this._utilCM=CodeMirror.fromTextArea(ta,{mode:'python',theme:'default',lineNumbers:true,lineWrapping:true,viewportMargin:Infinity});this._utilCM.setValue(d.solutionCode||'');setTimeout(()=>this._utilCM.refresh(),100)}
+async _utilVerifyAndGenTests(){const code=this._utilCM?this._utilCM.getValue():'';if(!code.trim()){this._toast('Chưa có code','error');return}
+const data=this._utilData;if(!data)return;data.title=document.getElementById('util-title').value.trim()||data.title;data.description=document.getElementById('util-description').value||data.description;data.inputFormat=document.getElementById('util-input-format').value||data.inputFormat;data.outputFormat=document.getElementById('util-output-format').value||data.outputFormat;data.solutionCode=code;
+this._utilSetStep(3);document.getElementById('util-step2').classList.add('hidden');document.getElementById('util-step3').classList.remove('hidden');
+const vs=document.getElementById('util-verify-status');vs.innerHTML='';
+const addV=(ic,tx)=>{vs.innerHTML+=`<div class="util-verify-item"><span class="util-verify-icon">${ic}</span><span>${tx}</span></div>`};
+addV('⏳','Khởi tạo Pyodide...');
+try{if(!window.pyodideReady){if(!window.pyodideReadyPromise)window.pyodideReadyPromise=loadPyodide();await window.pyodideReadyPromise;window.pyodideReady=true}
+const py=await window.pyodideReadyPromise||window.pyodide;addV('✅','Pyodide sẵn sàng');
+const runPy=async(c,inp)=>{py.globals.set('__inp',inp);py.runPython(`import sys,io\n_L=__inp.strip().split('\\n');_i=0\ndef _I(p=''):\n global _i\n if _i<len(_L):r=_L[_i];_i+=1;return r\n return ''\n__builtins__.__dict__['input']=_I\n_O=io.StringIO();sys.stdout=_O`);py.runPython(c);const o=py.runPython('_O.getvalue()').trim();py.runPython('sys.stdout=sys.__stdout');return o};
+let ok=true;for(let i=0;i<(data.sampleIO||[]).length;i++){const s=data.sampleIO[i];try{const o=await runPy(code,s.input);if(o===s.output.trim())addV('✅',`Ví dụ ${i+1}: Đúng`);else{addV('❌',`Ví dụ ${i+1}: Sai — got "${o}" expected "${s.output.trim()}"`);ok=false}}catch(ex){addV('❌',`Ví dụ ${i+1}: ${ex.message}`);ok=false}}
+if(!ok){addV('⚠️','Code sai. Quay lại chỉnh sửa.');document.getElementById('btn-util-back2').classList.remove('hidden');return}
+addV('⏳','Sinh test cases...');const tests=[];const subs=data.subtasks||[{name:'Full',percent:100}];
+for(let si=0;si<subs.length;si++){const st=subs[si];const nm=st.name.match(/(\d+)/);const mx=nm?parseInt(nm[1]):100;addV('⏳',`Subtask ${si+1}: ${st.name}...`);
+for(let ti=0;ti<5;ti++){try{const gi=await runPy(`import random;n=random.randint(1,${Math.min(mx,100000)});a=[random.randint(-${Math.min(mx*10,1000000000)},${Math.min(mx*10,1000000000)}) for _ in range(n)];print(n);print(' '.join(map(str,a)))`,'');const go=await runPy(code,gi);tests.push({input:gi,output:go,subtaskId:si})}catch(ex){addV('⚠️',`Test ${si+1}.${ti+1}: ${ex.message}`)}}addV('✅',`Subtask ${si+1}: 5 tests ✓`)}
+try{for(const ec of['1\n0','1\n1000000000','1\n-1000000000']){const o=await runPy(code,ec);tests.push({input:ec,output:o,subtaskId:subs.length-1})}addV('✅','3 edge cases ✓')}catch(ex){addV('⚠️','Edge: '+ex.message)}
+this._utilTestCases=tests;const tp=document.getElementById('util-test-preview'),tl=document.getElementById('util-test-list');tp.classList.remove('hidden');
+tl.innerHTML=tests.slice(0,8).map((t,i)=>`<div class="util-test-row"><span class="util-test-num">Test ${i+1}<br><small>ST${t.subtaskId+1}</small></span><div class="util-test-io"><pre>${this._esc(t.input.substring(0,200))}</pre><pre>${this._esc(t.output.substring(0,200))}</pre></div></div>`).join('')+(tests.length>8?`<p style="text-align:center;color:var(--text-muted);font-size:.82rem">... và ${tests.length-8} test khác</p>`:'');
+addV('🎉',`${tests.length} test cases!`);['btn-util-back2','btn-util-publish','btn-util-to-contest'].forEach(id=>document.getElementById(id).classList.remove('hidden'));
+}catch(e){addV('❌',e.message);document.getElementById('btn-util-back2').classList.remove('hidden')}}
+async _utilPublishExercise(contest=false){const d=this._utilData,tc=this._utilTestCases;if(!d||!tc?.length){this._toast('Chưa có dữ liệu','error');return}
+const desc=`${d.description}\n\n📥 INPUT:\n${d.inputFormat}\n\n📤 OUTPUT:\n${d.outputFormat}\n\n⚙️ CONSTRAINTS:\n${(d.constraints||[]).join('\n')}`;
+const ex={title:d.title,description:desc,topic:document.getElementById('util-topic').value,difficulty:document.getElementById('util-difficulty').value,fileIO:false,uppercase:false,taskName:d.title,timePerTest:5,subtasks:(d.subtasks||[]).map(s=>({name:s.name,score:s.percent})),sampleIO:(d.sampleIO||[]).map(s=>({input:s.input,output:s.output,explanation:s.explain||''})),testCases:tc.map(t=>({input:t.input,output:t.output,subtaskId:t.subtaskId})),answerCode:d.solutionCode};
+try{await this.fb.publishExercise(ex);this._toast(contest?`✅ "${d.title}" đã lưu! Chọn khi tạo phòng thi.`:`📚 Đã đăng: ${d.title}`,'success');
+this._utilSetStep(4);document.getElementById('util-step3').classList.add('hidden');document.getElementById('util-step4').classList.remove('hidden');
+document.getElementById('util-done-msg').textContent=contest?`"${d.title}" đã lưu. Khi tạo Phòng Thi hãy chọn bài này.`:`"${d.title}" đã đăng với ${tc.length} test cases.`}catch(e){this._toast('Lỗi: '+e.message,'error')}}
+_utilReset(){this._utilData=null;this._utilTestCases=null;this._utilSetStep(1);['util-step2','util-step3','util-step4'].forEach(id=>document.getElementById(id).classList.add('hidden'));document.getElementById('util-step1').classList.remove('hidden');document.getElementById('util-ai-status').classList.add('hidden');['btn-util-back2','btn-util-publish','btn-util-to-contest'].forEach(id=>document.getElementById(id).classList.add('hidden'));document.getElementById('util-extra-desc').value='';document.getElementById('util-verify-status').innerHTML='';document.getElementById('util-test-preview').classList.add('hidden')}
 
 }
 
