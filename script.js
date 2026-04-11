@@ -208,11 +208,12 @@ constructor(){this.pyEngine=new PyodideEngine();this.themis=new ThemisManager();
 
 _showModal(title,html){
 let m=document.getElementById('generic-modal');if(m)m.remove();
-m=document.createElement('div');m.id='generic-modal';m.className='modal-overlay';
+m=document.createElement('div');m.id='generic-modal';m.className='modal-overlay generic-modal-overlay';
 m.innerHTML='<div class="generic-modal-box"><div class="generic-modal-header"><h3>'+title+'</h3><button class="btn btn-ghost btn-sm generic-modal-close">&times;</button></div><div class="generic-modal-body">'+html+'</div></div>';
 document.body.appendChild(m);
 m.querySelector('.generic-modal-close').onclick=()=>this._closeModal();
-m.onclick=(e)=>{if(e.target===m)this._closeModal()};
+// Only close on REAL backdrop click — check click is outside modal box bounds
+m.addEventListener('mousedown',(e)=>{if(e.target!==m)return;const box=m.querySelector('.generic-modal-box');if(!box)return;const r=box.getBoundingClientRect();if(e.clientX>=r.left&&e.clientX<=r.right&&e.clientY>=r.top&&e.clientY<=r.bottom)return;this._closeModal()});
 setTimeout(()=>m.classList.add('active'),10)}
 _closeModal(){this._tipEditorOpen=false;const m=document.getElementById('generic-modal');if(m){m.classList.remove('active');setTimeout(()=>m.remove(),200)}}
 
