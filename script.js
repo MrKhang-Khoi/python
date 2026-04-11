@@ -214,7 +214,7 @@ document.body.appendChild(m);
 m.querySelector('.generic-modal-close').onclick=()=>this._closeModal();
 m.onclick=(e)=>{if(e.target===m)this._closeModal()};
 setTimeout(()=>m.classList.add('active'),10)}
-_closeModal(){const m=document.getElementById('generic-modal');if(m){m.classList.remove('active');setTimeout(()=>m.remove(),200)}}
+_closeModal(){this._tipEditorOpen=false;const m=document.getElementById('generic-modal');if(m){m.classList.remove('active');setTimeout(()=>m.remove(),200)}}
 
 init(){const $=id=>document.getElementById(id);
 // Teacher role → show login panel
@@ -3604,9 +3604,10 @@ _renderTipContent(text){if(!text)return'';return this._esc(text).replace(/\n/g,'
 
 // ===== TEACHER TIPS MANAGEMENT =====
 _initTeacherTips(){
+if(this._tipsInited)return;this._tipsInited=true;
 const addBtn=document.getElementById('btn-add-tip');
 if(addBtn)addBtn.onclick=()=>this._showTipEditor();
-this.fb.listenTips((data)=>{this._tipsData=data;this._tipsArr=Object.values(data).sort((a,b)=>(a.order||0)-(b.order||0));this._renderTeacherTipsList()})}
+this.fb.listenTips((data)=>{this._tipsData=data;this._tipsArr=Object.values(data).sort((a,b)=>(a.order||0)-(b.order||0));if(!this._tipEditorOpen)this._renderTeacherTipsList()})}
 
 _renderTeacherTipsList(){
 const c=document.getElementById('tips-teacher-list');if(!c)return;
@@ -3618,20 +3619,22 @@ if(!tips.length){c.innerHTML='<div style="text-align:center;padding:60px;color:v
 c.innerHTML=tips.map(t=>'<div class="tip-teacher-card"><div class="tip-teacher-left"><span class="tip-teacher-emoji">'+(t.emoji||'\u{1F4A1}')+'</span><div class="tip-teacher-info"><div class="tip-teacher-title">'+this._esc(t.title)+'</div><div class="tip-teacher-short">'+this._esc(t.short||'')+'</div></div><span class="tip-card-tag tip-tag '+(t.cat||'python')+'">'+(t.cat||'')+'</span></div><div class="tip-teacher-actions"><button class="btn btn-ghost btn-sm" onclick="window._uic._showTipEditor(\''+t.id+'\')">\u270F\uFE0F Sửa</button><button class="btn btn-ghost btn-sm" onclick="window._uic._deleteTip(\''+t.id+'\')">\u{1F5D1}\uFE0F</button></div></div>').join('')}
 
 _showTipEditor(editId){
+this._tipEditorOpen=true;
 const tip=editId?this._tipsData[editId]:{};
 const isEdit=!!editId;
 const cats=[{v:'python',l:'\u{1F40D} Python'},{v:'algo',l:'\u{1F3AF} Thuật toán'},{v:'trick',l:'\u{1F4A1} Thủ thuật'},{v:'formula',l:'\u{1F4D0} Công thức'},{v:'warning',l:'\u26A0\uFE0F Cảnh báo'}];
 const catOpts=cats.map(c=>'<option value="'+c.v+'" '+(tip.cat===c.v?'selected':'')+'>'+c.l+'</option>').join('');
 const emojis=['\u{1F4A1}','\u{1F40D}','\u{1F4DD}','\u26A1','\u{1F522}','\u{1F4D0}','\u{1F3AF}','\u{1F504}','\u26A0\uFE0F','\u{1F4CA}','\u{1F9EE}','\u{1F50D}','\u{1F4CF}','\u{1F3B2}','\u{1F517}','\u{1F9CA}','\u{1F48E}','\u{1F680}','\u{1F525}','\u2728'];
 const emojiPicker=emojis.map(e=>'<span class="emoji-pick'+(tip.emoji===e?' active':'')+'" onclick="document.getElementById(\'tip-emoji\').value=\''+e+'\';this.parentElement.querySelectorAll(\'.emoji-pick\').forEach(x=>x.classList.remove(\'active\'));this.classList.add(\'active\')">'+e+'</span>').join('');
-const h='<div class="tip-editor"><div class="tip-editor-row"><label>Biểu tượng</label><div class="emoji-picker">'+emojiPicker+'</div><input type="hidden" id="tip-emoji" value="'+(tip.emoji||'\u{1F4A1}')+'"></div><div class="tip-editor-row"><label>Tiêu đề</label><input type="text" id="tip-title" class="input" value="'+this._esc(tip.title||'')+'" placeholder="VD: Hoán đổi 2 biến"></div><div class="tip-editor-row"><label>Mô tả ngắn (hiện trên ticker)</label><input type="text" id="tip-short" class="input" value="'+this._esc(tip.short||'')+'" placeholder="VD: a, b = b, a"></div><div class="tip-editor-row"><label>Danh mục</label><select id="tip-cat" class="input">'+catOpts+'</select></div><div class="tip-editor-row"><label>Nội dung chi tiết (mỗi dòng = 1 dòng hiển thị)</label><textarea id="tip-detail" class="input" rows="10" placeholder="Viết nội dung...\nDùng Enter xuống dòng">'+(tip.detail||'').replace(/</g,'&lt;')+'</textarea></div><div class="tip-editor-row"><label>Thứ tự (nhỏ = hiện trước)</label><input type="number" id="tip-order" class="input" value="'+(tip.order||0)+'" min="0"></div><div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px"><button class="btn btn-ghost" onclick="document.querySelector(\'.modal-overlay\').click()">Hủy</button><button class="btn btn-accent" id="btn-save-tip">\u{1F4BE} '+(isEdit?'Cập nhật':'Tạo mới')+'</button></div></div>';
+const h='<div class="tip-editor"><div class="tip-editor-row"><label>Biểu tượng</label><div class="emoji-picker">'+emojiPicker+'</div><input type="hidden" id="tip-emoji" value="'+(tip.emoji||'\u{1F4A1}')+'"></div><div class="tip-editor-row"><label>Tiêu đề</label><input type="text" id="tip-title" class="input" value="'+this._esc(tip.title||'')+'" placeholder="VD: Hoán đổi 2 biến"></div><div class="tip-editor-row"><label>Mô tả ngắn (hiện trên ticker)</label><input type="text" id="tip-short" class="input" value="'+this._esc(tip.short||'')+'" placeholder="VD: a, b = b, a"></div><div class="tip-editor-row"><label>Danh mục</label><select id="tip-cat" class="input">'+catOpts+'</select></div><div class="tip-editor-row"><label>Nội dung chi tiết (mỗi dòng = 1 dòng hiển thị)</label><textarea id="tip-detail" class="input" rows="10" placeholder="Viết nội dung...\nDùng Enter xuống dòng">'+(tip.detail||'').replace(/</g,'&lt;')+'</textarea></div><div class="tip-editor-row"><label>Thứ tự (nhỏ = hiện trước)</label><input type="number" id="tip-order" class="input" value="'+(tip.order||0)+'" min="0"></div><div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px"><button class="btn btn-ghost" id="btn-cancel-tip">Hủy</button><button class="btn btn-accent" id="btn-save-tip">\u{1F4BE} '+(isEdit?'Cập nhật':'Tạo mới')+'</button></div></div>';
 this._showModal((isEdit?'\u270F\uFE0F Sửa':'\u2795 Thêm')+' Tip',h);
+document.getElementById('btn-cancel-tip').onclick=()=>{this._tipEditorOpen=false;this._closeModal()};
 document.getElementById('btn-save-tip').onclick=async()=>{
 const data={emoji:document.getElementById('tip-emoji').value,title:document.getElementById('tip-title').value.trim(),short:document.getElementById('tip-short').value.trim(),cat:document.getElementById('tip-cat').value,detail:document.getElementById('tip-detail').value,order:parseInt(document.getElementById('tip-order').value)||0};
 if(!data.title){this._toast('\u26A0\uFE0F Nhập tiêu đề','error');return}
 if(!data.short){this._toast('\u26A0\uFE0F Nhập mô tả ngắn','error');return}
 if(isEdit)data.id=editId;
-try{await this.fb.saveTip(data);this._closeModal();this._toast((isEdit?'\u2705 Đã cập nhật':'\u2705 Đã thêm')+' tip!','success')}catch(e){this._toast('\u274C Lỗi: '+e.message,'error')}}}
+try{await this.fb.saveTip(data);this._tipEditorOpen=false;this._closeModal();this._renderTeacherTipsList();this._toast((isEdit?'\u2705 Đã cập nhật':'\u2705 Đã thêm')+' tip!','success')}catch(e){this._toast('\u274C Lỗi: '+e.message,'error')}}}
 
 async _deleteTip(id){
 const tip=this._tipsData[id];if(!tip)return;
