@@ -1854,6 +1854,11 @@ textarea.ai-textarea{resize:vertical}
 .argue-score-mid{border-color:#f59e0b;color:#f59e0b;background:rgba(245,158,11,.08)}
 .argue-score-low{border-color:#ef4444;color:#ef4444;background:rgba(239,68,68,.08)}
 
+/* Argue in Utilities */
+.util-argue-section{margin-top:20px;padding-top:20px;border-top:1px solid rgba(255,255,255,.06)}
+.util-argue-header{display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap}
+.util-argue-header h4{font-size:1rem;font-weight:700;color:var(--text-primary);margin:0}
+
 @media(max-width:768px){
 .argue-summary{grid-template-columns:1fr}
 .argue-config{flex-direction:column;align-items:stretch}

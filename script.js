@@ -302,8 +302,6 @@ $('btn-ai-use-brute').onclick=()=>{this.cmBrute.setValue(this.cmAiPreview.getVal
 $('btn-stress-run').onclick=()=>this._runStress();
 // Verify
 const verifyBtn=$('btn-verify-run');if(verifyBtn)verifyBtn.onclick=()=>this._verifyCode();
-// AI Biện Luận
-const argueBtn=$('btn-argue-analyze');if(argueBtn)argueBtn.onclick=()=>this._analyzeExam();
 // Room
 $('btn-create-room').onclick=()=>this._showCreateRoomModal();
 $('btn-confirm-room').onclick=()=>this._confirmCreateRoom();
@@ -3878,22 +3876,22 @@ _esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(
 async _analyzeExam(){
 const key=this.gemini?.getApiKey();
 if(!key){this._toast('Nhấn 🔑 API Key trên menu để cài đặt','error');document.getElementById('btn-api-key-settings').click();return}
-const title=document.getElementById('problem-title')?.value?.trim()||'';
-const desc=document.getElementById('problem-description')?.value?.trim()||'';
-const solutionCode=this.cmMain?this.cmMain.getValue():'';
-if(!desc&&!title){this._toast('Soạn đề bài trước khi phân tích','error');return}
-if(!solutionCode.trim()){this._toast('Nhập code đáp án (tab Code) trước','error');return}
-const grade=document.getElementById('argue-grade')?.value||'10';
-const st=document.getElementById('argue-status');const res=document.getElementById('argue-results');const btn=document.getElementById('btn-argue-analyze');
+const data=this._utilData;
+if(!data||!data.title){this._toast('Nhấn "AI Ra Đề" trước để sinh đề bài','error');return}
+const title=data.title||'';
+const desc=data.description||'';
+const solutionCode=this._utilCM?this._utilCM.getValue():(data.solutionCode||'');
+if(!solutionCode.trim()){this._toast('Chưa có code đáp án','error');return}
+const grade=document.getElementById('util-grade')?.value||'10';
+const st=document.getElementById('argue-status');const res=document.getElementById('argue-results');const btn=document.getElementById('btn-util-argue');
+document.getElementById('util-argue-panel')?.classList.remove('hidden');
 btn.disabled=true;st.innerHTML='<span class="progress-spinner"></span> Đang phân tích...';res.classList.add('hidden');res.innerHTML='';
-// Collect sample IO
-const sampleEls=document.querySelectorAll('#sample-io-container .sample-io-pair');
+// Collect sample IO from _utilData
 let sampleIO='';
-sampleEls.forEach((el,i)=>{const inp=el.querySelector('.sample-input')?.value||'';const out=el.querySelector('.sample-output')?.value||'';if(inp||out)sampleIO+=`Ví dụ ${i+1}: Input="${inp}" Output="${out}"\n`});
-// Collect subtasks
-const subEls=document.querySelectorAll('#subtasks-container .subtask-row');
+(data.sampleIO||[]).forEach((s,i)=>{sampleIO+=`Ví dụ ${i+1}: Input="${s.input}" Output="${s.output}"\n`});
+// Collect subtasks from _utilData
 let subtaskInfo='';
-subEls.forEach((el,i)=>{const name=el.querySelector('.subtask-name')?.value||'';const pct=el.querySelector('.subtask-pct')?.value||'';subtaskInfo+=`Subtask ${i+1}: ${name} (${pct}%)\n`});
+(data.subtasks||[]).forEach((s,i)=>{subtaskInfo+=`Subtask ${i+1}: ${s.name} (${s.percent}%)\n`});
 const prompt=`Bạn là CHUYÊN GIA giáo dục Tin học Việt Nam với 15 năm kinh nghiệm ra đề thi.
 Hãy PHÂN TÍCH BIỆN LUẬN đề thi Python sau theo 6 tiêu chí chuyên môn.
 
@@ -4057,7 +4055,9 @@ if(!this._utilCM.getValue().trim()){this._toast('Code đã trống','error');ret
 if(confirm('Xóa toàn bộ code? Bạn có thể tự viết code mới.')){this._utilCM.setValue('');this._utilCM.focus()}};
 // Reset - tạo lại từ đầu
 document.getElementById('btn-util-reset').onclick=()=>{
-if(confirm('Xóa tất cả và quay lại từ đầu?')){this._utilReset()}}}
+if(confirm('Xóa tất cả và quay lại từ đầu?')){this._utilReset()}};
+// AI Biện Luận
+document.getElementById('btn-util-argue').onclick=()=>this._analyzeExam()}
 _utilSetStep(n){document.querySelectorAll('.util-step').forEach(s=>{const sn=parseInt(s.dataset.step);s.classList.remove('active','done');if(sn<n)s.classList.add('done');if(sn===n)s.classList.add('active')})}
 async _utilGenerate(){const topic=document.getElementById('util-topic').value,diff=document.getElementById('util-difficulty').value,grade=document.getElementById('util-grade').value,extra=document.getElementById('util-extra-desc').value.trim(),key=this.gemini.getApiKey();
 if(!key){this._toast('Nhấn 🔑 API Key trên menu để cài đặt','error');document.getElementById('btn-api-key-settings').click();return}
