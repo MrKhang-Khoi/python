@@ -832,10 +832,18 @@
                     </div>
                     <!-- Code -->
                     <div class="util-form-group">
-                        <label>🐍 Code Đáp Án <span style="font-weight:400;color:var(--text-muted)">(có thể chỉnh sửa)</span></label>
+                        <div class="util-code-header">
+                            <label>🐍 CODE ĐÁP ÁN <span style="font-weight:400;color:var(--text-muted)">(CÓ THỂ CHỈNH SỬA)</span></label>
+                            <div class="util-code-toolbar">
+                                <button class="btn btn-ghost btn-xs" id="btn-util-copy-code" title="Copy code">📋 Copy</button>
+                                <button class="btn btn-ghost btn-xs" id="btn-util-clear-code" title="Xóa toàn bộ code">🗑️ Xóa code</button>
+                            </div>
+                        </div>
                         <div id="util-code-editor"></div>
                     </div>
-                    <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
+                    <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end;flex-wrap:wrap">
+                        <button class="btn btn-danger-outline btn-sm" id="btn-util-reset" title="Xóa tất cả, quay lại từ đầu">🗑️ Tạo lại từ đầu</button>
+                        <div style="flex:1"></div>
                         <button class="btn btn-ghost btn-sm" id="btn-util-regen">🔄 Sinh lại</button>
                         <button class="btn btn-accent" id="btn-util-verify">✅ Verify & Sinh Test</button>
                     </div>

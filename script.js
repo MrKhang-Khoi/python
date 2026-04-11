@@ -3928,7 +3928,21 @@ document.getElementById('btn-util-verify').onclick=()=>this._utilVerifyAndGenTes
 document.getElementById('btn-util-publish').onclick=()=>this._utilPublishExercise();
 document.getElementById('btn-util-back2').onclick=()=>{document.getElementById('util-step2').classList.remove('hidden');document.getElementById('util-step3').classList.add('hidden');this._utilSetStep(2)};
 document.getElementById('btn-util-new').onclick=()=>this._utilReset();
-document.getElementById('btn-util-to-contest').onclick=()=>this._utilPublishExercise(true)}
+document.getElementById('btn-util-to-contest').onclick=()=>this._utilPublishExercise(true);
+// Copy code button
+document.getElementById('btn-util-copy-code').onclick=()=>{
+const code=this._utilCM?this._utilCM.getValue():'';
+if(!code.trim()){this._toast('Chưa có code','error');return}
+navigator.clipboard.writeText(code).then(()=>this._toast('📋 Đã copy code!','success')).catch(()=>{
+const ta=document.createElement('textarea');ta.value=code;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);this._toast('📋 Đã copy code!','success')})};
+// Clear code button
+document.getElementById('btn-util-clear-code').onclick=()=>{
+if(!this._utilCM)return;
+if(!this._utilCM.getValue().trim()){this._toast('Code đã trống','error');return}
+if(confirm('Xóa toàn bộ code? Bạn có thể tự viết code mới.')){this._utilCM.setValue('');this._utilCM.focus()}};
+// Reset - tạo lại từ đầu
+document.getElementById('btn-util-reset').onclick=()=>{
+if(confirm('Xóa tất cả và quay lại từ đầu?')){this._utilReset()}}}
 _utilSetStep(n){document.querySelectorAll('.util-step').forEach(s=>{const sn=parseInt(s.dataset.step);s.classList.remove('active','done');if(sn<n)s.classList.add('done');if(sn===n)s.classList.add('active')})}
 async _utilGenerate(){const topic=document.getElementById('util-topic').value,diff=document.getElementById('util-difficulty').value,grade=document.getElementById('util-grade').value,extra=document.getElementById('util-extra-desc').value.trim(),key=this.gemini.getApiKey();
 if(!key){this._toast('Nhấn 🔑 API Key trên menu để cài đặt','error');document.getElementById('btn-api-key-settings').click();return}
