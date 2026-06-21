@@ -2143,7 +2143,7 @@ async _stuRun(){
 if(!this.cmStudent)return;
 if(this._isRunning)return;// BUG-06 FIX: Prevent concurrent runs
 const code=this.cmStudent.getValue().trim();
-if(!code){this._toast('Viết code trước','error');return}
+if(!code||code==='# Viết code tại đây'){this._toast('Viết code trước','error');return}
 const p=this.problems[this.currentProbIdx];
 // BUG-02 FIX: Switch to input tab AND auto-fill, but DON'T return — continue to run
 const activeCtab=document.querySelector('.oj-ctab.active');
@@ -2225,7 +2225,7 @@ async _stuSubmit(){if(!this.cmStudent)return;
 // BUG-01 FIX: Global guard against double submit
 if(this._isSubmitting){this._toast('⏳ Đang xử lý...','info');return}this._isSubmitting=true;
 if(this._isRunning){this._toast('⏳ Đang chạy code, vui lòng chờ...','info');this._isSubmitting=false;return}
-const code=this.cmStudent.getValue().trim();if(!code){this._toast('Viết code trước','error');this._isSubmitting=false;return}
+const code=this.cmStudent.getValue().trim();if(!code||code==='# Viết code tại đây'){this._toast('Viết code trước','error');this._isSubmitting=false;return}
 const isContest=!!this.roomCode&&!this._currentExercise;
 const p=this.problems[this.currentProbIdx];if(!p){this._toast('Không có đề','error');this._isSubmitting=false;return}
 const statusEl=document.getElementById('stu-submit-status');const consoleOut=document.getElementById('oj-console-output');
