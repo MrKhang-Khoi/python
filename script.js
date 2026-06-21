@@ -1458,7 +1458,7 @@ const markAllBtn=$('btn-mark-all-read');if(markAllBtn)markAllBtn.onclick=()=>thi
 // Toggle password visibility
 const toggleBtn=$('btn-toggle-pass');if(toggleBtn)toggleBtn.onclick=()=>{const inp=$('stu-password');const isHidden=inp.type==='password';inp.type=isHidden?'text':'password';toggleBtn.textContent=isHidden?'🙈':'👁';toggleBtn.title=isHidden?'Ẩn mật khẩu':'Hiện mật khẩu'};
 // Change password button
-const chgPassBtn=$('btn-change-pass');if(chgPassBtn)chgPassBtn.onclick=()=>this._showChangePasswordModal();
+const chgPassBtn=$('btn-change-pass');if(chgPassBtn)chgPassBtn.onclick=()=>this._showStudentChangePasswordModal();
 // Dashboard nav tabs
 document.querySelectorAll('.oj-nav-tab[data-tab]').forEach(btn=>{btn.onclick=()=>{document.querySelectorAll('.oj-nav-tab[data-tab]').forEach(b=>b.classList.remove('active'));btn.classList.add('active');document.querySelectorAll('.oj-tab-panel').forEach(p=>p.classList.add('hidden'));$('tab-panel-'+btn.dataset.tab).classList.remove('hidden')}});
 // Back from contest to dashboard
@@ -1772,7 +1772,7 @@ document.getElementById('modal-change-pass')?.remove();
 this._toast('🔑 Đổi mật khẩu thành công!','success');
 }catch(e){if(errEl)errEl.textContent='❌ '+e.message}}
 
-_showChangePasswordModal(){
+_showStudentChangePasswordModal(){
 let h='<div class="modal-overlay" id="modal-change-pass" style="display:flex"><div class="modal-content" style="max-width:400px">';
 h+='<h3 style="margin-bottom:16px">🔑 Đổi Mật Khẩu</h3>';
 h+='<div class="form-group"><label>Mật khẩu hiện tại</label><input type="password" id="chg-old-pass" placeholder="Nhập mật khẩu cũ..."></div>';
@@ -2719,7 +2719,6 @@ ov.onclick=e=>{if(e.target===ov){ov.remove();resolve(false)}}})}
 
 _copyText(text){navigator.clipboard.writeText(text).then(()=>this._toast('📋 Đã copy!','success')).catch(()=>{const t=document.createElement('textarea');t.value=text;t.style.position='fixed';t.style.opacity='0';document.body.appendChild(t);t.select();document.execCommand('copy');document.body.removeChild(t);this._toast('📋 Đã copy!','success')})}
 _toast(m,t='info'){const c=document.getElementById('toast-container');const el=document.createElement('div');el.className='toast '+t;el.textContent=m;c.appendChild(el);setTimeout(()=>el.remove(),4500)}
-_esc(s){if(s==null)return '';const d=document.createElement('div');d.textContent=String(s);return d.innerHTML.replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
 
 // ============ DRAFT AUTO-SAVE SYSTEM ============
 _draftSaveTimer=null;
@@ -3680,7 +3679,7 @@ _initDashboard(){
 const exportBtn=document.getElementById('btn-export-excel');
 if(exportBtn)exportBtn.onclick=()=>this._exportExcel();
 const changePwBtn=document.getElementById('btn-change-teacher-pass');
-if(changePwBtn)changePwBtn.onclick=()=>this._showChangePasswordModal();
+if(changePwBtn)changePwBtn.onclick=()=>this._showTeacherChangePasswordModal();
 this._renderDashboard()}
 
 _renderDashboard(){
@@ -3739,7 +3738,6 @@ const recent=activities.slice(0,15);
 if(!recent.length){list.innerHTML='<p style="color:var(--text-muted);text-align:center;padding:20px">Chưa có hoạt động</p>';return}
 list.innerHTML=recent.map(a=>'<div class="dash-activity-item"><span class="dash-activity-icon">'+a.icon+'</span><span class="dash-activity-text">'+a.text+'</span><span class="dash-activity-score">'+(a.score!=null?a.score+' điểm':'')+'</span><span class="dash-activity-time">'+this._timeAgo(a.time)+'</span></div>').join('')}
 
-_timeAgo(ts){const d=Date.now()-ts;if(d<60000)return 'vừa xong';if(d<3600000)return Math.floor(d/60000)+' phút trước';if(d<86400000)return Math.floor(d/3600000)+' giờ trước';return Math.floor(d/86400000)+' ngày trước'}
 
 // ============ FEATURE 3: EXPORT EXCEL ============
 _exportExcel(){
@@ -3777,7 +3775,7 @@ XLSX.writeFile(wb,fileName);
 this._toast('📤 Đã xuất '+fileName,'success')}
 
 // ============ FEATURE 4: ĐỔI MẬT KHẨU GV ============
-_showChangePasswordModal(){
+_showTeacherChangePasswordModal(){
 const h='<div class="tip-editor" style="min-width:400px"><div class="tip-editor-row"><label>Mật khẩu hiện tại</label><input type="password" id="cp-old" class="input" placeholder="Nhập MK hiện tại"></div><div class="tip-editor-row"><label>Mật khẩu mới</label><input type="password" id="cp-new" class="input" placeholder="Nhập MK mới (≥6 ký tự)"></div><div class="tip-editor-row"><label>Xác nhận MK mới</label><input type="password" id="cp-confirm" class="input" placeholder="Nhập lại MK mới"></div><div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px"><button class="btn btn-ghost" onclick="document.querySelector(\'.modal-overlay\').click()">Hủy</button><button class="btn btn-accent" id="btn-cp-save">🔑 Đổi Mật Khẩu</button></div></div>';
 this._showModal('🔑 Đổi Mật Khẩu Giáo Viên',h);
 document.getElementById('btn-cp-save').onclick=async()=>{
