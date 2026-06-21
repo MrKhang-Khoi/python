@@ -133,9 +133,9 @@ cleanup(){this._listeners.forEach(fn=>fn());this._listeners=[]}
 cleanupExercise(){this._exerciseListeners.forEach(fn=>fn());this._exerciseListeners=[]}
 cleanupStudentDash(){this._studentDashListeners.forEach(fn=>fn());this._studentDashListeners=[]}
 // Account management — stored at ROOT /accounts/ (permanent)
-async createAccount(username,password){const h=await _hashSHA256(password);await this._ref(`accounts/${username}`).set({passwordHash:h,createdAt:Date.now()})}
-async createAccountsBulk(list){for(const item of list){const h=await _hashSHA256(item.pass);await this._ref(`accounts/${item.name}`).set({passwordHash:h,createdAt:Date.now()})}}
-async deleteAccount(username){await this._ref(`accounts/${username}`).remove()}
+async createAccount(username,password){const clean=this._sanitizeKey(username);const h=await _hashSHA256(password);await this._ref(`accounts/${clean}`).set({passwordHash:h,createdAt:Date.now()})}
+async createAccountsBulk(list){for(const item of list){const clean=this._sanitizeKey(item.name);const h=await _hashSHA256(item.pass);await this._ref(`accounts/${clean}`).set({passwordHash:h,createdAt:Date.now()})}}
+async deleteAccount(username){const clean=this._sanitizeKey(username);await this._ref(`accounts/${clean}`).remove()}
 // Google Sign-In for students
 async googleSignIn(){const result=await this.auth.signInWithPopup(this.googleProvider);return result.user}
 async googleSignOut(){await this.auth.signOut()}
@@ -147,7 +147,7 @@ async unbanAccount(key){await this._ref('accounts/'+key).update({banned:false})}
 // Sanitize email for Firebase key (replace . @ etc)
 _sanitizeKey(email){return email.replace(/[\.#$\[\]/@]/g,'_')}
 
-async verifyStudent(username,password){const snap=await this._ref(`accounts/${username}`).once('value');if(!snap.exists())throw new Error('Tài khoản không tồn tại!');const acct=snap.val();const inputHash=await _hashSHA256(password);if(acct.passwordHash){if(acct.passwordHash!==inputHash)throw new Error('Sai mật khẩu!');return true}if(acct.password){if(acct.password!==password)throw new Error('Sai mật khẩu!');await this._ref(`accounts/${username}`).update({passwordHash:inputHash,password:null});return true}throw new Error('Tài khoản lỗi!')}
+async verifyStudent(username,password){const clean=this._sanitizeKey(username);const snap=await this._ref(`accounts/${clean}`).once('value');if(!snap.exists())throw new Error('Tài khoản không tồn tại!');const acct=snap.val();const inputHash=await _hashSHA256(password);if(acct.passwordHash){if(acct.passwordHash!==inputHash)throw new Error('Sai mật khẩu!');return true}if(acct.password){if(acct.password!==password)throw new Error('Sai mật khẩu!');await this._ref(`accounts/${clean}`).update({passwordHash:inputHash,password:null});return true}throw new Error('Tài khoản lỗi!')}
 listenAccounts(cb){if(!this._$v()){cb({});return;}const ref=this._ref('accounts');const w=s=>cb(s.val()||{});ref.on('value',w);this._listeners.push(()=>ref.off('value',w))}
 // Exercise management
 async publishExercise(data){const id=Date.now().toString(36);await this._ref(`exercises/${id}`).set({...data,createdAt:Date.now()});return id}
@@ -1821,7 +1821,7 @@ edSec.style.flex='0 0 '+editorPct+'%';conSec.style.flex='0 0 '+consolePct+'%';co
 document.addEventListener('mouseup',()=>{if(hDragging){hDragging=false;hDiv.classList.remove('dragging');if(this.cmStudent)this.cmStudent.refresh()}})}
 
 
-async _stuLogin(){if(!this._$m())return;const name=document.getElementById('stu-name').value.trim();const pass=document.getElementById('stu-password').value;const errEl=document.getElementById('stu-login-error');errEl.textContent='';if(!name||!pass){errEl.textContent='⚠️ Nhập đầy đủ tên và mật khẩu';return}try{await this.fb.verifyStudent(name,pass);const _acctSnap=await this.fb.db.ref('accounts/'+name).once('value');if(_acctSnap.val()&&_acctSnap.val().banned){errEl.textContent='🚫 Tài khoản đã bị khóa bởi giáo viên!';return}this.studentName=name;document.getElementById('stu-login').classList.add('hidden');document.getElementById('stu-dashboard').classList.remove('hidden');document.getElementById('stu-welcome-name').textContent=name;
+async _stuLogin(){if(!this._$m())return;const name=document.getElementById('stu-name').value.trim();const pass=document.getElementById('stu-password').value;const errEl=document.getElementById('stu-login-error');errEl.textContent='';if(!name||!pass){errEl.textContent='⚠️ Nhập đầy đủ tên và mật khẩu';return}try{const cleanName=this.fb._sanitizeKey(name);await this.fb.verifyStudent(cleanName,pass);const _acctSnap=await this.fb.db.ref('accounts/'+cleanName).once('value');if(_acctSnap.val()&&_acctSnap.val().banned){errEl.textContent='🚫 Tài khoản đã bị khóa bởi giáo viên!';return}this.studentName=cleanName;document.getElementById('stu-login').classList.add('hidden');document.getElementById('stu-dashboard').classList.remove('hidden');document.getElementById('stu-welcome-name').textContent=name;
 // Re-register Firebase listeners (destroyed on previous logout)
 this._registerStudentListeners();
 this._toast(`Xin chào ${name}!`,'success');this._loadTipsForStudent()}catch(e){errEl.textContent='❌ '+e.message}}
@@ -2062,7 +2062,7 @@ this._initStudentEditor();
 // Restore auto-saved code from Firebase if available
 try{const draftSnap=await this.fb.db.ref(`rooms/${this.roomCode}/students/${this.studentName}/draftCode`).once('value');
 const drafts=draftSnap.val();
-if(drafts&&drafts[0]&&this.cmStudent){this.cmStudent.setValue(drafts[0]);this._toast('💾 Đã khôi phục code từ lần trước!','info')}}catch(e){console.warn('Restore draft:',e)}
+if(drafts){this._contestDrafts=drafts;if(drafts[0]&&this.cmStudent){this.cmStudent.setValue(drafts[0]);this._toast('💾 Đã khôi phục code từ lần trước!','info')}}}catch(e){console.warn('Restore draft:',e)}
 this._suppressAutoSave=false;
 // Hide leaderboard in contest mode — show message instead
 const lbBody=document.getElementById('stu-leaderboard-body');
@@ -2227,7 +2227,7 @@ if(this._isSubmitting){this._toast('⏳ Đang xử lý...','info');return}this._
 if(this._isRunning){this._toast('⏳ Đang chạy code, vui lòng chờ...','info');this._isSubmitting=false;return}
 const code=this.cmStudent.getValue().trim();if(!code){this._toast('Viết code trước','error');this._isSubmitting=false;return}
 const isContest=!!this.roomCode&&!this._currentExercise;
-const p=this.problems[this.currentProbIdx];if(!p){this._toast('Không có đề','error');return}
+const p=this.problems[this.currentProbIdx];if(!p){this._toast('Không có đề','error');this._isSubmitting=false;return}
 const statusEl=document.getElementById('stu-submit-status');const consoleOut=document.getElementById('oj-console-output');
 
 // === CONTEST MODE: chỉ lưu code, KHÔNG chấm ===
@@ -2248,7 +2248,10 @@ statusEl.textContent=`✅ Đã nộp! (Lần ${subCount})`;
 consoleOut.innerHTML=`<div style="padding:16px;text-align:center"><div style="font-size:2rem;margin-bottom:8px">✅</div><div style="font-weight:600;font-size:1rem;margin-bottom:4px">Đã nộp bài thành công!</div><div style="color:var(--text-muted);font-size:.82rem">Lần nộp: ${subCount} • Bạn có thể nộp lại bất kỳ lúc nào trước khi hết giờ.</div><div style="color:var(--text-muted);font-size:.78rem;margin-top:8px">⚠️ Bài sẽ được GV chấm sau khi kết thúc cuộc thi.</div></div>`;
 this._toast(`📝 Bài ${this.currentProbIdx+1}: Đã nộp (lần ${subCount})`,'success');
 }catch(e){statusEl.textContent='⚠️ Lỗi nộp!';this._toast('Lỗi nộp bài: '+e.message,'error')}
-finally{document.getElementById('btn-stu-submit').disabled=false}
+finally{
+document.getElementById('btn-stu-submit').disabled=false;
+this._isSubmitting=false; // Sửa lỗi Submit Soft-Lock
+}
 return}
 
 // === EXERCISE MODE: chấm ngay ===
